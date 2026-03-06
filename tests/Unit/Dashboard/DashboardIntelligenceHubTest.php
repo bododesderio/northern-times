@@ -360,8 +360,8 @@ class DashboardIntelligenceHubTest extends TestCase
     {
         $js = file_get_contents(__DIR__ . '/../../../public/assets/admin/reader-map.js');
         $this->assertStringContainsString("'#22c55e'", $js, 'Flash rings should be green');
-        $this->assertStringContainsString('.transition()', $js, 'Must animate with d3 transitions');
-        $this->assertStringContainsString('.remove()', $js, 'Flash dots must self-remove after animation');
+        $this->assertStringContainsString('requestAnimationFrame', $js, 'Must animate with requestAnimationFrame');
+        $this->assertStringContainsString('removeLayer', $js, 'Flash dots must self-remove after animation');
     }
 
     public function test_reader_map_exposes_refresh(): void

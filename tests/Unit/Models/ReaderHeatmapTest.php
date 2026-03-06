@@ -248,7 +248,7 @@ final class ReaderHeatmapTest extends TestCase
     public function test_migration_file_exists(): void
     {
         $this->assertFileExists(
-            __DIR__ . '/../../../database/migrations/0042_visitor_coordinates.sql',
+            __DIR__ . '/../../../database/migrations/0042_visitor_coordinates_v2.sql',
             'Migration 0042 should exist'
         );
     }
@@ -258,8 +258,8 @@ final class ReaderHeatmapTest extends TestCase
         $html = file_get_contents(__DIR__ . '/../../../app/Views/admin/dashboard.php');
         $this->assertStringContainsString('nt-reader-map', $html, 'Dashboard should contain map widget ID');
         $this->assertStringContainsString('reader-map.js', $html, 'Dashboard should load reader-map.js');
-        $this->assertStringContainsString('d3.min.js', $html, 'Dashboard should load D3.js');
-        $this->assertStringContainsString('topojson.min.js', $html, 'Dashboard should load TopoJSON');
+        $this->assertStringContainsString('leaflet.js', $html, 'Dashboard should load Leaflet');
+        $this->assertStringContainsString('leaflet-heat.js', $html, 'Dashboard should load Leaflet.heat');
     }
 
     // ── Route Tests ─────────────────────────────────────────

@@ -252,14 +252,14 @@ class Phase0WhiteLabelTest extends DatabaseTestCase
 
     public function test_article_author_helper_returns_crawl_author_for_crawled_article(): void
     {
-        Setting::set('default_crawl_author', 'Acme Newsroom');
-        $this->flush();
-
-        $article = ['source_id' => 'some-source-uuid', 'author_name' => null, 'author' => null];
+        // article_author() reads the pre-resolved 'author' field from SQL CASE.
+        // For crawled articles, the SQL resolves to super_admin display_name.
+        // When 'author' is set, article_author() returns it directly.
+        $article = ['source_id' => 'some-source-uuid', 'author_name' => null, 'author' => 'Acme Newsroom'];
         $author = article_author($article);
 
         $this->assertSame('Acme Newsroom', $author['name'],
-            'article_author() must return default_crawl_author for crawled articles');
+            'article_author() must return the pre-resolved author for crawled articles');
     }
 
     public function test_article_author_helper_returns_staff_for_authored_article(): void
@@ -271,9 +271,12 @@ class Phase0WhiteLabelTest extends DatabaseTestCase
 
     public function test_article_author_helper_returns_staff_writer_when_no_name(): void
     {
+        // When no author_name or author is set, falls back to site_name() or 'Staff'
         $article = ['author_name' => null, 'author' => null, 'source_id' => null, 'author_id' => 'uuid-123'];
         $author = article_author($article);
-        $this->assertSame('Staff Writer', $author['name']);
+        // The fallback uses site_name() if available, otherwise 'Staff'
+        $expected = function_exists('site_name') ? site_name() : 'Staff';
+        $this->assertSame($expected, $author['name']);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -296,11 +299,14 @@ class Phase0WhiteLabelTest extends DatabaseTestCase
             'Article model must use crawlAuthorName() for dynamic SQL');
     }
 
-    public function test_article_model_crawl_author_method_uses_get_site_setting(): void
+    public function test_article_model_crawl_author_method_uses_dynamic_lookup(): void
     {
         $src = file_get_contents(__DIR__ . '/../../app/Models/Article.php');
-        $this->assertStringContainsString("get_site_setting('default_crawl_author'", $src,
-            'Article::crawlAuthorName() must read from site_settings');
+        // crawlAuthorName() uses a SQL subquery to resolve from users table at query-time
+        $this->assertStringContainsString('super_admin', $src,
+            'Article::crawlAuthorName() must dynamically resolve the crawl author');
+        $this->assertStringContainsString('display_name', $src,
+            'Article::crawlAuthorName() must use display_name from users');
     }
 
     // ═══════════════════════════════════════════════════════════
