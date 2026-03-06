@@ -44,6 +44,7 @@ ob_start();
 <!-- Actions Bar -->
 <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px">
   <a href="/admin/popups/create" class="btn" style="padding:12px 20px">+ New Popup</a>
+  <a href="/admin/popups/ab" style="padding:10px 18px;background:var(--surface,#fff);border:1px solid var(--border,#ddd);border-radius:10px;text-decoration:none;font-size:14px;font-weight:600;color:var(--text,#333);">🧪 A/B Tests</a>
 
   <form method="GET" action="/admin/popups" style="display:flex;gap:8px;flex-wrap:wrap;flex:1">
     <select name="status" style="padding:10px;border:1px solid #e2e2e2;border-radius:10px;font-size:14px">
@@ -99,6 +100,11 @@ ob_start();
           <tr style="border-bottom:1px solid var(--border,#f0f0f0)">
             <td style="padding:14px 16px">
               <strong><?= h($p['name']) ?></strong>
+              <?php if (!empty($p['ab_variant'])): ?>
+                <span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;margin-left:4px;<?= $p['ab_variant'] === 'A' ? 'background:#3b82f622;color:#3b82f6' : 'background:#8b5cf622;color:#8b5cf6' ?>">
+                  A/B <?= h($p['ab_variant']) ?>
+                </span>
+              <?php endif; ?>
               <div style="font-size:12px;color:var(--muted,#888)">Priority: <?= (int)$p['priority'] ?></div>
             </td>
             <td style="padding:14px 16px;font-size:13px"><?= h($typeLabels[$p['popup_type']] ?? $p['popup_type']) ?></td>

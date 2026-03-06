@@ -1,38 +1,37 @@
 /**
- * Northern Times — Reader Heatmap (D3.js World Map)
+ * Northern Times — Reader Heatmap (Leaflet Satellite View)
  *
- * Interactive world map showing glowing dots on cities where readers are located.
- * Features: zoom/pan, click-to-zoom countries, dot tiers, tooltips, period selector.
+ * Interactive satellite map with heat overlay showing reader locations.
+ * Features: satellite tiles, heatmap layer, city markers, zoom/pan,
+ *           tooltips, period selector, live ping animation.
  *
  * Dependencies (loaded from CDN in dashboard.php):
- *   - d3 v7
- *   - topojson v3
+ *   - Leaflet 1.9.4
+ *   - Leaflet.heat
  */
 (function () {
   'use strict';
 
-  const WORLD_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
-  const API_URL   = '/admin/api/reader-map';
+  const API_URL = '/admin/api/reader-map';
 
   const container = document.getElementById('nt-reader-map');
   if (!container) return;
 
-  const mapWrap = container.querySelector('.rm-map-wrap');
-  const topList = container.querySelector('.rm-top-list');
-  const totalEl = container.querySelector('.rm-total');
+  const mapWrap  = container.querySelector('.rm-map-wrap');
+  const topList  = container.querySelector('.rm-top-list');
+  const totalEl  = container.querySelector('.rm-total');
   const periodBtns = container.querySelectorAll('.rm-period-btn');
 
   let currentPeriod = '30d';
-  let svg, mapGroup, projection, path, zoom;
-  let width, height;
+  let map, heatLayer, markersGroup;
   let citiesData = [];
 
   // ── Dot Tiers ─────────────────────────────────────────────
   function dotRadius(visitors) {
-    if (visitors >= 1000) return 12;
-    if (visitors >= 201)  return 8;
-    if (visitors >= 51)   return 5;
-    return 3;
+    if (visitors >= 1000) return 14;
+    if (visitors >= 201)  return 10;
+    if (visitors >= 51)   return 7;
+    return 4;
   }
 
   function dotColor(visitors) {
@@ -42,162 +41,77 @@
     return '#4ade80';
   }
 
-  function dotGlow(visitors) {
-    if (visitors >= 1000) return 'pulsing';
-    if (visitors >= 201)  return 'medium';
-    if (visitors >= 51)   return 'subtle';
-    return 'none';
-  }
-
   // ── Init Map ──────────────────────────────────────────────
   function initMap() {
+    if (map) { map.remove(); map = null; }
+
     const rect = mapWrap.getBoundingClientRect();
-    width  = rect.width || 800;
-    height = Math.max(350, width * 0.5);
+    const h = Math.max(400, rect.width * 0.5);
+    mapWrap.style.height = h + 'px';
 
-    // Projection centered slightly toward Africa
-    projection = d3.geoNaturalEarth1()
-      .scale(width / 5.5)
-      .translate([width / 2, height / 2]);
-
-    path = d3.geoPath().projection(projection);
-
-    svg = d3.select(mapWrap).append('svg')
-      .attr('width', width)
-      .attr('height', height)
-      .style('background', '#1a1f2e')
-      .style('border-radius', '10px');
-
-    // Defs for glow filters
-    const defs = svg.append('defs');
-
-    // Subtle glow
-    const filterSubtle = defs.append('filter').attr('id', 'glow-subtle');
-    filterSubtle.append('feGaussianBlur').attr('stdDeviation', 2).attr('result', 'blur');
-    filterSubtle.append('feMerge').selectAll('feMergeNode')
-      .data(['blur', 'SourceGraphic']).join('feMergeNode').attr('in', d => d);
-
-    // Medium glow
-    const filterMedium = defs.append('filter').attr('id', 'glow-medium');
-    filterMedium.append('feGaussianBlur').attr('stdDeviation', 3.5).attr('result', 'blur');
-    filterMedium.append('feMerge').selectAll('feMergeNode')
-      .data(['blur', 'SourceGraphic']).join('feMergeNode').attr('in', d => d);
-
-    // Pulsing glow (large)
-    const filterPulse = defs.append('filter').attr('id', 'glow-pulsing');
-    filterPulse.append('feGaussianBlur').attr('stdDeviation', 5).attr('result', 'blur');
-    filterPulse.append('feMerge').selectAll('feMergeNode')
-      .data(['blur', 'SourceGraphic']).join('feMergeNode').attr('in', d => d);
-
-    // Graticule
-    const graticule = d3.geoGraticule();
-
-    mapGroup = svg.append('g');
-
-    // Ocean background
-    mapGroup.append('rect')
-      .attr('width', width * 3)
-      .attr('height', height * 3)
-      .attr('x', -width)
-      .attr('y', -height)
-      .attr('fill', '#1a1f2e');
-
-    // Graticule lines
-    mapGroup.append('path')
-      .datum(graticule)
-      .attr('d', path)
-      .attr('fill', 'none')
-      .attr('stroke', '#2a3040')
-      .attr('stroke-width', 0.3);
-
-    // Zoom behavior
-    zoom = d3.zoom()
-      .scaleExtent([1, 12])
-      .on('zoom', function (event) {
-        mapGroup.attr('transform', event.transform);
-        // Scale dots inversely
-        mapGroup.selectAll('.rm-dot')
-          .attr('r', function (d) { return dotRadius(d.visitors) / event.transform.k; });
-        mapGroup.selectAll('.rm-pulse')
-          .attr('r', function (d) { return (dotRadius(d.visitors) + 4) / event.transform.k; });
-        // Scale strokes
-        mapGroup.selectAll('.rm-country')
-          .attr('stroke-width', 0.4 / event.transform.k);
-      });
-
-    svg.call(zoom);
-
-    // Double-click reset
-    svg.on('dblclick.zoom', null);
-    svg.on('dblclick', function () {
-      svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
+    map = L.map(mapWrap, {
+      center: [20, 15],
+      zoom: 2,
+      minZoom: 2,
+      maxZoom: 18,
+      zoomControl: false,
+      attributionControl: false,
+      worldCopyJump: true
     });
 
-    // Load world data
-    loadWorld();
-  }
+    // Satellite tile layer (ESRI World Imagery — free, no API key)
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 18
+    }).addTo(map);
 
-  // ── Load World ────────────────────────────────────────────
-  function loadWorld() {
-    d3.json(WORLD_URL).then(function (world) {
-      const countries = topojson.feature(world, world.objects.countries);
+    // Semi-transparent label overlay for country/city names
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 18,
+      opacity: 0.65
+    }).addTo(map);
 
-      mapGroup.selectAll('.rm-country')
-        .data(countries.features)
-        .join('path')
-        .attr('class', 'rm-country')
-        .attr('d', path)
-        .attr('fill', '#2a3344')
-        .attr('stroke', '#3b4560')
-        .attr('stroke-width', 0.4)
-        .on('click', function (event, d) {
-          clickZoomCountry(event, d);
-        })
-        .on('mouseover', function () {
-          d3.select(this).attr('fill', '#3a4560');
-        })
-        .on('mouseout', function () {
-          d3.select(this).attr('fill', '#2a3344');
-        });
+    // Small attribution in corner
+    L.control.attribution({ position: 'bottomleft', prefix: false })
+      .addAttribution('Tiles &copy; Esri')
+      .addTo(map);
 
-      // Load initial data
-      fetchData(currentPeriod);
-    }).catch(function (err) {
-      console.error('Failed to load world atlas:', err);
-      mapWrap.innerHTML = '<p style="color:#ef4444;text-align:center;padding:40px;">Failed to load world map data.</p>';
+    // Initialize heat layer (empty)
+    heatLayer = L.heatLayer([], {
+      radius: 35,
+      blur: 25,
+      maxZoom: 10,
+      max: 1.0,
+      gradient: {
+        0.1: '#1a237e',
+        0.25: '#0d47a1',
+        0.4: '#00bcd4',
+        0.55: '#4caf50',
+        0.7: '#ffeb3b',
+        0.85: '#ff9800',
+        1.0: '#f44336'
+      }
+    }).addTo(map);
+
+    // Markers layer group for city dots
+    markersGroup = L.layerGroup().addTo(map);
+
+    // Adjust visibility based on zoom
+    map.on('zoomend', function () {
+      var z = map.getZoom();
+      if (z >= 6) {
+        // Show individual markers, hide heatmap at high zoom
+        if (!map.hasLayer(markersGroup)) map.addLayer(markersGroup);
+        if (map.hasLayer(heatLayer)) map.removeLayer(heatLayer);
+      } else {
+        // Show heatmap, hide markers at low zoom
+        if (!map.hasLayer(heatLayer)) map.addLayer(heatLayer);
+        if (map.hasLayer(markersGroup)) map.removeLayer(markersGroup);
+      }
     });
+
+    // Load initial data
+    fetchData(currentPeriod);
   }
-
-  // ── Click-to-zoom Country ─────────────────────────────────
-  function clickZoomCountry(event, d) {
-    event.stopPropagation();
-    const bounds = path.bounds(d);
-    const dx = bounds[1][0] - bounds[0][0];
-    const dy = bounds[1][1] - bounds[0][1];
-    const x = (bounds[0][0] + bounds[1][0]) / 2;
-    const y = (bounds[0][1] + bounds[1][1]) / 2;
-    const scale = Math.min(8, 0.9 / Math.max(dx / width, dy / height));
-
-    svg.transition().duration(750).call(
-      zoom.transform,
-      d3.zoomIdentity.translate(width / 2, height / 2).scale(scale).translate(-x, -y)
-    );
-  }
-
-  // ── Tooltip ───────────────────────────────────────────────
-  const tooltip = d3.select('body').append('div')
-    .attr('class', 'rm-tooltip')
-    .style('position', 'absolute')
-    .style('display', 'none')
-    .style('background', 'rgba(0,0,0,.88)')
-    .style('color', '#fff')
-    .style('padding', '8px 14px')
-    .style('border-radius', '8px')
-    .style('font-size', '13px')
-    .style('pointer-events', 'none')
-    .style('z-index', '10000')
-    .style('box-shadow', '0 4px 12px rgba(0,0,0,.3)')
-    .style('backdrop-filter', 'blur(4px)');
 
   // ── Fetch & Render Data ───────────────────────────────────
   function fetchData(period) {
@@ -206,7 +120,8 @@
       .then(function (data) {
         citiesData = data.cities || [];
         totalEl.textContent = Number(data.total_visitors || 0).toLocaleString() + ' visitors';
-        renderDots();
+        renderHeatmap();
+        renderMarkers();
         renderTopCities();
       })
       .catch(function (err) {
@@ -214,64 +129,61 @@
       });
   }
 
-  // ── Render Dots ───────────────────────────────────────────
-  function renderDots() {
-    // Get current zoom level
-    const currentTransform = d3.zoomTransform(svg.node());
-    const k = currentTransform.k;
+  // ── Render Heatmap Layer ──────────────────────────────────
+  function renderHeatmap() {
+    if (!heatLayer) return;
 
-    // Remove existing dots
-    mapGroup.selectAll('.rm-dot, .rm-pulse').remove();
+    var maxVisitors = 1;
+    citiesData.forEach(function (c) {
+      if (c.visitors > maxVisitors) maxVisitors = c.visitors;
+    });
 
-    // Pulse rings (for 1000+ cities)
-    mapGroup.selectAll('.rm-pulse')
-      .data(citiesData.filter(function (d) { return d.visitors >= 1000; }))
-      .join('circle')
-      .attr('class', 'rm-pulse')
-      .attr('cx', function (d) { var p = projection([d.lng, d.lat]); return p ? p[0] : -999; })
-      .attr('cy', function (d) { var p = projection([d.lng, d.lat]); return p ? p[1] : -999; })
-      .attr('r', function (d) { return (dotRadius(d.visitors) + 4) / k; })
-      .attr('fill', 'none')
-      .attr('stroke', '#ef4444')
-      .attr('stroke-width', 1.5 / k)
-      .attr('opacity', 0.6)
-      .style('animation', 'rm-pulse-anim 2s ease-in-out infinite');
+    var points = citiesData.map(function (c) {
+      var intensity = Math.min(1, (c.visitors / maxVisitors) * 0.8 + 0.2);
+      return [c.lat, c.lng, intensity];
+    });
 
-    // City dots
-    mapGroup.selectAll('.rm-dot')
-      .data(citiesData)
-      .join('circle')
-      .attr('class', 'rm-dot')
-      .attr('cx', function (d) { var p = projection([d.lng, d.lat]); return p ? p[0] : -999; })
-      .attr('cy', function (d) { var p = projection([d.lng, d.lat]); return p ? p[1] : -999; })
-      .attr('r', 0)
-      .attr('fill', function (d) { return dotColor(d.visitors); })
-      .attr('opacity', 0.85)
-      .attr('filter', function (d) {
-        var g = dotGlow(d.visitors);
-        if (g === 'none') return null;
-        return 'url(#glow-' + g + ')';
-      })
-      .style('cursor', 'pointer')
-      .on('mouseover', function (event, d) {
-        tooltip.style('display', 'block')
-          .html(
-            '<strong>' + d.city + '</strong>, ' + d.country + '<br>' +
-            '<span style="font-size:15px;font-weight:700;">' + Number(d.visitors).toLocaleString() + '</span> visitors ' +
-            '<span style="opacity:.6;">(' + d.percentage + '%)</span>'
-          );
-        d3.select(this).attr('opacity', 1).attr('stroke', '#fff').attr('stroke-width', 1.5 / k);
-      })
-      .on('mousemove', function (event) {
-        tooltip.style('left', (event.pageX + 12) + 'px').style('top', (event.pageY - 30) + 'px');
-      })
-      .on('mouseout', function () {
-        tooltip.style('display', 'none');
-        d3.select(this).attr('opacity', 0.85).attr('stroke', 'none');
-      })
-      .transition()
-      .duration(500)
-      .attr('r', function (d) { return dotRadius(d.visitors) / k; });
+    heatLayer.setLatLngs(points);
+  }
+
+  // ── Render City Markers ───────────────────────────────────
+  function renderMarkers() {
+    if (!markersGroup) return;
+    markersGroup.clearLayers();
+
+    citiesData.forEach(function (c) {
+      if (!c.lat || !c.lng) return;
+
+      var color = dotColor(c.visitors);
+      var radius = dotRadius(c.visitors);
+
+      var marker = L.circleMarker([c.lat, c.lng], {
+        radius: radius,
+        fillColor: color,
+        fillOpacity: 0.85,
+        color: color,
+        weight: 1,
+        opacity: 0.9,
+        className: c.visitors >= 1000 ? 'rm-marker-pulse' : ''
+      });
+
+      var popupHtml =
+        '<div style="font-family:system-ui;min-width:140px;">' +
+          '<strong style="font-size:14px;">' + escHtml(c.city) + '</strong>' +
+          '<span style="color:#999;font-size:12px;margin-left:4px;">' + escHtml(c.country) + '</span><br>' +
+          '<span style="font-size:20px;font-weight:700;color:' + color + ';">' +
+            Number(c.visitors).toLocaleString() +
+          '</span>' +
+          '<span style="font-size:12px;color:#888;margin-left:4px;">visitors (' + c.percentage + '%)</span>' +
+        '</div>';
+
+      marker.bindPopup(popupHtml, { className: 'rm-popup', closeButton: false });
+
+      marker.on('mouseover', function () { this.openPopup(); });
+      marker.on('mouseout', function () { this.closePopup(); });
+
+      markersGroup.addLayer(marker);
+    });
   }
 
   // ── Render Top Cities List ────────────────────────────────
@@ -283,9 +195,9 @@
 
     top8.forEach(function (c) {
       var color = dotColor(c.visitors);
-      html += '<div class="rm-city-row">' +
+      html += '<div class="rm-city-row" style="cursor:pointer;" data-lat="' + c.lat + '" data-lng="' + c.lng + '">' +
         '<span class="rm-city-dot" style="background:' + color + ';"></span>' +
-        '<span class="rm-city-name">' + c.city + '</span>' +
+        '<span class="rm-city-name">' + escHtml(c.city) + '</span>' +
         '<span class="rm-city-count">' + Number(c.visitors).toLocaleString() + '</span>' +
         '<span class="rm-city-pct">' + c.percentage + '%</span>' +
         '</div>';
@@ -296,6 +208,17 @@
     }
 
     topList.innerHTML = html;
+
+    // Click to fly to city
+    topList.querySelectorAll('.rm-city-row[data-lat]').forEach(function (row) {
+      row.addEventListener('click', function () {
+        var lat = parseFloat(this.dataset.lat);
+        var lng = parseFloat(this.dataset.lng);
+        if (map && !isNaN(lat) && !isNaN(lng)) {
+          map.flyTo([lat, lng], 10, { duration: 1.2 });
+        }
+      });
+    });
   }
 
   // ── Period Selector ───────────────────────────────────────
@@ -315,17 +238,17 @@
 
   if (zoomInBtn) {
     zoomInBtn.addEventListener('click', function () {
-      svg.transition().duration(300).call(zoom.scaleBy, 1.5);
+      if (map) map.zoomIn(1);
     });
   }
   if (zoomOutBtn) {
     zoomOutBtn.addEventListener('click', function () {
-      svg.transition().duration(300).call(zoom.scaleBy, 0.67);
+      if (map) map.zoomOut(1);
     });
   }
   if (resetBtn) {
     resetBtn.addEventListener('click', function () {
-      svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
+      if (map) map.flyTo([20, 15], 2, { duration: 0.8 });
     });
   }
 
@@ -334,57 +257,55 @@
   window.addEventListener('resize', function () {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(function () {
-      mapWrap.innerHTML = '';
-      initMap();
-    }, 300);
+      if (map) map.invalidateSize();
+    }, 200);
   });
 
   // ── Live Ping Flash ──────────────────────────────────────
-  // Called by dashboard polling to flash new reader pings on the map
   function flashPings(pings) {
-    if (!mapGroup || !projection || !pings || !pings.length) return;
-
-    var pingGroup = mapGroup.selectAll('.live-ping-group').data([0]);
-    pingGroup = pingGroup.enter().append('g').attr('class', 'live-ping-group').merge(pingGroup);
+    if (!map || !pings || !pings.length) return;
 
     pings.forEach(function (p) {
       if (!p.lat || !p.lng) return;
-      var coords = projection([+p.lng, +p.lat]);
-      if (!coords) return;
+      var lat = +p.lat, lng = +p.lng;
 
-      // Flash ring — expands and fades out
-      pingGroup.append('circle')
-        .attr('cx', coords[0])
-        .attr('cy', coords[1])
-        .attr('r', 4)
-        .attr('fill', 'none')
-        .attr('stroke', '#22c55e')
-        .attr('stroke-width', 2)
-        .attr('opacity', 1)
-        .transition()
-        .duration(1500)
-        .ease(d3.easeCubicOut)
-        .attr('r', 28)
-        .attr('opacity', 0)
-        .attr('stroke-width', 0.5)
-        .remove();
+      // Expanding ring
+      var ring = L.circleMarker([lat, lng], {
+        radius: 5,
+        fillColor: '#22c55e',
+        fillOpacity: 0.9,
+        color: '#22c55e',
+        weight: 2,
+        opacity: 1
+      }).addTo(map);
 
-      // Solid dot — appears then fades
-      pingGroup.append('circle')
-        .attr('cx', coords[0])
-        .attr('cy', coords[1])
-        .attr('r', 3)
-        .attr('fill', '#22c55e')
-        .attr('opacity', 1)
-        .transition()
-        .delay(800)
-        .duration(2000)
-        .attr('opacity', 0)
-        .remove();
+      var frame = 0;
+      var maxFrames = 30;
+      function animate() {
+        frame++;
+        var progress = frame / maxFrames;
+        var r = 5 + progress * 25;
+        var opacity = 1 - progress;
+        ring.setRadius(r);
+        ring.setStyle({ opacity: opacity, fillOpacity: opacity * 0.3 });
+        if (frame < maxFrames) {
+          requestAnimationFrame(animate);
+        } else {
+          map.removeLayer(ring);
+        }
+      }
+      requestAnimationFrame(animate);
     });
   }
 
-  // Expose API for external access
+  // ── Utilities ─────────────────────────────────────────────
+  function escHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+  }
+
+  // ── Expose API ────────────────────────────────────────────
   window.ntReaderMap = {
     flashPings: flashPings,
     refresh: function (period) {

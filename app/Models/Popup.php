@@ -197,7 +197,8 @@ final class Popup extends BaseModel
                        frequency, frequency_days, priority, version,
                        target_audience, target_device, target_pages, target_categories,
                        has_email_field, sponsor_name, click_url, nofollow,
-                       promo_code, campaign_name
+                       promo_code, campaign_name,
+                       ab_test_id, ab_variant
                 FROM popups
                 WHERE status = 'active'
                   AND (start_date IS NULL OR start_date <= NOW())
@@ -470,5 +471,215 @@ final class Popup extends BaseModel
         $pdo = DB::pdo();
         return $pdo->query("SELECT id, name, popup_type, status FROM popups ORDER BY name ASC")
             ->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  A/B TESTING
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Create an A/B test from two popup IDs.
+     * Duplicates popup A as variant B if only one ID given.
+     */
+    public static function createAbTest(string $name, int $popupAId, ?int $popupBId = null, string $metric = 'conversion_rate'): ?int
+    {
+        $pdo = DB::pdo();
+
+        // If no variant B, duplicate popup A
+        if (!$popupBId) {
+            $popupBId = self::duplicateForAb($popupAId);
+            if (!$popupBId) return null;
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare("INSERT INTO popup_ab_tests (name, metric) VALUES (:name, :metric) RETURNING id");
+            $stmt->execute([':name' => $name, ':metric' => $metric]);
+            $testId = (int)$stmt->fetchColumn();
+
+            $pdo->prepare("UPDATE popups SET ab_test_id = :tid, ab_variant = 'A' WHERE id = :pid")
+                ->execute([':tid' => $testId, ':pid' => $popupAId]);
+            $pdo->prepare("UPDATE popups SET ab_test_id = :tid, ab_variant = 'B' WHERE id = :pid")
+                ->execute([':tid' => $testId, ':pid' => $popupBId]);
+
+            $pdo->commit();
+            return $testId;
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            return null;
+        }
+    }
+
+    private static function duplicateForAb(int $sourceId): ?int
+    {
+        $row = self::duplicate((string)$sourceId);
+        if (!$row || empty($row['id'])) return null;
+
+        $newId = (int)$row['id'];
+        $pdo = DB::pdo();
+        $pdo->prepare("UPDATE popups SET name = name || ' (Variant B)', status = 'draft' WHERE id = :id")
+            ->execute([':id' => $newId]);
+
+        return $newId;
+    }
+
+    /**
+     * List all A/B tests with variant stats.
+     */
+    public static function abTestList(): array
+    {
+        $pdo = DB::pdo();
+        try {
+            return $pdo->query("
+                SELECT t.*,
+                    (SELECT name FROM popups WHERE ab_test_id = t.id AND ab_variant = 'A' LIMIT 1) AS variant_a_name,
+                    (SELECT name FROM popups WHERE ab_test_id = t.id AND ab_variant = 'B' LIMIT 1) AS variant_b_name,
+                    (SELECT id FROM popups WHERE ab_test_id = t.id AND ab_variant = 'A' LIMIT 1) AS variant_a_id,
+                    (SELECT id FROM popups WHERE ab_test_id = t.id AND ab_variant = 'B' LIMIT 1) AS variant_b_id
+                FROM popup_ab_tests t
+                ORDER BY t.created_at DESC
+            ")->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * Get A/B test details with per-variant metrics.
+     */
+    public static function abTestDetail(int $testId): ?array
+    {
+        $pdo = DB::pdo();
+
+        try {
+            $test = $pdo->prepare("SELECT * FROM popup_ab_tests WHERE id = :id");
+            $test->execute([':id' => $testId]);
+            $test = $test->fetch(\PDO::FETCH_ASSOC);
+            if (!$test) return null;
+
+            // Get variants
+            $variants = $pdo->prepare("
+                SELECT p.id, p.name, p.ab_variant, p.status, p.popup_type, p.style,
+                    COALESCE((SELECT COUNT(*) FROM popup_events WHERE popup_id = p.id AND event_type = 'impression'), 0) AS impressions,
+                    COALESCE((SELECT COUNT(*) FROM popup_events WHERE popup_id = p.id AND event_type = 'click'), 0) AS clicks,
+                    COALESCE((SELECT COUNT(*) FROM popup_events WHERE popup_id = p.id AND event_type = 'conversion'), 0) AS conversions,
+                    COALESCE((SELECT COUNT(*) FROM popup_events WHERE popup_id = p.id AND event_type = 'close'), 0) AS closes
+                FROM popups p
+                WHERE p.ab_test_id = :tid
+                ORDER BY p.ab_variant ASC
+            ");
+            $variants->execute([':tid' => $testId]);
+            $test['variants'] = $variants->fetchAll(\PDO::FETCH_ASSOC);
+
+            // Calculate rates
+            foreach ($test['variants'] as &$v) {
+                $imp = (int)$v['impressions'];
+                $v['conversion_rate'] = $imp > 0 ? round(((int)$v['conversions'] / $imp) * 100, 2) : 0;
+                $v['click_rate']      = $imp > 0 ? round(((int)$v['clicks'] / $imp) * 100, 2) : 0;
+                $v['close_rate']      = $imp > 0 ? round(((int)$v['closes'] / $imp) * 100, 2) : 0;
+            }
+            unset($v);
+
+            return $test;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Assign a visitor to an A/B variant (sticky).
+     */
+    public static function abAssignVariant(int $testId, string $visitorHash): string
+    {
+        $pdo = DB::pdo();
+
+        // Check existing assignment
+        $stmt = $pdo->prepare("SELECT variant FROM popup_ab_assignments WHERE ab_test_id = :tid AND visitor_hash = :vh");
+        $stmt->execute([':tid' => $testId, ':vh' => $visitorHash]);
+        $existing = $stmt->fetchColumn();
+        if ($existing) return $existing;
+
+        // Random 50/50 split
+        $variant = random_int(0, 1) === 0 ? 'A' : 'B';
+
+        try {
+            $pdo->prepare("INSERT INTO popup_ab_assignments (ab_test_id, visitor_hash, variant) VALUES (:tid, :vh, :v) ON CONFLICT DO NOTHING")
+                ->execute([':tid' => $testId, ':vh' => $visitorHash, ':v' => $variant]);
+        } catch (\Throwable) {}
+
+        return $variant;
+    }
+
+    /**
+     * Start/pause/complete an A/B test.
+     */
+    public static function abTestUpdateStatus(int $testId, string $status): bool
+    {
+        $pdo = DB::pdo();
+        $extra = '';
+        if ($status === 'running') $extra = ", started_at = COALESCE(started_at, NOW())";
+        if ($status === 'completed') $extra = ", ended_at = NOW()";
+
+        try {
+            $pdo->prepare("UPDATE popup_ab_tests SET status = :s, updated_at = NOW() {$extra} WHERE id = :id")
+                ->execute([':s' => $status, ':id' => $testId]);
+
+            // When starting, activate both variant popups
+            if ($status === 'running') {
+                $pdo->prepare("UPDATE popups SET status = 'active' WHERE ab_test_id = :tid")
+                    ->execute([':tid' => $testId]);
+            }
+            // When pausing/completing, deactivate variants
+            if ($status === 'paused' || $status === 'completed') {
+                $pdo->prepare("UPDATE popups SET status = 'inactive' WHERE ab_test_id = :tid")
+                    ->execute([':tid' => $testId]);
+            }
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Declare a winner for an A/B test.
+     */
+    public static function abDeclareWinner(int $testId, int $winnerId): bool
+    {
+        $pdo = DB::pdo();
+        try {
+            $pdo->beginTransaction();
+
+            // Mark test as completed with winner
+            $pdo->prepare("UPDATE popup_ab_tests SET status = 'completed', winner_id = :wid, ended_at = NOW(), updated_at = NOW() WHERE id = :tid")
+                ->execute([':wid' => $winnerId, ':tid' => $testId]);
+
+            // Activate winner, deactivate loser
+            $pdo->prepare("UPDATE popups SET status = 'active', ab_test_id = NULL, ab_variant = NULL WHERE id = :wid")
+                ->execute([':wid' => $winnerId]);
+            $pdo->prepare("UPDATE popups SET status = 'inactive' WHERE ab_test_id = :tid AND id != :wid")
+                ->execute([':tid' => $testId, ':wid' => $winnerId]);
+
+            $pdo->commit();
+            return true;
+        } catch (\Throwable) {
+            $pdo->rollBack();
+            return false;
+        }
+    }
+
+    /**
+     * Get the correct popup variant for a visitor in an active A/B test.
+     * Returns the popup_id the visitor should see.
+     */
+    public static function abGetVariantPopup(int $testId, string $visitorHash): ?int
+    {
+        $variant = self::abAssignVariant($testId, $visitorHash);
+        $pdo = DB::pdo();
+
+        $stmt = $pdo->prepare("SELECT id FROM popups WHERE ab_test_id = :tid AND ab_variant = :v LIMIT 1");
+        $stmt->execute([':tid' => $testId, ':v' => $variant]);
+        $id = $stmt->fetchColumn();
+        return $id ? (int)$id : null;
     }
 }

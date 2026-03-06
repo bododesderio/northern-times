@@ -232,7 +232,33 @@ final class AdminPopupController extends Controller
     public function apiActive(): Response
     {
         $popups = Popup::getActiveForFrontend();
-        return $this->json($popups);
+
+        // Handle A/B test variant selection — show only the assigned variant per visitor
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $visitorHash = hash('sha256', $ip . '|' . $ua);
+
+        $abTestsSeen = [];
+        $result = [];
+
+        foreach ($popups as $popup) {
+            $testId = $popup['ab_test_id'] ?? null;
+
+            if ($testId) {
+                if (isset($abTestsSeen[$testId])) continue;
+                $abTestsSeen[$testId] = true;
+
+                $variantPopupId = Popup::abGetVariantPopup((int)$testId, $visitorHash);
+                if ($variantPopupId && (int)$popup['id'] === $variantPopupId) {
+                    $result[] = $popup;
+                }
+                continue;
+            }
+
+            $result[] = $popup;
+        }
+
+        return $this->json($result);
     }
 
     // ── API: Track popup event ──────────────────────────────────
@@ -524,6 +550,97 @@ final class AdminPopupController extends Controller
             'Content-Disposition' => 'attachment; filename="popup-analytics-' . $fromDate . '-to-' . $toDate . '.csv"',
         ]);
         return $response;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  A/B TESTING
+    // ═══════════════════════════════════════════════════════════
+
+    public function abTests(): Response
+    {
+        $tests = Popup::abTestList();
+        return $this->render('admin/popups/ab_tests', [
+            'tests'     => $tests,
+            'pageTitle' => 'Popup A/B Tests',
+        ]);
+    }
+
+    public function abCreate(): Response
+    {
+        $popups = Popup::allForDropdown();
+        return $this->render('admin/popups/ab_form', [
+            'popups'    => $popups,
+            'pageTitle' => 'Create A/B Test',
+        ]);
+    }
+
+    public function abStore(): Response
+    {
+        $r = Request::createFromGlobals();
+
+        $name    = trim((string)$r->request->get('name', ''));
+        $popupA  = (int)$r->request->get('popup_a', 0);
+        $popupB  = (int)$r->request->get('popup_b', 0);
+        $metric  = (string)$r->request->get('metric', 'conversion_rate');
+
+        if ($name === '' || $popupA < 1) {
+            Flash::set('error', 'Name and Variant A popup are required.');
+            return $this->redirect('/admin/popups/ab/create');
+        }
+
+        $testId = Popup::createAbTest($name, $popupA, $popupB ?: null, $metric);
+
+        if ($testId) {
+            Flash::set('success', 'A/B test created.');
+            return $this->redirect('/admin/popups/ab/' . $testId);
+        }
+
+        Flash::set('error', 'Failed to create A/B test.');
+        return $this->redirect('/admin/popups/ab/create');
+    }
+
+    public function abDetail(string $id): Response
+    {
+        $test = Popup::abTestDetail((int)$id);
+        if (!$test) {
+            Flash::set('error', 'A/B test not found.');
+            return $this->redirect('/admin/popups/ab');
+        }
+
+        return $this->render('admin/popups/ab_detail', [
+            'test'      => $test,
+            'pageTitle' => 'A/B Test: ' . $test['name'],
+        ]);
+    }
+
+    public function abAction(string $id): Response
+    {
+        $r = Request::createFromGlobals();
+        $action = trim((string)$r->request->get('action', ''));
+
+        switch ($action) {
+            case 'start':
+                Popup::abTestUpdateStatus((int)$id, 'running');
+                Flash::set('success', 'A/B test started.');
+                break;
+            case 'pause':
+                Popup::abTestUpdateStatus((int)$id, 'paused');
+                Flash::set('success', 'A/B test paused.');
+                break;
+            case 'declare_winner':
+                $winnerId = (int)$r->request->get('winner_id', 0);
+                if ($winnerId > 0) {
+                    Popup::abDeclareWinner((int)$id, $winnerId);
+                    Flash::set('success', 'Winner declared! The winning popup is now active.');
+                } else {
+                    Flash::set('error', 'No winner selected.');
+                }
+                break;
+            default:
+                Flash::set('error', 'Unknown action.');
+        }
+
+        return $this->redirect('/admin/popups/ab/' . $id);
     }
 
     private function enum(Request $r, string $field, array $valid, string $default): string

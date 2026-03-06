@@ -192,6 +192,12 @@ $routes->add('admin_popup_create',     new Route('/admin/popups/create',        
 $routes->add('admin_popup_store',      new Route('/admin/popups/store',              ['_controller' => [$popups, 'store'],           '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
 $routes->add('admin_popup_analytics',       new Route('/admin/popups/analytics',          ['_controller' => [$popups, 'analytics'],       '_middleware' => $editor],     [], [], '', [], ['GET']));
 $routes->add('admin_popup_analytics_export',new Route('/admin/popups/analytics/export',   ['_controller' => [$popups, 'analyticsExport'],'_middleware' => $editor],     [], [], '', [], ['GET']));
+// --- Popup A/B Testing (before {id} routes) ---
+$routes->add('admin_popup_ab_tests',   new Route('/admin/popups/ab',               ['_controller' => [$popups, 'abTests'],   '_middleware' => $editor],     [], [], '', [], ['GET']));
+$routes->add('admin_popup_ab_create',  new Route('/admin/popups/ab/create',        ['_controller' => [$popups, 'abCreate'],  '_middleware' => $editor],     [], [], '', [], ['GET']));
+$routes->add('admin_popup_ab_store',   new Route('/admin/popups/ab/store',         ['_controller' => [$popups, 'abStore'],   '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
+$routes->add('admin_popup_ab_detail',  new Route('/admin/popups/ab/{id}',          ['_controller' => [$popups, 'abDetail'],  '_middleware' => $editor],     [], [], '', [], ['GET']));
+$routes->add('admin_popup_ab_action',  new Route('/admin/popups/ab/{id}/action',   ['_controller' => [$popups, 'abAction'],  '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
 $routes->add('admin_popup_edit',       new Route('/admin/popups/{id}/edit',          ['_controller' => [$popups, 'edit'],            '_middleware' => $editor],     [], [], '', [], ['GET']));
 $routes->add('admin_popup_update',     new Route('/admin/popups/{id}/update',        ['_controller' => [$popups, 'update'],          '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
 $routes->add('admin_popup_delete',     new Route('/admin/popups/{id}/delete',        ['_controller' => [$popups, 'destroy'],         '_middleware' => $editorCsrf], [], [], '', [], ['POST']));

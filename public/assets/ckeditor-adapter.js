@@ -137,54 +137,50 @@ function ntInsertMediaFromPicker(editorInstance, options) {
 }
 
 /**
- * Inserts a figure+img element into the CKEditor at cursor position.
+ * Inserts an image into the CKEditor using its native model API.
  *
- * @param {object}  editor   - CKEditor instance
+ * CKEditor 5 has a strict schema — raw HTML with custom classes/styles gets
+ * stripped. Instead we create an `imageBlock` model element which the Image
+ * plugin recognises, and optionally attach a caption via the ImageCaption plugin.
+ *
+ * @param {object}  editor   - CKEditor 5 instance
  * @param {string}  url      - Image URL
  * @param {string}  alt      - Alt text
- * @param {string}  size     - legacy: 'full' | 'half' | 'original'
+ * @param {string}  size     - 'full' | 'half' | 'original' (mapped to imageStyle)
  * @param {string}  align    - 'center' | 'left' | 'right' | 'none'
- * @param {string}  caption  - Optional caption (rendered italic + small)
- * @param {string}  width    - Optional explicit width e.g. '75%' (overrides size)
+ * @param {string}  caption  - Optional caption text
+ * @param {string}  width    - Optional explicit width (unused — CKEditor handles sizing)
  */
 function ntInsertImageIntoEditor(editor, url, alt, size, align, caption, width) {
     if (!editor || !url) return;
 
-    // Determine width style: explicit width wins, then legacy size tokens
-    let widthPct = '';
-    if (width && width !== '100%') {
-        widthPct = width; // e.g. '75%'
-    } else if (size === 'half') {
-        widthPct = '50%';
+    editor.model.change(writer => {
+        // Create the imageBlock element (recognised by CKEditor's Image plugin)
+        const imageElement = writer.createElement('imageBlock', {
+            src: url,
+            alt: alt || ''
+        });
+
+        // Attach caption if ImageCaption plugin is available
+        if (caption) {
+            try {
+                const captionElement = writer.createElement('caption');
+                writer.appendText(caption, captionElement);
+                writer.append(captionElement, imageElement);
+            } catch (e) {
+                // ImageCaption plugin not available — skip silently
+            }
+        }
+
+        editor.model.insertContent(imageElement);
+    });
+
+    // Apply image style (side = float left/right, full = block center)
+    try {
+        if (align === 'left' || align === 'right' || size === 'half') {
+            editor.execute('imageStyle', { value: 'side' });
+        }
+    } catch (e) {
+        // imageStyle command not available — skip
     }
-    // 'full' / 100% / 'original' → no constraint
-
-    // Build figure inline styles
-    const figStyles = [];
-    if (widthPct) figStyles.push(`width:${widthPct}`);
-    if (align === 'left')       figStyles.push('float:left;margin:0 18px 12px 0');
-    else if (align === 'right') figStyles.push('float:right;margin:0 0 12px 18px');
-    else                        figStyles.push('margin:16px auto;display:block');
-
-    // CSS classes (for frontend stylesheet targeting)
-    const classes = ['article-image'];
-    if (widthPct && parseInt(widthPct) <= 60) classes.push('article-image-half');
-    else classes.push('article-image-full');
-    if (align === 'left')  classes.push('article-image-left');
-    else if (align === 'right') classes.push('article-image-right');
-
-    const altAttr = (alt || '').replace(/"/g, '&quot;');
-    const captionHtml = caption
-        ? `<figcaption style="font-style:italic;font-size:0.85em;color:#666;text-align:center;margin-top:5px;line-height:1.45">${caption.replace(/</g, '&lt;')}</figcaption>`
-        : '';
-
-    const html =
-        `<figure class="${classes.join(' ')}" style="${figStyles.join(';')}">` +
-        `<img src="${url}" alt="${altAttr}" loading="lazy" style="width:100%;height:auto;display:block">` +
-        captionHtml +
-        `</figure>`;
-
-    const viewFragment  = editor.data.processor.toView(html);
-    const modelFragment = editor.data.toModel(viewFragment);
-    editor.model.insertContent(modelFragment);
 }

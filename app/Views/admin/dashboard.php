@@ -634,9 +634,10 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 </script>
 
-<!-- ═══ D3.js Reader Heatmap ═══════════════════════════════════ -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<!-- ═══ Leaflet Satellite Reader Heatmap ═══════════════════════ -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="/assets/admin/reader-map.js"></script>
 
 <!-- ═══ Chart.js v4 ═══════════════════════════════════════════ -->
