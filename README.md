@@ -2,8 +2,8 @@
 
 ## Comprehensive Digital Platform & Editorial System Documentation
 
-**Version:** 5.0 — March 2026
-**Status:** Production-ready, All phases (1-11) complete
+**Version:** 6.0 — March 2026
+**Status:** Production-ready, All phases (1-12) complete
 
 ---
 
@@ -26,7 +26,7 @@ The system combines:
 * Theme engine with live customization from admin, including dark mode toggle
 * Secure admin control panel with RBAC (Role-Based Access Control)
 * Comprehensive error handling with branded error pages
-* Popup & banner system with 10 types, analytics, and frontend engine
+* Popup & banner system with 10 types, analytics, A/B testing, and frontend engine
 * Multi-purpose crawler system (news aggregation, SEO audit, social monitoring)
 * System administration panel with resets, purges, database tools, and backups
 * Tag system, author pages, article revisions, and breaking news ticker
@@ -34,6 +34,7 @@ The system combines:
 * Browser push notifications via Web Push (VAPID)
 * Article scheduling with cron-based auto-publish
 * Dark mode with CSS variable system
+* Reader heatmap with Leaflet satellite view and heat overlay
 * White-label architecture — fully rebrandable from admin settings
 * Automated test suite
 * Docker containerization (Nginx + PHP-FPM + PostgreSQL + Redis + pgAdmin)
@@ -298,6 +299,7 @@ The dashboard is a comprehensive command center with 8 widget sections. Widgets 
 | **Quick Actions**   | Static buttons linking to create pages                                 | --                           |
 | **Content**         | `articles` COUNT by status + GROUP BY date                             | Page load                    |
 | **Audience**        | `site_visitors` + `article_views` aggregated                           | Page load + auto-refresh 60s |
+| **Reader Heatmap**  | Leaflet satellite map with heat layer + city markers. Period selector.  | AJAX via `/admin/api/reader-map` |
 | **Crawler**         | `crawl_sources` + `crawled_articles` + source health                   | Page load + auto-refresh 30s |
 | **Popups**          | `popup_events` aggregated + `popups` active count                      | Page load                    |
 | **Revenue & Ads**   | `ad_slots` stats + configured CPM                                      | Page load                    |
@@ -386,13 +388,15 @@ Editors can:
 
 ## 6.1 Rich Text Editor
 
-Integrated CKEditor 5 provides:
+Integrated CKEditor 5 (Classic Build v41) provides:
 
 * Headings (H1-H4), paragraphs
 * Ordered and unordered lists
 * Bold, italic, underline, strikethrough
 * Block quotes and tables
-* Image embedding and link insertion
+* Inline image upload via custom upload adapter (drag-drop, paste, toolbar)
+* Media picker integration (browse existing library, insert with alt text/caption)
+* Image insertion via CKEditor's native model API (`imageBlock` elements)
 * Structured formatting
 
 ## 6.2 Autosave Protection
@@ -716,14 +720,21 @@ Each user can manage:
 
 # 16. GeoIP & Performance
 
-## 16.1 GeoIP Location Detection
+## 16.1 GeoIP Location Detection & Reader Heatmap
 
 * `GeoIP::clientIP()` extracts real client IP from proxy headers
-* `GeoIP::lookup()` returns country, city, timezone, coordinates
+* `GeoIP::lookup()` returns country, city, timezone, lat/lon coordinates
 * Timezone-to-country fallback mapping (20+ regions including East/West Africa)
 * Server-side rendering of country flag emoji + location label
-* JavaScript upgrade with client-side API for better accuracy
-* IP caching to reduce API calls
+* File-based cache in `storage/cache/geoip/` with 24-hour TTL
+* IP caching to reduce API calls (ip-api.com free tier, 45 req/min)
+* **Reader Heatmap** on admin dashboard:
+  * Leaflet satellite tiles (ESRI World Imagery — free, no API key)
+  * Heat overlay at low zoom, individual city markers at high zoom
+  * Live ping animation for real-time reader activity
+  * Period selector (today, 7d, 30d, 90d, all time)
+  * Top cities list with click-to-fly navigation
+  * Zoom controls and responsive resize
 
 ## 16.2 Performance Optimizations
 
@@ -864,10 +875,23 @@ A comprehensive popup engine managed entirely from the admin portal.
 * Per-popup performance tracking
 * Period selector and CSV export
 
-## 22.5 Frontend Engine
+## 22.5 A/B Testing
+
+* Create split tests between two popup variants (A/B)
+* 50/50 traffic split with sticky visitor assignment (hashed IP + user-agent)
+* Per-variant metrics: impressions, clicks, conversions, conversion rate, click rate
+* Side-by-side comparison dashboard with visual bars
+* Configurable success metric: conversion rate, click rate, or impressions
+* Start, pause, resume, and declare winner actions
+* Winner declaration auto-activates the winner and deactivates the loser
+* Admin views: `/admin/popups/ab` (list), `/admin/popups/ab/create`, `/admin/popups/ab/{id}` (detail)
+* A/B variant badge on popup listing page
+
+## 22.6 Frontend Engine
 
 * Lightweight `popups.js` script
 * Fetches active popups via `/api/popups`
+* A/B test variant selection happens server-side (visitor sees only their assigned variant)
 * Queue system: never shows more than 1 popup at a time
 * Priority-based ordering
 * Interval checking via localStorage/sessionStorage
@@ -1085,7 +1109,7 @@ Migrations: `0047_white_label_settings.sql`, `0048_white_label_week2.sql`, `0049
 
 # 29. Database Schema
 
-## 29.1 Migrations (52 files)
+## 29.1 Migrations (58 files)
 
 | Migration | Table/Change                    | Purpose                                      |
 | --------- | ------------------------------- | -------------------------------------------- |
@@ -1141,6 +1165,7 @@ Migrations: `0047_white_label_settings.sql`, `0048_white_label_week2.sql`, `0049
 | 0050      | Newsletter scheduled_at         | Newsletter scheduling support                |
 | 0051      | `login_quotes`                  | Inspirational login quotes                   |
 | 0052      | Media library full              | Extended media library                       |
+| 0053      | Popup A/B testing               | A/B test tables + variant columns on popups  |
 
 Plus seed/maintenance migrations: `seed_crawl_sources.sql`, `seed_dokolo_post.sql`, `cleanup_source_names.sql`, `reset_and_upgrade_crawler.sql`, `2026_02_20_000001_add_display_author_to_articles.sql`
 
@@ -1165,9 +1190,11 @@ Plus seed/maintenance migrations: `seed_crawl_sources.sql`, `seed_dokolo_post.sq
 * `site_visitors` — Visitor analytics with coordinates
 * `login_attempts` — Security: rate limiting
 * `roles` — Custom role definitions with permission sets
-* `popups` — Popup configuration (40+ columns)
+* `popups` — Popup configuration (40+ columns, A/B variant support)
 * `popup_events` — Impression/click/conversion tracking
 * `popup_dismissals` — Visitor dismissal records
+* `popup_ab_tests` — A/B test containers with winner tracking
+* `popup_ab_assignments` — Sticky visitor-to-variant assignments
 * `crawl_sources` — Configured crawl source feeds
 * `crawled_articles` — Crawl tracking records
 * `crawl_logs` — Per-run crawl results
@@ -1187,7 +1214,7 @@ Plus seed/maintenance migrations: `seed_crawl_sources.sql`, `seed_dokolo_post.sq
 
 # 30. Current Completion Status
 
-## All Phases Complete (1-11)
+## All Phases Complete (1-12)
 
 ### Phase 1-5: Core CMS
 * Article CRUD with full editorial workflow (draft -> review -> publish/reject)
@@ -1253,6 +1280,14 @@ Plus seed/maintenance migrations: `seed_crawl_sources.sql`, `seed_dokolo_post.sq
 * Service worker for push notification delivery
 * Push notification settings in admin
 
+### Phase 12: Enhancements & A/B Testing
+* CKEditor inline image insertion fixed to use native model API (imageBlock elements)
+* Reader heatmap upgraded from D3.js vector map to Leaflet satellite view (ESRI World Imagery)
+* Heatmap auto-switches between heat overlay (low zoom) and city markers (high zoom)
+* Popup A/B testing system with 50/50 traffic split and sticky visitor assignment
+* A/B test admin UI: create, manage, compare variants, declare winner
+* Server-side variant selection integrated into popup delivery API
+
 ### Phase 0: White-Label Architecture
 * All hardcoded strings replaced with `get_site_setting()` calls
 * Full brand identity configurable from admin
@@ -1291,7 +1326,7 @@ northern-times/
 |   |   |-- AdminMediaController.php
 |   |   |-- AdminNewsletterController.php
 |   |   |-- AdminPolicyController.php
-|   |   |-- AdminPopupController.php    # Popup management + analytics
+|   |   |-- AdminPopupController.php    # Popup management + analytics + A/B testing
 |   |   |-- AdminProfileController.php
 |   |   |-- AdminReviewController.php
 |   |   |-- AdminRoleController.php
@@ -1374,7 +1409,7 @@ northern-times/
 |   |-- Support/
 |   |   +-- helpers.php        # Global helper functions
 |   +-- Views/
-|       |-- admin/             # 30+ admin views
+|       |-- admin/             # 46 admin views
 |       |   |-- dashboard.php, layout.php, login.php
 |       |   |-- articles.php, article_form.php, articles_archive.php
 |       |   |-- analytics.php, profile.php, settings.php
@@ -1390,12 +1425,12 @@ northern-times/
 |           |-- policy.php, unsubscribe.php
 |           +-- layout.php
 |-- database/
-|   +-- migrations/            # 52 migration files
+|   +-- migrations/            # 58 migration files
 |-- docker/
 |   |-- nginx/                 # default.conf + production-ssl.conf
 |   +-- php/                   # Dockerfile + php.ini
 |-- public/
-|   |-- assets/                # CSS, JS, images (including dark-mode.css/js)
+|   |-- assets/                # CSS, JS, images (including dark-mode.css/js, admin/reader-map.js, admin/dashboard.css)
 |   |-- index.php              # Application entry point
 |   |-- robots.txt
 |   +-- service-worker.js      # Push notification service worker
@@ -1504,4 +1539,4 @@ docker compose exec app php vendor/bin/phpunit
 
 ---
 
-*End of documentation. Last updated: March 7, 2026 (v5.0 -- All phases complete).*
+*End of documentation. Last updated: March 7, 2026 (v6.0 -- All phases 1-12 complete, satellite heatmap + popup A/B testing).*
