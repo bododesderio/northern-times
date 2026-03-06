@@ -1,0 +1,714 @@
+/* ═══════════════════════════════════════════════════════════════
+   THE NORTHERN TIMES — Dashboard Intelligence Hub
+   Composition: Rule of thirds · 12-col master bento grid
+   Every card is an independent grid child — no wrapper rows.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Design Tokens — Light Mode ────────────────────────────── */
+:root {
+  --dash-gap:     20px;
+  --dash-radius:  16px;
+
+  /* Glass card surface — light */
+  --glass-bg:     rgba(255,255,255,.78);
+  --glass-border: rgba(0,0,0,.08);
+  --glass-blur:   blur(20px) saturate(1.8);
+  --glass-shadow: 0 2px 20px rgba(0,0,0,.05), inset 0 1px 0 rgba(255,255,255,.7);
+  --glass-hover:  0 8px 32px rgba(0,0,0,.09), inset 0 1px 0 rgba(255,255,255,.7);
+
+  /* Icon chip backgrounds — light */
+  --chip-blue:    #dbeafe;
+  --chip-blue-fg: #2563eb;
+  --chip-sky:     #eff6ff;
+  --chip-sky-fg:  #3b82f6;
+  --chip-amber:   #fef3c7;
+  --chip-amber-fg:#d97706;
+  --chip-green:   #ecfdf5;
+  --chip-green-fg:#059669;
+  --chip-purple:  #f3e8ff;
+  --chip-purple-fg:#7c3aed;
+  --chip-pink:    #fce7f3;
+  --chip-pink-fg: #db2777;
+  --chip-rose:    #fff1f2;
+  --chip-rose-fg: #e11d48;
+  --chip-slate:   #f1f5f9;
+  --chip-slate-fg:#475569;
+
+  /* Badge colours — light */
+  --badge-up-bg:   #ecfdf5;
+  --badge-up-fg:   #059669;
+  --badge-warn-bg: #fef3c7;
+  --badge-warn-fg: #d97706;
+
+  /* Efficiency indicator — light */
+  --eff-high-bg: #ecfdf5;
+  --eff-high-fg: #059669;
+  --eff-mid-bg:  #fffbeb;
+  --eff-mid-fg:  #d97706;
+  --eff-low-bg:  #fef2f2;
+  --eff-low-fg:  #b91c1c;
+
+  /* Sub badges — light */
+  --sb-active-bg:   #ecfdf5;
+  --sb-active-fg:   #059669;
+  --sb-inactive-bg: #f3f4f6;
+  --sb-inactive-fg: #6b7280;
+
+  --ease-out: cubic-bezier(.22,.68,.36,1);
+}
+
+/* ── Design Tokens — Dark Mode ─────────────────────────────── */
+/*
+ * FIX: All --glass-* tokens were hardcoded to white-tinted values.
+ * In dark mode --adm-surface / --adm-border / --adm-ink from
+ * admin/layout.php set --surface/--border/--ink on the admin
+ * html element. The glass tokens here must also flip so every
+ * .dcard and .qa-card actually goes dark.
+ *
+ * We use html[data-adm-theme="dark"] and html.dark together
+ * to cover both the cookie-driven initial state and the class
+ * applied by dark-mode.js, exactly as admin/layout.php does.
+ */
+html[data-adm-theme="dark"],
+html.dark {
+  /* Glass card surface — dark */
+  --glass-bg:     rgba(30,31,36,.92);
+  --glass-border: rgba(255,255,255,.08);
+  --glass-blur:   blur(20px) saturate(1.4);
+  --glass-shadow: 0 2px 24px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04);
+  --glass-hover:  0 8px 36px rgba(0,0,0,.5),  inset 0 1px 0 rgba(255,255,255,.06);
+
+  /* Icon chip backgrounds — dark (desaturated, darkened) */
+  --chip-blue:    rgba(37,99,235,.18);
+  --chip-blue-fg: #93c5fd;
+  --chip-sky:     rgba(59,130,246,.15);
+  --chip-sky-fg:  #7dd3fc;
+  --chip-amber:   rgba(217,119,6,.18);
+  --chip-amber-fg:#fcd34d;
+  --chip-green:   rgba(5,150,105,.18);
+  --chip-green-fg:#6ee7b7;
+  --chip-purple:  rgba(124,58,237,.18);
+  --chip-purple-fg:#c4b5fd;
+  --chip-pink:    rgba(219,39,119,.18);
+  --chip-pink-fg: #f9a8d4;
+  --chip-rose:    rgba(225,29,72,.18);
+  --chip-rose-fg: #fda4af;
+  --chip-slate:   rgba(71,85,105,.25);
+  --chip-slate-fg:#94a3b8;
+
+  /* Badge colours — dark */
+  --badge-up-bg:   rgba(5,150,105,.18);
+  --badge-up-fg:   #6ee7b7;
+  --badge-warn-bg: rgba(217,119,6,.18);
+  --badge-warn-fg: #fcd34d;
+
+  /* Efficiency indicator — dark */
+  --eff-high-bg: rgba(5,150,105,.18);
+  --eff-high-fg: #6ee7b7;
+  --eff-mid-bg:  rgba(217,119,6,.18);
+  --eff-mid-fg:  #fcd34d;
+  --eff-low-bg:  rgba(185,28,28,.18);
+  --eff-low-fg:  #fca5a5;
+
+  /* Sub badges — dark */
+  --sb-active-bg:   rgba(5,150,105,.18);
+  --sb-active-fg:   #6ee7b7;
+  --sb-inactive-bg: rgba(75,85,99,.25);
+  --sb-inactive-fg: #9ca3af;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MASTER BENTO GRID
+   Single 12-col grid. Every section is a direct child.
+   ═══════════════════════════════════════════════════════════════ */
+.dash-bento {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--dash-gap);
+  align-items: start;
+}
+
+/* Span utilities */
+.span-12 { grid-column: span 12; }
+.span-8  { grid-column: span 8; }
+.span-6  { grid-column: span 6; }
+.span-4  { grid-column: span 4; }
+.span-3  { grid-column: span 3; }
+
+/* ═══════════════════════════════════════════════════════════════
+   GLASS CARD — shared surface for all dashboard cards
+   ═══════════════════════════════════════════════════════════════ */
+.dcard {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--dash-radius);
+  padding: 22px;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  transition: box-shadow .22s var(--ease-out), transform .22s var(--ease-out);
+}
+.dcard:hover {
+  box-shadow: var(--glass-hover);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ENTRANCE ANIMATIONS
+   ═══════════════════════════════════════════════════════════════ */
+.anim-item {
+  opacity: 0;
+  transform: translateY(14px);
+  animation: dashEnter .45s var(--ease-out) forwards;
+}
+@keyframes dashEnter {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Stagger: each card in the bento gets progressive delay */
+.dash-bento > .anim-item:nth-child(1)  { animation-delay: 0ms; }
+.dash-bento > .anim-item:nth-child(2)  { animation-delay: 50ms; }
+.dash-bento > .anim-item:nth-child(3)  { animation-delay: 90ms; }
+.dash-bento > .anim-item:nth-child(4)  { animation-delay: 130ms; }
+.dash-bento > .anim-item:nth-child(5)  { animation-delay: 160ms; }
+.dash-bento > .anim-item:nth-child(6)  { animation-delay: 190ms; }
+.dash-bento > .anim-item:nth-child(7)  { animation-delay: 210ms; }
+.dash-bento > .anim-item:nth-child(8)  { animation-delay: 230ms; }
+.dash-bento > .anim-item:nth-child(9)  { animation-delay: 260ms; }
+.dash-bento > .anim-item:nth-child(10) { animation-delay: 290ms; }
+.dash-bento > .anim-item:nth-child(11) { animation-delay: 320ms; }
+.dash-bento > .anim-item:nth-child(12) { animation-delay: 350ms; }
+.dash-bento > .anim-item:nth-child(13) { animation-delay: 370ms; }
+.dash-bento > .anim-item:nth-child(14) { animation-delay: 390ms; }
+.dash-bento > .anim-item:nth-child(15) { animation-delay: 410ms; }
+.dash-bento > .anim-item:nth-child(16) { animation-delay: 430ms; }
+.dash-bento > .anim-item:nth-child(17) { animation-delay: 450ms; }
+.dash-bento > .anim-item:nth-child(18) { animation-delay: 470ms; }
+.dash-bento > .anim-item:nth-child(19) { animation-delay: 490ms; }
+
+/* Inner-list animation */
+.cat-row, .top-row, .act-row, .auth-row { opacity: 0; animation: dashEnter .3s ease forwards; }
+
+/* Bar/cat grow — NOTE: must NOT use !important on the initial value or the
+   keyframe final state gets overridden. The initial width:0 is set via the
+   animation 'from' state (implicit), and forwards fill keeps the final width. */
+/* Bar/cat fills — initial state zero, JS animateBars() triggers the transition.
+   Using JS+transition instead of CSS @keyframes+custom-property to avoid
+   cross-browser cascade conflicts with custom properties in @keyframes. */
+.bar-fill { height: 0; transition: height .55s cubic-bezier(.22,.68,.36,1); }
+.cat-fill { width:  0; transition: width  .7s  cubic-bezier(.22,.68,.36,1); }
+
+/* Pulse badge */
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+.metric-badge.warn { animation: pulse 2s ease-in-out infinite; }
+
+/* ═══════════════════════════════════════════════════════════════
+   GREETING BAR
+   ═══════════════════════════════════════════════════════════════ */
+.dash-greet {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 20px 24px;
+}
+.dash-greet h1 {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0 0 4px;
+  letter-spacing: -.3px;
+}
+.dash-greet p {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+.dash-greet p strong { color: var(--ink); }
+.dash-greet-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.dash-greet-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   METRIC CARDS
+   Tier 1 (hero):  span-4, bigger padding + font
+   Tier 2 (secondary): span-3, compact
+   ═══════════════════════════════════════════════════════════════ */
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--ink);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all .22s var(--ease-out);
+}
+.metric-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: var(--dash-radius) var(--dash-radius) 0 0;
+  opacity: 0;
+  transition: opacity .22s;
+}
+.metric-card:hover {
+  transform: translateY(-3px) scale(1.01);
+}
+.metric-card:hover::after { opacity: 1; }
+.metric-card:active { transform: translateY(-1px) scale(.99); transition-duration: .08s; }
+
+/* Hero metrics — larger */
+.metric-card.hero { padding: 24px 22px; }
+.metric-card.hero .metric-value { font-size: 34px; }
+
+/* Compact metrics — tighter */
+.metric-card.compact { padding: 18px 16px; }
+.metric-card.compact .metric-value { font-size: 26px; }
+
+.metric-icon {
+  width: 42px; height: 42px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .22s;
+}
+.metric-card:hover .metric-icon { transform: scale(1.1) rotate(-3deg); }
+
+/* Icon chips — use CSS vars so they flip in dark mode automatically */
+.mc-visitors .metric-icon  { background: var(--chip-blue);   color: var(--chip-blue-fg); }
+.mc-views .metric-icon     { background: var(--chip-sky);    color: var(--chip-sky-fg); }
+.mc-hours .metric-icon     { background: var(--chip-amber);  color: var(--chip-amber-fg); }
+.mc-published .metric-icon { background: var(--chip-green);  color: var(--chip-green-fg); }
+.mc-drafts .metric-icon    { background: var(--chip-purple); color: var(--chip-purple-fg); }
+.mc-review .metric-icon    { background: var(--chip-pink);   color: var(--chip-pink-fg); }
+.mc-comments .metric-icon  { background: var(--chip-rose);   color: var(--chip-rose-fg); }
+
+.mc-visitors::after  { background: var(--chip-blue-fg); }
+.mc-views::after     { background: var(--chip-sky-fg); }
+.mc-hours::after     { background: var(--chip-amber-fg); }
+.mc-published::after { background: var(--chip-green-fg); }
+.mc-drafts::after    { background: var(--chip-purple-fg); }
+.mc-review::after    { background: var(--chip-pink-fg); }
+.mc-comments::after  { background: var(--chip-rose-fg); }
+
+.metric-body { display: flex; flex-direction: column; gap: 1px; }
+.metric-value {
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -.5px;
+}
+.metric-label { font-size: 12px; color: var(--muted); font-weight: 500; }
+.metric-footer {
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.metric-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-weight: 600;
+  font-size: 11px;
+}
+/* Badges use CSS vars — flip automatically in dark mode */
+.metric-badge.up   { background: var(--badge-up-bg);   color: var(--badge-up-fg); }
+.metric-badge.warn { background: var(--badge-warn-bg); color: var(--badge-warn-fg); }
+.metric-sub { font-size: 12px; color: var(--muted); }
+
+/* ═══════════════════════════════════════════════════════════════
+   CARD INTERNALS — headers, dividers, velocity pills
+   ═══════════════════════════════════════════════════════════════ */
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.card-head h3 { font-size: 15px; font-weight: 700; margin: 0; }
+.card-head-sub { font-size: 12px; color: var(--muted); }
+.card-head-link {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+.card-head-link:hover { text-decoration: underline; }
+.card-divider { height: 1px; background: var(--border); margin: 18px 0; }
+
+/* Velocity pills */
+.velocity-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.velocity-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.vel-pill {
+  text-align: center;
+  padding: 10px 4px;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+}
+.vel-pill strong { display: block; font-size: 20px; font-weight: 800; line-height: 1.2; }
+.vel-pill span { font-size: 11px; color: var(--muted); }
+
+/* ═══════════════════════════════════════════════════════════════
+   CATEGORY BARS
+   ═══════════════════════════════════════════════════════════════ */
+.cat-chart { display: flex; flex-direction: column; gap: 11px; }
+.cat-row { display: flex; align-items: center; gap: 10px; }
+.cat-name {
+  width: 90px; font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0;
+}
+.cat-track {
+  flex: 1; height: 22px;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  border-radius: 6px; overflow: hidden;
+  border: 1px solid var(--glass-border);
+}
+.cat-fill { height: 100%; background: var(--accent, #c00); border-radius: 6px; opacity: .75; }
+.cat-num {
+  width: 48px; text-align: right; font-size: 13px; font-weight: 700;
+  color: var(--muted); flex-shrink: 0; font-variant-numeric: tabular-nums;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TOP ARTICLES
+   ═══════════════════════════════════════════════════════════════ */
+.top-list { display: flex; flex-direction: column; }
+.top-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  text-decoration: none; color: var(--ink);
+  transition: background .15s;
+}
+.top-row:last-child { border-bottom: none; }
+.top-row:hover {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  border-radius: 8px;
+  margin: 0 -8px; padding-left: 8px; padding-right: 8px;
+}
+.top-rank {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  border: 1px solid var(--glass-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800; color: var(--muted); flex-shrink: 0;
+}
+.rank-gold { background: var(--accent); color: var(--accent-text, #fff); border-color: transparent; }
+.top-info { flex: 1; min-width: 0; }
+.top-title {
+  font-size: 14px; font-weight: 600; display: block;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.top-row:hover .top-title { color: var(--accent); }
+.top-meta {
+  font-size: 12px; color: var(--muted); margin-top: 2px;
+  display: flex; gap: 4px; flex-wrap: wrap;
+}
+.dot { opacity: .5; }
+.top-stat { text-align: right; flex-shrink: 0; }
+.top-stat strong { display: block; font-size: 18px; font-weight: 800; line-height: 1.2; }
+.top-stat span { font-size: 11px; color: var(--muted); }
+
+/* ═══════════════════════════════════════════════════════════════
+   QUICK ACTIONS
+   ═══════════════════════════════════════════════════════════════ */
+.qa-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.qa-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--dash-radius);
+  padding: 18px 14px;
+  text-align: center;
+  text-decoration: none;
+  color: var(--ink);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  transition: all .22s var(--ease-out);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.qa-card:hover {
+  box-shadow: var(--glass-hover);
+  transform: translateY(-3px);
+  border-color: var(--accent);
+}
+.qa-card:active { transform: translateY(-1px) scale(.98); }
+.qa-icon {
+  width: 44px; height: 44px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .22s;
+}
+.qa-card:hover .qa-icon { transform: scale(1.12) rotate(-5deg); }
+
+/* QA icon chips — use CSS vars */
+.qa-write    { background: var(--chip-blue);   color: var(--chip-blue-fg); }
+.qa-review   { background: var(--chip-pink);   color: var(--chip-pink-fg); }
+.qa-comments { background: var(--chip-pink);   color: var(--chip-pink-fg); }
+.qa-media    { background: var(--chip-green);  color: var(--chip-green-fg); }
+.qa-cat      { background: var(--chip-amber);  color: var(--chip-amber-fg); }
+.qa-subs     { background: var(--chip-purple); color: var(--chip-purple-fg); }
+.qa-settings { background: var(--chip-slate);  color: var(--chip-slate-fg); }
+
+.qa-title { font-size: 13px; font-weight: 700; }
+.qa-desc  { font-size: 11px; color: var(--muted); }
+
+/* ═══════════════════════════════════════════════════════════════
+   ACTIVITY LIST
+   ═══════════════════════════════════════════════════════════════ */
+.activity-list { display: flex; flex-direction: column; }
+.act-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  text-decoration: none; color: var(--ink);
+  transition: background .15s;
+}
+.act-row:last-child { border-bottom: none; }
+.act-row:hover {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  border-radius: 8px;
+  margin: 0 -8px; padding-left: 8px; padding-right: 8px;
+}
+.act-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.dot-green  { background: #22c55e; }
+.dot-gray   { background: #6b7280; }
+.dot-orange { background: #f59e0b; }
+.act-info { flex: 1; min-width: 0; }
+.act-title {
+  font-size: 14px; font-weight: 600; display: block;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.act-row:hover .act-title { color: var(--accent); }
+.act-meta { font-size: 12px; color: var(--muted); margin-top: 2px; display: flex; gap: 4px; flex-wrap: wrap; }
+
+/* ═══════════════════════════════════════════════════════════════
+   TEAM LEADERBOARD
+   ═══════════════════════════════════════════════════════════════ */
+.author-list { display: flex; flex-direction: column; gap: 8px; }
+.auth-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px;
+}
+.auth-hcol {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+}
+.auth-row { display: flex; align-items: center; gap: 10px; }
+.auth-rank { width: 22px; font-size: 12px; font-weight: 800; color: var(--muted); text-align: center; flex-shrink: 0; }
+.auth-av {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: #fff; flex-shrink: 0; overflow: hidden;
+}
+.auth-av img { width: 100%; height: 100%; object-fit: cover; }
+.auth-info { flex: 1; min-width: 0; }
+.auth-name { font-size: 13px; font-weight: 600; display: block; }
+.auth-meta { font-size: 12px; color: var(--muted); }
+.auth-role {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--muted); flex-shrink: 0;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  border: 1px solid var(--glass-border);
+  padding: 3px 8px; border-radius: 99px;
+}
+.auth-efficiency {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  width: 58px; font-size: 16px; font-weight: 800; line-height: 1;
+  padding: 4px 6px; border-radius: 8px; flex-shrink: 0; text-align: center;
+}
+.auth-efficiency small { font-size: 9px; font-weight: 600; letter-spacing: .03em; opacity: .7; }
+
+/* Efficiency chips — use CSS vars */
+.eff-high { background: var(--eff-high-bg); color: var(--eff-high-fg); }
+.eff-mid  { background: var(--eff-mid-bg);  color: var(--eff-mid-fg); }
+.eff-low  { background: var(--eff-low-bg);  color: var(--eff-low-fg); }
+
+/* Subscribers */
+.sub-list { display: flex; flex-direction: column; }
+.sub-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+.sub-row:last-child { border-bottom: none; }
+.sub-email { flex: 1; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.sub-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 8px;
+  border-radius: 99px; flex-shrink: 0; text-transform: uppercase; letter-spacing: .03em;
+}
+/* Sub badges — use CSS vars */
+.sb-active   { background: var(--sb-active-bg);   color: var(--sb-active-fg); }
+.sb-inactive { background: var(--sb-inactive-bg); color: var(--sb-inactive-fg); }
+.sub-date { font-size: 12px; color: var(--muted); flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════════════════
+   FOOTER STAT CARDS
+   ═══════════════════════════════════════════════════════════════ */
+.foot-card {
+  padding: 20px;
+  text-align: center;
+  text-decoration: none;
+  color: var(--ink);
+  display: flex; flex-direction: column; align-items: center;
+}
+.foot-num { font-size: 28px; font-weight: 800; line-height: 1.2; letter-spacing: -.3px; }
+.foot-label { font-size: 12px; color: var(--muted); margin: 4px 0 12px; text-transform: uppercase; letter-spacing: .04em; }
+.foot-link { font-size: 12px; color: var(--accent); font-weight: 600; text-decoration: none; }
+
+/* ═══════════════════════════════════════════════════════════════
+   LIVE PULSE INDICATOR
+   ═══════════════════════════════════════════════════════════════ */
+.live-pulse {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px; border-radius: 99px;
+  background: rgba(34,197,94,.08);
+  border: 1px solid rgba(34,197,94,.25);
+  font-size: 13px; color: #15803d; font-weight: 600;
+}
+html[data-adm-theme="dark"] .live-pulse,
+html.dark .live-pulse {
+  background: rgba(34,197,94,.1);
+  border-color: rgba(34,197,94,.3);
+  color: #4ade80;
+}
+.live-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #22c55e;
+  animation: liveBlink 2s ease-in-out infinite;
+  box-shadow: 0 0 6px rgba(34,197,94,.5);
+}
+@keyframes liveBlink {
+  0%,100% { opacity: 1; box-shadow: 0 0 6px rgba(34,197,94,.5); }
+  50%     { opacity: .4; box-shadow: 0 0 2px rgba(34,197,94,.2); }
+}
+.live-label    { font-weight: 700; }
+.live-sessions { color: #059669; font-weight: 500; font-size: 12px; opacity: .8; }
+html[data-adm-theme="dark"] .live-sessions,
+html.dark .live-sessions { color: #4ade80; }
+
+/* ═══════════════════════════════════════════════════════════════
+   SMART EMPTY STATES
+   ═══════════════════════════════════════════════════════════════ */
+.smart-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 24px 16px; text-align: center;
+  background: color-mix(in srgb, var(--ink) 2%, transparent);
+  border: 1px dashed var(--border); border-radius: 12px;
+}
+.smart-empty .se-icon { font-size: 28px; opacity: .7; }
+.smart-empty p { font-size: 13px; color: var(--muted); margin: 0; font-weight: 500; }
+
+.empty-state { text-align: center; padding: 28px 0; color: var(--muted); font-size: 14px; }
+.empty-state a { color: var(--accent); font-weight: 600; text-decoration: none; }
+
+/* ═══════════════════════════════════════════════════════════════
+   READER MAP
+   ═══════════════════════════════════════════════════════════════ */
+.rm-period-btn {
+  padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface); font-size: 12px; font-weight: 600; cursor: pointer;
+  color: var(--muted); transition: all .15s ease; font-family: inherit;
+}
+.rm-period-btn:hover { border-color: var(--accent); color: var(--accent); }
+.rm-period-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.rm-zoom-btn {
+  width: 32px; height: 32px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(0,0,0,.5); color: #fff; font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px); transition: all .15s ease; font-family: inherit;
+}
+.rm-zoom-btn:hover { background: rgba(0,0,0,.7); border-color: rgba(255,255,255,.3); }
+.rm-city-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.rm-city-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.rm-city-name { font-size: 13px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rm-city-count { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rm-city-pct { font-size: 11px; color: var(--muted); min-width: 36px; text-align: right; }
+@keyframes rm-pulse-anim { 0%,100%{ opacity:.6; transform:scale(1); } 50%{ opacity:.2; transform:scale(1.5); } }
+
+/* Live ping flash */
+@keyframes mapPingFlash { 0%{ r:4; opacity:1; } 100%{ r:24; opacity:0; } }
+
+/* ═══════════════════════════════════════════════════════════════
+   CHART.JS DARK MODE — force chart internals to match
+   Chart.js uses its own inline canvas colours so we push
+   a CSS-driven override via the data attribute.
+   The actual Chart.js color objects are set in dashboard JS;
+   these rules ensure the chart *container* blends correctly.
+   ═══════════════════════════════════════════════════════════════ */
+html[data-adm-theme="dark"] canvas,
+html.dark canvas {
+  /* Subtle distinction so chart background reads as slightly
+     deeper than the card surface rather than identical */
+  filter: none; /* ensure no brightness filter bleeds in */
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CLS PREVENTION
+   ═══════════════════════════════════════════════════════════════ */
+#ntAreaChart  { display: block; width: 100% !important; height: 100% !important; }
+#ntRadarChart { display: block; width: 100% !important; height: 100% !important; }
+.rm-map-wrap  { min-height: 350px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE — progressive collapse
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Tablet landscape — hero metrics 3-across, 8/4 → 6/6 */
+@media (max-width: 1300px) {
+  .span-4.metric-card.hero    { grid-column: span 4; }
+  .span-3.metric-card.compact { grid-column: span 3; }
+  .span-8  { grid-column: span 6; }
+  .span-4:not(.metric-card) { grid-column: span 6; }
+  .qa-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* Tablet portrait — everything stacks wider */
+@media (max-width: 1000px) {
+  .dash-bento { grid-template-columns: repeat(6, 1fr); }
+  .span-12 { grid-column: span 6; }
+  .span-8  { grid-column: span 6; }
+  .span-4  { grid-column: span 6; }
+  .span-3  { grid-column: span 3; }
+  .span-4.metric-card.hero { grid-column: span 3; }
+  .qa-grid { grid-template-columns: repeat(2, 1fr); }
+  .velocity-grid:not(.cols-3) { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Phone landscape */
+@media (max-width: 768px) {
+  .dash-bento { grid-template-columns: repeat(2, 1fr); }
+  .span-12, .span-8, .span-6, .span-4, .span-3 { grid-column: span 2; }
+  .span-4.metric-card.hero    { grid-column: span 1; }
+  .span-3.metric-card.compact { grid-column: span 1; }
+  .qa-grid { grid-template-columns: repeat(2, 1fr); }
+  .dash-greet { flex-direction: column; align-items: flex-start; }
+  .live-pulse { order: -1; }
+}
+
+/* Phone portrait — full single column */
+@media (max-width: 480px) {
+  .dash-bento { grid-template-columns: 1fr; }
+  .span-12, .span-8, .span-6, .span-4, .span-3 { grid-column: span 1; }
+  .metric-card.hero .metric-value { font-size: 28px; }
+  .qa-grid { grid-template-columns: 1fr 1fr; }
+  .dash-greet h1 { font-size: 20px; }
+}

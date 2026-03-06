@@ -1,0 +1,210 @@
+/* ================================================================
+   Northern Times — dark-mode.css  v2
+   ================================================================
+
+   SCOPE AND RESPONSIBILITY:
+   ─────────────────────────
+   app.css owns ALL html.dark token overrides (Tier 1–3 tokens,
+   component colour rules, toggle button base styles).
+
+   This file handles only three concerns that don't belong there:
+
+   1. SMOOTH TRANSITION — the .dark-transition animation class.
+      Kept here so it loads before app.css (via <head> order in
+      layout.php) and is guaranteed to fire on first toggle.
+
+   2. LOGO CSS FILTER FALLBACK — when no site_logo_dark_url is
+      configured in site settings, the masthead logo gets a CSS
+      filter in dark mode so it remains visible on dark backgrounds.
+      If a dark logo IS configured, dark-mode.js swaps the src and
+      this filter is never seen (the img has data-dark-src set).
+
+   3. ADMIN-SPECIFIC STRUCTURAL OVERRIDES — the admin layout uses
+      a separate <body> structure (.nt-sidebar, .nt-topbar, etc.)
+      that is not covered by the frontend html.dark rules in app.css.
+      These rules are safe to include here because:
+        a) The admin layout also loads this file.
+        b) They target admin-only class names — no frontend bleed.
+
+   DO NOT add duplicate html.dark variable blocks here. All token
+   overrides live in app.css html.dark. Adding them here re-creates
+   Bug A-01 (dual dark variable overrides).
+   ================================================================ */
+
+
+/* ── 1. SMOOTH TRANSITION ──────────────────────────────────────── */
+/* Applied briefly by dark-mode.js during theme switch.
+   The !important is intentional — it must override any component-
+   level transition declarations during the switch animation only. */
+html.dark-transition,
+html.dark-transition *,
+html.dark-transition *::before,
+html.dark-transition *::after {
+  transition:
+    background-color 220ms ease,
+    color            220ms ease,
+    border-color     220ms ease,
+    box-shadow       220ms ease,
+    opacity          220ms ease !important;
+  transition-delay: 0s !important;
+}
+
+
+/* ── 2. LOGO CSS FILTER FALLBACK ───────────────────────────────── */
+/* Applied in dark mode when the logo has NO data-dark-src attribute.
+   If a dark logo is configured, dark-mode.js sets the src directly
+   and this filter is bypassed (specificity is equal but JS swap wins
+   because the browser renders the new src, not the filtered one).
+
+   Filter chain:
+     invert(1)         — flips black logo to white
+     hue-rotate(180deg)— corrects hue shift from invert on coloured logos
+   For pure black/white logos invert(1) alone is sufficient.
+   Logos with strong brand colour should use site_logo_dark_url
+   instead of relying on this filter.                               */
+html.dark .site-logo:not([data-dark-src]),
+html.dark .masthead-logo-img:not([data-dark-src]) {
+  filter: invert(1) hue-rotate(180deg);
+  opacity: 0.90;
+}
+
+/* Footer logo — same treatment */
+html.dark .footer-logo img:not([data-dark-src]) {
+  filter: invert(1) hue-rotate(180deg);
+  opacity: 0.85;
+}
+
+/* Drawer logo (mobile nav) */
+html.dark .drawer-head img:not([data-dark-src]) {
+  filter: invert(1) hue-rotate(180deg);
+  opacity: 0.85;
+}
+
+
+/* ── 3. ADMIN-SPECIFIC STRUCTURAL OVERRIDES ────────────────────── */
+/* These fix the admin panel in dark mode. The admin layout
+   (app/Views/admin/layout.php) is fixed separately (File 5) to
+   remove hardcoded --sbg:#0f0f0f and !important OS overrides.
+   These CSS rules handle the remaining admin component colours
+   that are not covered by the frontend html.dark block in app.css. */
+
+/* Admin topbar */
+html.dark .nt-topbar {
+  background: var(--color-bg-surface, #242424);
+  border-bottom-color: var(--color-border, #3a3a3a);
+  color: var(--color-text-primary, #e0e0e0);
+}
+
+html.dark .nt-topbar input,
+html.dark .nt-topbar select {
+  background: var(--color-bg-subtle, #2a2a2a);
+  border-color: var(--color-border, #3a3a3a);
+  color: var(--color-text-primary, #e0e0e0);
+}
+
+/* Admin sidebar — base overrides
+   NOTE: The hardcoded --sbg:#0f0f0f and the !important OS @media
+   block are removed in admin/layout.php (File 5). These rules
+   handle the sidebar in dark mode once those hardcodes are gone.
+   The sidebar intentionally stays dark-toned even in light mode
+   (it is a design choice), but in dark mode it deepens slightly. */
+html.dark .nt-sidebar {
+  background: var(--sbg, #181818);
+  border-right-color: var(--color-border, #3a3a3a);
+}
+
+html.dark .nt-sidebar .nav-link {
+  color: rgba(255, 255, 255, .72);
+}
+
+html.dark .nt-sidebar .nav-link:hover,
+html.dark .nt-sidebar .nav-link.active {
+  background: rgba(255, 255, 255, .07);
+  color: #ffffff;
+}
+
+html.dark .nt-sidebar .sidebar-section-label {
+  color: rgba(255, 255, 255, .35);
+}
+
+/* Admin main content area */
+html.dark .nt-content {
+  background: var(--color-bg-primary, #1a1a1a);
+}
+
+/* Admin cards */
+html.dark .nt-card {
+  background: var(--color-bg-surface, #242424);
+  border-color: var(--color-border, #3a3a3a);
+  color: var(--color-text-primary, #e0e0e0);
+}
+
+html.dark .nt-card .card-head {
+  border-bottom-color: var(--color-border, #3a3a3a);
+}
+
+/* Admin tables */
+html.dark .nt-main table th {
+  background: var(--color-bg-subtle, #2a2a2a);
+  color: var(--color-text-secondary, #999999);
+  border-color: var(--color-border, #3a3a3a);
+}
+
+html.dark .nt-main table td {
+  border-color: var(--color-border, #3a3a3a);
+  color: var(--color-text-primary, #e0e0e0);
+}
+
+html.dark .nt-main table tr:hover td {
+  background: var(--color-bg-subtle, #2a2a2a);
+}
+
+/* Admin badges */
+html.dark .badge-status-published { background: rgba(5,150,105,.18); color: #34d399; }
+html.dark .badge-status-draft      { background: rgba(75,85,99,.22);  color: #9ca3af; }
+html.dark .badge-status-review     { background: rgba(217,119,6,.18); color: #fbbf24; }
+html.dark .badge-status-rejected   { background: rgba(185,28,28,.18); color: #fca5a5; }
+
+/* Admin pagination */
+html.dark .pagination a,
+html.dark .pagination span {
+  background: var(--color-bg-surface, #242424);
+  border-color: var(--color-border, #3a3a3a);
+  color: var(--color-text-primary, #e0e0e0);
+}
+
+html.dark .pagination a:hover {
+  background: var(--color-bg-subtle, #2a2a2a);
+}
+
+html.dark .pagination .active {
+  background: var(--color-brand, #cc0000);
+  border-color: var(--color-brand, #cc0000);
+  color: #ffffff;
+}
+
+/* Admin alerts / flash messages */
+html.dark .alert,
+html.dark .nt-alert {
+  background: var(--color-bg-surface, #242424);
+  border-color: var(--color-border, #3a3a3a);
+  color: var(--color-text-primary, #e0e0e0);
+}
+
+html.dark .alert-success { border-left-color: #34d399; }
+html.dark .alert-error,
+html.dark .alert-danger   { border-left-color: #fca5a5; }
+html.dark .alert-warning  { border-left-color: #fbbf24; }
+html.dark .alert-info     { border-left-color: #60a5fa; }
+
+/* CKEditor toolbar (when embedded in admin) */
+html.dark .ck.ck-toolbar {
+  background: var(--color-bg-subtle, #2a2a2a) !important;
+  border-color: var(--color-border, #3a3a3a) !important;
+}
+
+html.dark .ck.ck-editor__main > .ck-editor__editable {
+  background: var(--color-bg-surface, #242424) !important;
+  color: var(--color-text-primary, #e0e0e0) !important;
+  border-color: var(--color-border, #3a3a3a) !important;
+}

@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+
+# Admin area
+Disallow: /admin/
+Disallow: /admin
+
+# API endpoints
+Disallow: /api/
+
+# Search results (avoid duplicate content indexing)
+Disallow: /search?
+
+# Sitemap URL is served dynamically via /robots.txt PHP route (see FrontendController::robotsTxt)
+# This static file is a fallback only. The PHP route takes priority via the router.
