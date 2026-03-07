@@ -199,6 +199,46 @@ final class CategoryMatcher
             'earthquake' => 7, 'tsunami' => 9, 'hurricane' => 8,
         ],
 
+        'east-africa' => [
+            // Country names (high confidence)
+            'kenya' => 9, 'tanzania' => 9, 'rwanda' => 9, 'burundi' => 9,
+            'south sudan' => 9, 'ethiopia' => 8, 'somalia' => 8, 'eritrea' => 8,
+            'djibouti' => 9, 'east africa' => 10, 'east african' => 10,
+            // Cities
+            'nairobi' => 9, 'dar es salaam' => 9, 'kigali' => 9, 'addis ababa' => 9,
+            'mogadishu' => 9, 'juba' => 8, 'mombasa' => 8, 'arusha' => 8,
+            'dodoma' => 8, 'bujumbura' => 9, 'kisumu' => 8, 'eldoret' => 8,
+            // Regional orgs
+            'eac' => 7, 'igad' => 8, 'east african community' => 10,
+            'comesa' => 7, 'eala' => 8, 'east african court' => 10,
+            // Regional issues
+            'lake victoria' => 9, 'great rift' => 8, 'mt kenya' => 9,
+            'kilimanjaro' => 8, 'serengeti' => 8, 'masai mara' => 8,
+            'maasai' => 8, 'kikuyu' => 7, 'swahili' => 6,
+        ],
+
+        'africa' => [
+            // Continental
+            'african union' => 10, 'au summit' => 10, 'pan-african' => 10,
+            'afdb' => 9, 'african development' => 10, 'nepad' => 9,
+            'sadc' => 8, 'ecowas' => 8, 'sahel' => 8, 'maghreb' => 8,
+            // West Africa
+            'nigeria' => 7, 'ghana' => 7, 'senegal' => 7, 'ivory coast' => 7,
+            'lagos' => 7, 'accra' => 7, 'abuja' => 7, 'dakar' => 7,
+            // Southern Africa
+            'south africa' => 7, 'zimbabwe' => 7, 'mozambique' => 7,
+            'johannesburg' => 7, 'cape town' => 7, 'pretoria' => 7,
+            // North Africa
+            'egypt' => 7, 'morocco' => 7, 'tunisia' => 7, 'algeria' => 7,
+            'cairo' => 7, 'casablanca' => 7,
+            // Central Africa
+            'congo' => 7, 'drc' => 7, 'cameroon' => 7, 'gabon' => 7,
+            'kinshasa' => 7,
+            // Continental issues
+            'afcfta' => 9, 'african continental' => 10,
+            'africa day' => 9, 'decoloniz' => 7,
+        ],
+
         'northern-uganda' => [
             // High confidence (10) — regional identifiers
             'gulu' => 10, 'lira' => 10, 'soroti' => 10, 'arua' => 10,
@@ -402,8 +442,29 @@ final class CategoryMatcher
             }
         }
 
-        // No auto-creation of categories from RSS tags.
-        // Unmatched articles go to the source's default category.
+        // Auto-create category from RSS tags if meaningful
+        foreach ($rssCategories as $rssCat) {
+            $rssCat = trim($rssCat);
+            if ($rssCat === '' || strlen($rssCat) < 3 || strlen($rssCat) > 25) continue;
+            // Must be 1-3 words (real categories, not article titles)
+            if (str_word_count($rssCat) > 3) continue;
+            // Skip generic/useless tags
+            $skip = ['uncategorized', 'featured', 'latest', 'breaking', 'top stories',
+                     'news', 'general', 'home', 'headline', 'headlines', 'all', 'misc',
+                     'front page', 'slider', 'main', 'post', 'blog', 'top', 'article',
+                     'national', 'local', 'international', 'opinion', 'editorial',
+                     'world news', 'africa news', 'east africa news'];
+            if (in_array($rssCat, $skip)) continue;
+
+            $newCatId = Category::findOrCreate($rssCat);
+            if ($newCatId !== '') {
+                return [
+                    'category_id'  => $newCatId,
+                    'confidence'   => 70,
+                    'matched_slug' => strtolower($rssCat) . ' (auto-created)',
+                ];
+            }
+        }
 
         // Final fallback — source default category
         return [

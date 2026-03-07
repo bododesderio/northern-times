@@ -138,6 +138,14 @@ final class AdminSettingsController extends Controller
             'mail_from_name'    => '',
         ];
 
+        // ── Domain fields ───────────────────────────────────────────
+        $domainFields = [
+            'site_url'       => '',
+            'site_domain'    => '',
+            'site_timezone'  => 'Africa/Kampala',
+            'analytics_id'   => '',
+        ];
+
         // Detect which form was submitted via hidden _form field
         $formId           = $request->request->get('_form', '');
         $isThemeSubmit    = $formId === 'theme'
@@ -145,6 +153,7 @@ final class AdminSettingsController extends Controller
                          || $request->request->has('theme_ink');
         $isBrandingSubmit = $formId === 'branding';
         $isEmailSubmit    = $formId === 'email';
+        $isDomainSubmit   = $formId === 'domain';
 
         if ($isThemeSubmit) {
             $fieldsToSave = $themeFields;
@@ -155,6 +164,9 @@ final class AdminSettingsController extends Controller
         } elseif ($isEmailSubmit) {
             $fieldsToSave = $emailFields;
             $group        = 'email';
+        } elseif ($isDomainSubmit) {
+            $fieldsToSave = $domainFields;
+            $group        = 'domain';
         } else {
             $fieldsToSave = $generalFields;
             $group        = 'general';
@@ -254,6 +266,7 @@ final class AdminSettingsController extends Controller
                 'favicon_url', 'location_label_static', 'newsletter_bg_color',
                 'mail_host', 'mail_username', 'mail_password', 'mail_from_address',
                 'mail_from_name', 'admin_logo', 'admin_sidebar_title', 'admin_sidebar_subtitle', 'twitter_handle',
+                'site_url', 'site_domain', 'analytics_id',
             ];
 
             if ($value === '' && !in_array($key, $blankAllowed, true)) {
@@ -281,6 +294,8 @@ final class AdminSettingsController extends Controller
             $msg = 'Branding saved successfully.';
         } elseif ($isEmailSubmit) {
             $msg = 'Email settings saved. Use the "Send Test" button on the Newsletter page to verify.';
+        } elseif ($isDomainSubmit) {
+            $msg = 'Domain settings saved.';
         } else {
             $msg = 'Settings saved successfully.';
         }

@@ -83,6 +83,41 @@ final class Category extends BaseModel
     }
 
     /**
+     * Find or create a category by name. Returns the category ID.
+     */
+    public static function findOrCreate(string $name): string
+    {
+        $name = trim($name);
+        if ($name === '') return '';
+
+        $slug = preg_replace('/[^a-z0-9]+/', '-', strtolower($name));
+        $slug = trim($slug, '-');
+
+        // Check existing by slug
+        $existing = self::queryOne(
+            "SELECT id FROM categories WHERE slug = :slug",
+            [':slug' => $slug]
+        );
+        if ($existing) return $existing['id'];
+
+        // Check by name (case-insensitive)
+        $existing = self::queryOne(
+            "SELECT id FROM categories WHERE LOWER(name) = LOWER(:name)",
+            [':name' => $name]
+        );
+        if ($existing) return $existing['id'];
+
+        // Create new
+        $row = self::queryOne(
+            "INSERT INTO categories (name, slug, show_in_nav, show_in_sidebar, sort_order)
+             VALUES (:name, :slug, false, true, 99)
+             RETURNING id",
+            [':name' => ucwords(strtolower($name)), ':slug' => $slug]
+        );
+        return $row['id'] ?? '';
+    }
+
+    /**
      * Dashboard: article count per category.
      */
     public static function articleCounts(): array

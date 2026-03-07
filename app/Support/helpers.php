@@ -798,8 +798,10 @@ function render_ad(array $ads, string $slotName, string $class = ''): string
 
     if (!$inner) return '';
 
+    $adId = $ad['id'] ?? '';
+
     return $customCssBlock
-         . '<div class="' . $css . '" data-ad-slot="' . h($slotName) . '"' . $inlineStyle . '>'
+         . '<div class="' . $css . '" data-ad-slot="' . h($slotName) . '" data-ad-id="' . h((string)$adId) . '"' . $inlineStyle . '>'
          . '<div class="ad-label">Advertisement</div>'
          . '<div class="ad-content">' . $inner . '</div>'
          . '</div>';

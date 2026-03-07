@@ -145,6 +145,84 @@ ob_start();
   <div class="flash bad"><?= h($flash_error) ?></div>
 <?php endif; ?>
 
+<!-- ─── SITE & DOMAIN ─────────────────────────────────────────── -->
+<form method="POST" action="/admin/settings" id="domainForm">
+  <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+  <input type="hidden" name="_form" value="domain">
+
+  <div class="card" style="margin-bottom:24px">
+    <div style="font-weight:700;font-size:15px;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+      Site &amp; Domain
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div class="form-group">
+        <label class="form-label">Site URL</label>
+        <input name="site_url" class="form-control" value="<?= h($settings['site_url'] ?? '') ?>"
+               placeholder="https://northerntimes.com">
+        <small style="color:var(--muted)">Full URL including protocol. Used for canonical links, sitemaps, and emails.</small>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Domain Name</label>
+        <input name="site_domain" class="form-control" value="<?= h($settings['site_domain'] ?? '') ?>"
+               placeholder="northerntimes.com" readonly style="background:#f5f5f5">
+        <small style="color:var(--muted)">Auto-extracted from Site URL. Used in Nginx SSL config.</small>
+      </div>
+    </div>
+
+    <div style="padding:12px 16px;background:#fafafa;border:1px solid #e2e2e2;border-radius:10px;margin-bottom:16px">
+      <div style="font-weight:600;font-size:13px;margin-bottom:8px">SSL / HTTPS Status</div>
+      <?php
+        $siteUrl = $settings['site_url'] ?? '';
+        $isHttps = str_starts_with($siteUrl, 'https://');
+      ?>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:<?= $isHttps ? '#22c55e' : '#f59e0b' ?>"></span>
+        <span style="font-size:13px"><?= $isHttps ? 'SSL enabled (HTTPS)' : 'No SSL — using HTTP. Configure SSL certificates for production.' ?></span>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--muted)">
+        To enable SSL: set Site URL to https://, place SSL certificates in <code>docker/nginx/ssl/</code>, and switch Nginx to <code>production-ssl.conf</code>.
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div class="form-group">
+        <label class="form-label">Timezone</label>
+        <select name="site_timezone" class="form-control">
+          <?php
+            $tz = $settings['site_timezone'] ?? 'Africa/Kampala';
+            $zones = ['Africa/Kampala','Africa/Nairobi','Africa/Lagos','Africa/Cairo','Africa/Johannesburg',
+                       'UTC','Europe/London','Europe/Paris','America/New_York','America/Chicago',
+                       'America/Los_Angeles','Asia/Dubai','Asia/Singapore','Asia/Tokyo','Australia/Sydney'];
+            foreach ($zones as $z):
+          ?>
+            <option value="<?= $z ?>" <?= $tz === $z ? 'selected' : '' ?>><?= $z ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Google Analytics ID</label>
+        <input name="analytics_id" class="form-control" value="<?= h($settings['analytics_id'] ?? '') ?>"
+               placeholder="G-XXXXXXXXXX">
+        <small style="color:var(--muted)">Leave blank to disable. Supports GA4 (G-) and GTM (GTM-).</small>
+      </div>
+    </div>
+
+    <button type="submit" class="btn primary">Save Domain Settings</button>
+  </div>
+</form>
+
+<script>
+document.querySelector('[name="site_url"]')?.addEventListener('input', function() {
+  try {
+    const url = new URL(this.value);
+    document.querySelector('[name="site_domain"]').value = url.hostname;
+  } catch(e) {
+    document.querySelector('[name="site_domain"]').value = '';
+  }
+});
+</script>
+
 <!-- ─── GENERAL SETTINGS ─────────────────────────────────────── -->
 <form method="POST" action="/admin/settings" id="generalForm">
   <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">

@@ -31,7 +31,9 @@ $routes->add('sitemap',    new Route('/sitemap.xml',    ['_controller' => [$fron
 $routes->add('newsletter', new Route('/api/newsletter', ['_controller' => [$front, 'newsletter']], [], [], '', [], ['POST']));
 $routes->add('unsubscribe', new Route('/unsubscribe',   ['_controller' => [$front, 'unsubscribe']], [], [], '', [], ['GET', 'POST']));
 $routes->add('comment',    new Route('/api/comment',    ['_controller' => [$front, 'commentPost']], [], [], '', [], ['POST']));
-$routes->add('ad_click',   new Route('/api/ad-click/{id}', ['_controller' => [$front, 'adClick']],  [], [], '', [], ['GET', 'POST']));
+$routes->add('ad_click',          new Route('/api/ad-click/{id}',      ['_controller' => [$front, 'adClick']],          [], [], '', [], ['GET', 'POST']));
+$routes->add('ad_impression',     new Route('/api/ad-impression',     ['_controller' => [$front, 'adImpression']],     [], [], '', [], ['POST']));
+$routes->add('visitor_location',  new Route('/api/visitor-location',  ['_controller' => [$front, 'visitorLocation']],  [], [], '', [], ['POST']));
 
 // /api/geo — lightweight GeoIP lookup via Services/GeoIP.php
 $routes->add('api_geo', new Route('/api/geo', ['_controller' => function (): Response {

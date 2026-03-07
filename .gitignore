@@ -11,12 +11,14 @@
 /storage/uploads/*
 /storage/cache/*
 /storage/logs/*
+/storage/geoip/*
 
 # Keep directory structure
 !/storage/backups/.gitkeep
 !/storage/uploads/.gitkeep
 !/storage/cache/.gitkeep
 !/storage/logs/.gitkeep
+!/storage/geoip/.gitkeep
 
 # PHPUnit
 .phpunit.cache/

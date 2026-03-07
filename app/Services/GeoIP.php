@@ -3,42 +3,42 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use GeoIp2\Database\Reader;
+
 /**
- * GeoIP — Lightweight IP geolocation using ip-api.com (free tier).
+ * GeoIP — Hybrid IP geolocation.
  *
- * Free tier: 45 requests/minute, no API key needed.
- * Results are cached in storage/cache/ for 24 hours to stay within limits.
+ * Priority:
+ *   1. MaxMind GeoLite2 local database (fast, accurate to city level)
+ *   2. ip-api.com free API (fallback if .mmdb not installed)
  *
- * Returns: ['country' => 'UG', 'country_name' => 'Uganda', 'city' => 'Kampala',
- *           'region' => 'Central Region', 'lat' => 0.3163, 'lon' => 32.5822, 'timezone' => 'Africa/Kampala']
+ * Browser Geolocation (GPS-level accuracy) is handled client-side
+ * and sent to /api/visitor-location to override these results.
  */
 final class GeoIP
 {
-    private const API_URL   = 'http://ip-api.com/json/';
-    private const CACHE_TTL = 86400; // 24 hours
-    private const TIMEOUT   = 3;     // seconds
+    private const MMDB_PATH    = __DIR__ . '/../../storage/geoip/GeoLite2-City.mmdb';
+    private const API_URL      = 'http://ip-api.com/json/';
+    private const CACHE_TTL    = 86400;
+    private const TIMEOUT      = 3;
+
+    private static ?Reader $reader = null;
 
     /**
      * Get the real client IP — handles proxies, Docker, load balancers.
-     *
-     * Priority: X-Forwarded-For → X-Real-IP → REMOTE_ADDR
-     * Skips private IPs in X-Forwarded-For chain (proxy IPs).
      */
     public static function clientIP(): string
     {
-        // X-Forwarded-For may contain: "client, proxy1, proxy2"
         $xff = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
         if ($xff !== '') {
             $ips = array_map('trim', explode(',', $xff));
             foreach ($ips as $ip) {
-                // Return the first non-private IP (the real client)
                 if ($ip !== '' && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
                     return $ip;
                 }
             }
         }
 
-        // X-Real-IP (set by Nginx)
         $xri = $_SERVER['HTTP_X_REAL_IP'] ?? '';
         if ($xri !== '' && filter_var($xri, FILTER_VALIDATE_IP)) {
             return $xri;
@@ -49,12 +49,9 @@ final class GeoIP
 
     /**
      * Look up geolocation for an IP address.
-     *
-     * @return array{country: string, country_name: string, city: string, region: string, lat: float, lon: float, timezone: string}
      */
     public static function lookup(string $ip): array
     {
-        // Don't look up private/local IPs — return timezone-based fallback
         if (self::isPrivate($ip)) {
             return self::localFallback();
         }
@@ -65,21 +62,67 @@ final class GeoIP
             return $cached;
         }
 
-        // Call the API
-        $data = self::fetch($ip);
+        // Try MaxMind local database first
+        $data = self::lookupMaxMind($ip);
+
+        // Fallback to ip-api.com
+        if ($data === null) {
+            $data = self::lookupIpApi($ip);
+        }
+
         if ($data !== null) {
             self::toCache($ip, $data);
             return $data;
         }
 
-        // API failed — return timezone-based best guess
         return self::localFallback();
     }
 
     /**
-     * Fetch from ip-api.com
+     * MaxMind GeoLite2 local database lookup.
      */
-    private static function fetch(string $ip): ?array
+    private static function lookupMaxMind(string $ip): ?array
+    {
+        try {
+            if (!file_exists(self::MMDB_PATH)) {
+                return null;
+            }
+
+            if (self::$reader === null) {
+                self::$reader = new Reader(self::MMDB_PATH);
+            }
+
+            $record = self::$reader->city($ip);
+
+            $city = $record->city->name ?? '';
+            $country = $record->country->isoCode ?? '';
+            $countryName = $record->country->name ?? '';
+            $region = $record->mostSpecificSubdivision->name ?? '';
+            $lat = $record->location->latitude ?? 0.0;
+            $lon = $record->location->longitude ?? 0.0;
+            $tz = $record->location->timeZone ?? '';
+
+            // MaxMind sometimes returns empty city — still useful for country
+            return [
+                'country'      => $country,
+                'country_name' => $countryName,
+                'city'         => $city,
+                'region'       => $region,
+                'lat'          => (float) $lat,
+                'lon'          => (float) $lon,
+                'timezone'     => $tz,
+                'source'       => 'maxmind',
+            ];
+        } catch (\Throwable $e) {
+            error_log('GeoIP MaxMind error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * ip-api.com fallback.
+     */
+    private static function lookupIpApi(string $ip): ?array
     {
         try {
             $ctx = stream_context_create([
@@ -102,62 +145,91 @@ final class GeoIP
                 'country_name' => $raw['country'] ?? '',
                 'city'         => $raw['city'] ?? '',
                 'region'       => $raw['regionName'] ?? '',
-                'lat'          => (float)($raw['lat'] ?? 0),
-                'lon'          => (float)($raw['lon'] ?? 0),
+                'lat'          => (float) ($raw['lat'] ?? 0),
+                'lon'          => (float) ($raw['lon'] ?? 0),
                 'timezone'     => $raw['timezone'] ?? '',
+                'source'       => 'ipapi',
             ];
         } catch (\Throwable $e) {
-            error_log('GeoIP fetch error: ' . $e->getMessage());
+            error_log('GeoIP ip-api error: ' . $e->getMessage());
             return null;
         }
     }
 
     /**
-     * Check if IP is private/localhost.
+     * Reverse geocode coordinates to city/country via Nominatim (free, no key).
      */
+    public static function reverseGeocode(float $lat, float $lon): ?array
+    {
+        try {
+            $ctx = stream_context_create([
+                'http' => [
+                    'timeout' => 5,
+                    'header'  => "User-Agent: NorthernTimesCMS/1.0 (contact@northerntimes.news)\r\n",
+                ],
+            ]);
+
+            $url = sprintf(
+                'https://nominatim.openstreetmap.org/reverse?lat=%f&lon=%f&format=json&zoom=10&addressdetails=1',
+                $lat, $lon
+            );
+
+            $json = @file_get_contents($url, false, $ctx);
+            if ($json === false) return null;
+
+            $raw = json_decode($json, true);
+            if (!is_array($raw) || !isset($raw['address'])) return null;
+
+            $addr = $raw['address'];
+
+            // Nominatim uses different keys for city depending on the area
+            $city = $addr['city']
+                ?? $addr['town']
+                ?? $addr['village']
+                ?? $addr['municipality']
+                ?? $addr['county']
+                ?? '';
+
+            $countryCode = strtoupper($addr['country_code'] ?? '');
+
+            return [
+                'country'      => $countryCode,
+                'country_name' => $addr['country'] ?? '',
+                'city'         => $city,
+                'region'       => $addr['state'] ?? $addr['region'] ?? '',
+                'lat'          => $lat,
+                'lon'          => $lon,
+                'timezone'     => '',
+                'source'       => 'gps',
+            ];
+        } catch (\Throwable $e) {
+            error_log('GeoIP reverse geocode error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
     private static function isPrivate(string $ip): bool
     {
         if (in_array($ip, ['127.0.0.1', '::1', '0.0.0.0'], true)) return true;
         return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
     }
 
-    /**
-     * Fallback for private/local IPs — uses server timezone to guess country.
-     *
-     * This ensures the frontend never shows "Loading..." indefinitely.
-     * Common timezone → country mappings for East Africa and major regions.
-     */
     private static function localFallback(): array
     {
         $tz = date_default_timezone_get();
 
-        // Timezone → country mapping (covers server's likely location)
         $tzMap = [
-            // East Africa
             'Africa/Kampala'       => ['UG', 'Uganda',       'Kampala',       'Central Region',  0.3163, 32.5822],
             'Africa/Nairobi'       => ['KE', 'Kenya',        'Nairobi',       'Nairobi County', -1.2864, 36.8172],
             'Africa/Dar_es_Salaam' => ['TZ', 'Tanzania',     'Dar es Salaam', 'Dar es Salaam',  -6.7924, 39.2083],
             'Africa/Kigali'        => ['RW', 'Rwanda',       'Kigali',        'Kigali',         -1.9403, 29.8739],
             'Africa/Juba'          => ['SS', 'South Sudan',  'Juba',          'Central Equatoria', 4.8594, 31.5713],
             'Africa/Addis_Ababa'   => ['ET', 'Ethiopia',     'Addis Ababa',   'Addis Ababa',     9.0192, 38.7525],
-            // West Africa
             'Africa/Lagos'         => ['NG', 'Nigeria',      'Lagos',         'Lagos',           6.5244,  3.3792],
             'Africa/Accra'         => ['GH', 'Ghana',        'Accra',         'Greater Accra',   5.6037, -0.1870],
-            // Southern Africa
             'Africa/Johannesburg'  => ['ZA', 'South Africa', 'Johannesburg',  'Gauteng',       -26.2041, 28.0473],
-            // Europe
             'Europe/London'        => ['GB', 'United Kingdom','London',       'England',        51.5074, -0.1278],
-            'Europe/Paris'         => ['FR', 'France',       'Paris',         'Île-de-France',  48.8566,  2.3522],
-            'Europe/Berlin'        => ['DE', 'Germany',      'Berlin',        'Berlin',         52.5200, 13.4050],
-            // Americas
             'America/New_York'     => ['US', 'United States','New York',      'New York',       40.7128, -74.0060],
-            'America/Chicago'      => ['US', 'United States','Chicago',       'Illinois',       41.8781, -87.6298],
-            'America/Los_Angeles'  => ['US', 'United States','Los Angeles',   'California',     34.0522,-118.2437],
-            // Asia
-            'Asia/Dubai'           => ['AE', 'UAE',          'Dubai',         'Dubai',          25.2048, 55.2708],
-            'Asia/Kolkata'         => ['IN', 'India',        'Mumbai',        'Maharashtra',    19.0760, 72.8777],
-            'Asia/Shanghai'        => ['CN', 'China',        'Shanghai',      'Shanghai',       31.2304,121.4737],
-            'Asia/Tokyo'           => ['JP', 'Japan',        'Tokyo',         'Tokyo',          35.6762,139.6503],
         ];
 
         if (isset($tzMap[$tz])) {
@@ -170,27 +242,23 @@ final class GeoIP
                 'lat'          => $lat,
                 'lon'          => $lon,
                 'timezone'     => $tz,
+                'source'       => 'fallback',
             ];
         }
 
-        // Last resort: parse timezone continent/city
         $parts = explode('/', $tz, 2);
-        $city  = isset($parts[1]) ? str_replace('_', ' ', $parts[1]) : '';
-
         return [
             'country'      => '',
             'country_name' => '',
-            'city'         => $city,
+            'city'         => isset($parts[1]) ? str_replace('_', ' ', $parts[1]) : '',
             'region'       => $parts[0] ?? '',
             'lat'          => 0.0,
             'lon'          => 0.0,
             'timezone'     => $tz,
+            'source'       => 'fallback',
         ];
     }
 
-    /**
-     * Read from file cache.
-     */
     private static function fromCache(string $ip): ?array
     {
         $file = self::cacheFile($ip);
@@ -199,13 +267,10 @@ final class GeoIP
             @unlink($file);
             return null;
         }
-        $data = @json_decode((string)file_get_contents($file), true);
+        $data = @json_decode((string) file_get_contents($file), true);
         return is_array($data) ? $data : null;
     }
 
-    /**
-     * Write to file cache.
-     */
     private static function toCache(string $ip, array $data): void
     {
         $dir = self::cacheDir();
@@ -221,21 +286,5 @@ final class GeoIP
     private static function cacheFile(string $ip): string
     {
         return self::cacheDir() . '/' . md5($ip) . '.json';
-    }
-
-    /**
-     * Empty result for unknown/private IPs.
-     */
-    private static function empty(): array
-    {
-        return [
-            'country'      => '',
-            'country_name' => '',
-            'city'         => '',
-            'region'       => '',
-            'lat'          => 0.0,
-            'lon'          => 0.0,
-            'timezone'     => '',
-        ];
     }
 }

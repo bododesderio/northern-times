@@ -5,6 +5,7 @@ namespace App\Middleware;
 
 use App\Models\SiteVisitor;
 use App\Services\GeoIP;
+use App\Services\UserAgentParser;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -25,7 +26,7 @@ final class VisitorMiddleware implements MiddlewareInterface
         // Only track if not already recorded this session
         if (empty($_SESSION['_visitor_recorded'])) {
             $ip        = $request->getClientIp() ?? ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
-            $userAgent = $request->headers->get('User-Agent');
+            $userAgent = $request->headers->get('User-Agent') ?? '';
             $firstPage = $request->getPathInfo();
 
             // Resolve geo location for heatmap
@@ -36,7 +37,10 @@ final class VisitorMiddleware implements MiddlewareInterface
                 // GeoIP failure should never block visitor tracking
             }
 
-            SiteVisitor::record($ip, $userAgent, $firstPage, $geo);
+            // Parse device info from user agent
+            $device = UserAgentParser::parse($userAgent);
+
+            SiteVisitor::record($ip, $userAgent, $firstPage, $geo, $device);
 
             $_SESSION['_visitor_recorded'] = true;
         }

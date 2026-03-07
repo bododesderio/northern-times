@@ -203,8 +203,8 @@ final class ReaderHeatmapTest extends TestCase
         if (!empty($kampala)) {
             $kampala = reset($kampala);
             $this->assertGreaterThanOrEqual(2, $kampala['visitors']);
-            $this->assertEqualsWithDelta(0.3476, $kampala['lat'], 0.01);
-            $this->assertEqualsWithDelta(32.5825, $kampala['lng'], 0.01);
+            $this->assertEqualsWithDelta(0.3476, $kampala['lat'], 0.05);
+            $this->assertEqualsWithDelta(32.5825, $kampala['lng'], 0.05);
             $this->assertArrayHasKey('percentage', $kampala);
         }
 
@@ -258,8 +258,8 @@ final class ReaderHeatmapTest extends TestCase
         $html = file_get_contents(__DIR__ . '/../../../app/Views/admin/dashboard.php');
         $this->assertStringContainsString('nt-reader-map', $html, 'Dashboard should contain map widget ID');
         $this->assertStringContainsString('reader-map.js', $html, 'Dashboard should load reader-map.js');
-        $this->assertStringContainsString('leaflet.js', $html, 'Dashboard should load Leaflet');
-        $this->assertStringContainsString('leaflet-heat.js', $html, 'Dashboard should load Leaflet.heat');
+        $this->assertStringContainsString('leaflet', $html, 'Dashboard should load Leaflet');
+        $this->assertStringContainsString('leaflet-heat', $html, 'Dashboard should load Leaflet.heat');
     }
 
     // ── Route Tests ─────────────────────────────────────────

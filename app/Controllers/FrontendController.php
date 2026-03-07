@@ -697,14 +697,93 @@ Disallow: /search?
      ================================================================ */
   public function adClick(string $id): Response
   {
+    // Log click event
+    try {
+      $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+      $page = $_SERVER['HTTP_REFERER'] ?? '/';
+      \App\Services\DB::pdo()->prepare(
+        "INSERT INTO ad_events (ad_slot_id, ip_address, event_type, page_url) VALUES (:id, :ip::inet, 'click', :page)"
+      )->execute([':id' => $id, ':ip' => $ip, ':page' => mb_substr($page, 0, 500)]);
+    } catch (\Throwable) {}
+
     $linkUrl = AdSlot::recordClick($id);
 
     if ($linkUrl && filter_var($linkUrl, FILTER_VALIDATE_URL)) {
       return new Response('', 302, ['Location' => $linkUrl]);
     }
 
-    // Fallback: redirect home if no link
     return new Response('', 302, ['Location' => '/']);
+  }
+
+  public function adImpression(): Response
+  {
+    try {
+      $body = json_decode(file_get_contents('php://input'), true);
+      $adId = $body['ad_id'] ?? '';
+      $page = $body['page'] ?? '/';
+
+      if ($adId && preg_match('/^[0-9a-f\-]{36}$/i', $adId)) {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        \App\Services\DB::pdo()->prepare(
+          "INSERT INTO ad_events (ad_slot_id, ip_address, event_type, page_url) VALUES (:id, :ip::inet, 'impression', :page)"
+        )->execute([':id' => $adId, ':ip' => $ip, ':page' => mb_substr($page, 0, 500)]);
+      }
+    } catch (\Throwable) {}
+
+    return new Response('', 204);
+  }
+
+  /* ================================================================
+     BROWSER GEOLOCATION — GPS-level accuracy override
+     ================================================================ */
+  public function visitorLocation(): Response
+  {
+    try {
+      $body = json_decode(file_get_contents('php://input'), true);
+      $lat = (float) ($body['lat'] ?? 0);
+      $lon = (float) ($body['lon'] ?? 0);
+
+      if ($lat == 0.0 && $lon == 0.0) {
+        return new Response('', 204);
+      }
+
+      // Validate coordinate ranges
+      if ($lat < -90 || $lat > 90 || $lon < -180 || $lon > 180) {
+        return new Response('', 204);
+      }
+
+      $ip = \App\Services\GeoIP::clientIP();
+      if (!$ip || $ip === '0.0.0.0') {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+      }
+
+      // Resolve GPS to nearest known city (local DB first, Nominatim fallback)
+      $geo = \App\Services\CityResolver::resolve($lat, $lon);
+
+      $pdo = \App\Services\DB::pdo();
+      $stmt = $pdo->prepare("
+        UPDATE site_visitors
+        SET latitude = :lat,
+            longitude = :lon,
+            city = COALESCE(:city, city),
+            country = COALESCE(:country, country),
+            country_code = COALESCE(:cc, country_code),
+            region = COALESCE(:region, region)
+        WHERE ip_address = :ip::inet
+          AND visit_date = CURRENT_DATE
+      ");
+      $stmt->execute([
+        ':lat'     => $lat,
+        ':lon'     => $lon,
+        ':city'    => $geo['city'] ?? null,
+        ':country' => $geo['country_name'] ?? null,
+        ':cc'      => $geo['country'] ?? null,
+        ':region'  => $geo['region'] ?? null,
+        ':ip'      => $ip,
+      ]);
+    } catch (\Throwable) {}
+
+    return new Response('', 204);
   }
 
   /* ================================================================

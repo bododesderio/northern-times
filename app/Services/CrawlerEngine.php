@@ -220,7 +220,7 @@ final class CrawlerEngine
                         ':category_id'    => $categoryId,
                         ':featured_image' => $featuredImage,
                         ':status'         => $status,
-                        ':published_at'   => $status === 'published' ? date('Y-m-d H:i:s') : null,
+                        ':published_at'   => $status === 'published' ? gmdate('Y-m-d H:i:s') : null,
                         ':created_by'     => $authorId,
                         ':display_author' => function_exists('get_site_setting')
                             ? get_site_setting('default_crawl_author', get_site_setting('site_title', 'Newsroom'))

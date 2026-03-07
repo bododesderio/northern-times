@@ -86,6 +86,29 @@ final class AdminController extends Controller
   }
 
   /**
+   * Reader Map City Detail API — per-city analytics breakdown.
+   * GET /admin/api/reader-map/city?city=Kampala&period=30d
+   */
+  public function readerMapCityDetail(): Response
+  {
+    $request = \Symfony\Component\HttpFoundation\Request::createFromGlobals();
+    $city    = trim($request->query->get('city', ''));
+    $period  = $request->query->get('period', '30d');
+
+    if ($city === '') {
+      return $this->json(['error' => 'City parameter required'], 400);
+    }
+
+    $allowed = ['today', '7d', '30d', '90d', 'all'];
+    if (!in_array($period, $allowed, true)) {
+      $period = '30d';
+    }
+
+    $data = \App\Models\SiteVisitor::cityDetail($city, $period);
+    return $this->json($data);
+  }
+
+  /**
    * Dashboard Pulse API — lightweight polling endpoint for real-time metrics.
    * GET /admin/api/dashboard-pulse
    * Returns: visitors_today, active_sessions, views_last_hour, recent_pings (for map)

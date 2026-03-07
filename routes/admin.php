@@ -50,6 +50,7 @@ $superCsrf  = ['auth', 'role:super_admin', 'csrf'];
 // --- Dashboard ---
 $routes->add('admin_dashboard', new Route('/admin', ['_controller' => [$admin, 'dashboard'], '_middleware' => $auth], [], [], '', [], ['GET']));
 $routes->add('admin_reader_map_api', new Route('/admin/api/reader-map', ['_controller' => [$admin, 'readerMapApi'], '_middleware' => $auth], [], [], '', [], ['GET']));
+$routes->add('admin_reader_map_city', new Route('/admin/api/reader-map/city', ['_controller' => [$admin, 'readerMapCityDetail'], '_middleware' => $auth], [], [], '', [], ['GET']));
 $routes->add('admin_api_badges',     new Route('/admin/api/badges',      ['_controller' => [$admin, 'apiBadges'],    '_middleware' => $auth], [], [], '', [], ['GET']));
 $routes->add('admin_dashboard_pulse', new Route('/admin/api/dashboard-pulse', ['_controller' => [$admin, 'dashboardPulse'], '_middleware' => $auth], [], [], '', [], ['GET']));
 $routes->add('admin_engagement_radar', new Route('/admin/api/engagement-radar', ['_controller' => [$admin, 'engagementRadar'], '_middleware' => $auth], [], [], '', [], ['GET']));

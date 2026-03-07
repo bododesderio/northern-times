@@ -541,7 +541,7 @@ ob_start();
     <span class="rm-total" style="font-size:13px;color:var(--muted);font-weight:600;">0 visitors</span>
   </div>
   <div style="position:relative;">
-    <div class="rm-map-wrap" style="width:100%;min-height:350px;margin:12px 0;border-radius:10px;overflow:hidden;"></div>
+    <div class="rm-map-wrap" style="width:100%;height:420px;margin:12px 0;border-radius:10px;overflow:hidden;background:#0f121c;"></div>
     <div style="position:absolute;bottom:12px;right:12px;display:flex;gap:4px;">
       <button class="rm-zoom-in rm-zoom-btn" title="Zoom In">+</button>
       <button class="rm-zoom-out rm-zoom-btn" title="Zoom Out">−</button>
@@ -635,9 +635,14 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 <!-- ═══ Leaflet Satellite Reader Heatmap ═══════════════════════ -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<script>
+if (typeof L === 'undefined') {
+  document.querySelector('.rm-map-wrap').innerHTML = '<p style="color:#999;text-align:center;padding:40px;">Map library failed to load. Check your internet connection.</p>';
+}
+</script>
 <script src="/assets/admin/reader-map.js"></script>
 
 <!-- ═══ Chart.js v4 ═══════════════════════════════════════════ -->

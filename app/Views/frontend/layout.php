@@ -288,6 +288,10 @@ if ($metaType === 'article') {
   <meta name="site-title" content="<?= h($siteTitle ?? get_site_setting('site_title', '')) ?>">
   <script src="/assets/push-prompt.js" defer></script>
   <?php endif; ?>
+  <?php $gaId = get_site_setting('analytics_id', ''); if ($gaId): ?>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=<?= h($gaId) ?>"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','<?= h($gaId) ?>');</script>
+  <?php endif; ?>
 </head>
 <body>
 
@@ -681,6 +685,41 @@ document.addEventListener('DOMContentLoaded',function(){
       t.style.objectFit='cover';
     }
   },true);
+})();
+</script>
+<script>
+(function(){
+  if(!window.IntersectionObserver)return;
+  var tracked={};
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(!e.isIntersecting)return;
+      var id=e.target.dataset.adId;
+      if(!id||tracked[id])return;
+      tracked[id]=true;
+      navigator.sendBeacon('/api/ad-impression',JSON.stringify({ad_id:id,page:location.pathname}));
+    });
+  },{threshold:0.5});
+  document.querySelectorAll('.ad-slot[data-ad-id]').forEach(function(el){
+    if(el.dataset.adId)obs.observe(el);
+  });
+})();
+</script>
+<script>
+(function(){
+  if(!navigator.geolocation||sessionStorage.getItem('_geo_sent'))return;
+  navigator.geolocation.getCurrentPosition(function(pos){
+    sessionStorage.setItem('_geo_sent','1');
+    fetch('/api/visitor-location',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({lat:pos.coords.latitude,lon:pos.coords.longitude}),
+      keepalive:true
+    }).catch(function(){});
+  },function(err){
+    console.log('Geolocation denied or unavailable:',err.message);
+    sessionStorage.setItem('_geo_sent','1');
+  },{enableHighAccuracy:true,timeout:10000,maximumAge:300000});
 })();
 </script>
 </body>
