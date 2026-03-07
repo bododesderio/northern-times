@@ -20,16 +20,13 @@ use App\Models\BaseModel;
 final class BreakingNewsEngine
 {
     /** Minimum score to qualify as breaking */
-    private const THRESHOLD = 60;
+    private const THRESHOLD = 40;
 
     /** Hours after which breaking status fully decays */
     private const DECAY_HOURS = 6;
 
     /** Only consider articles published within this window */
     private const LOOKBACK_HOURS = 12;
-
-    /** Max articles to show in breaking section */
-    private const MAX_DISPLAY = 12;
 
     // ── Tier 3: Keyword signals ────────────────────────────────
 
@@ -308,6 +305,22 @@ final class BreakingNewsEngine
         elseif ($ageHours < 4)   $score += 12;
         elseif ($ageHours < 6)   $score += 6;
 
+        // ── Source/category boost (0-15) ─────────────────────
+        // Ugandan sources get a boost for national relevance
+        if (!empty($article['is_crawled'])) {
+            $sourceRegion = self::getSourceRegion($article['id'], $pdo);
+            if ($sourceRegion === 'ugandan') {
+                $score += 10;
+            } elseif ($sourceRegion === 'east_african') {
+                $score += 5;
+            }
+        }
+        // Uganda keywords in title get extra boost
+        $titleLower = strtolower($article['title'] ?? '');
+        if (preg_match('/\b(uganda|kampala|museveni|parliament|gulu|lira|acholi|northern\s+uganda)\b/i', $titleLower)) {
+            $score += 5;
+        }
+
         // Apply decay to non-manual scores
         $score = (int)round($score * $decay);
 
@@ -557,6 +570,21 @@ final class BreakingNewsEngine
             $map[$r['story_thread_id']] = (int)$r['cnt'];
         }
         return $map;
+    }
+
+    /**
+     * Get the source region for a crawled article.
+     */
+    private static function getSourceRegion(string $articleId, \PDO $pdo): ?string
+    {
+        $stmt = $pdo->prepare("
+            SELECT cs.region FROM crawl_sources cs
+            JOIN articles a ON a.crawl_source_id = cs.id
+            WHERE a.id = :id LIMIT 1
+        ");
+        $stmt->execute([':id' => $articleId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row['region'] ?? null;
     }
 
     /**

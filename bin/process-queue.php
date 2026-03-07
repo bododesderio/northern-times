@@ -9,7 +9,7 @@
  *   php bin/process-queue.php --stats      # Show queue stats only
  *
  * Crontab (every 2 minutes):
- *   */2 * * * * cd /var/www/html && php bin/process-queue.php >> storage/logs/queue.log 2>&1
+ *   0/2 * * * * cd /var/www/html && php bin/process-queue.php >> storage/logs/queue.log 2>&1
  */
 
 declare(strict_types=1);

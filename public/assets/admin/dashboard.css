@@ -144,8 +144,8 @@ html.dark {
   border-radius: var(--dash-radius);
   padding: 22px;
   box-shadow: var(--glass-shadow);
-  backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
   transition: box-shadow .22s var(--ease-out), transform .22s var(--ease-out);
 }
 .dcard:hover {
@@ -387,7 +387,7 @@ html.dark {
 .top-row {
   display: flex; align-items: center; gap: 14px;
   padding: 14px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-bottom: 1px solid var(--border);
   text-decoration: none; color: var(--ink);
   transition: background .15s;
 }
@@ -437,8 +437,8 @@ html.dark {
   text-decoration: none;
   color: var(--ink);
   box-shadow: var(--glass-shadow);
-  backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
   transition: all .22s var(--ease-out);
   display: flex; flex-direction: column; align-items: center; gap: 8px;
 }
@@ -474,7 +474,7 @@ html.dark {
 .act-row {
   display: flex; align-items: flex-start; gap: 12px;
   padding: 11px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  border-bottom: 1px solid var(--border);
   text-decoration: none; color: var(--ink);
   transition: background .15s;
 }
@@ -543,7 +543,7 @@ html.dark {
 .sub-row {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  border-bottom: 1px solid var(--border);
 }
 .sub-row:last-child { border-bottom: none; }
 .sub-email { flex: 1; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -630,7 +630,7 @@ html.dark .live-sessions { color: #4ade80; }
   border: 1px solid rgba(255,255,255,.15);
   background: rgba(0,0,0,.5); color: #fff; font-size: 16px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(4px); transition: all .15s ease; font-family: inherit;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); transition: all .15s ease; font-family: inherit;
 }
 .rm-zoom-btn:hover { background: rgba(0,0,0,.7); border-color: rgba(255,255,255,.3); }
 .rm-city-row {
@@ -655,6 +655,7 @@ html.dark .live-sessions { color: #4ade80; }
   color: #fff;
   border-radius: 10px;
   box-shadow: 0 6px 20px rgba(0,0,0,.4);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255,255,255,.08);
 }

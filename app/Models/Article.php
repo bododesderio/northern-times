@@ -203,19 +203,39 @@ final class Article extends BaseModel
                    a.is_breaking, a.is_breaking_manual, a.breaking_score,
                    a.featured_image, a.excerpt, a.published_at, a.views,
                    c.name AS category, c.slug AS category_slug,
-                   CASE WHEN a.is_crawled = TRUE " . 
+                   CASE WHEN a.is_crawled = TRUE " .
                     "THEN " . self::crawlAuthorName() . " ELSE COALESCE(NULLIF(a.display_author,''), u.username, 'Staff') END AS author
             FROM articles a
             JOIN categories c ON c.id = a.category_id
             LEFT JOIN users u ON u.id = a.author_id
             WHERE a.status = 'published'
               AND (a.published_at IS NULL OR a.published_at <= NOW())
-              AND a.breaking_score >= 60
+              AND a.breaking_score >= 40
             ORDER BY
               a.breaking_score DESC,
               a.published_at DESC NULLS LAST
             LIMIT " . (int)$limit . "
         ");
+
+        // Fallback: if no breaking articles, show latest national headlines on ticker
+        if (empty($rows)) {
+            $rows = self::query("
+                SELECT a.id, a.title, a.slug, a.title AS breaking_headline,
+                       FALSE AS is_breaking, FALSE AS is_breaking_manual, 0 AS breaking_score,
+                       a.featured_image, a.excerpt, a.published_at, a.views,
+                       c.name AS category, c.slug AS category_slug,
+                       CASE WHEN a.is_crawled = TRUE " .
+                        "THEN " . self::crawlAuthorName() . " ELSE COALESCE(NULLIF(a.display_author,''), u.username, 'Staff') END AS author
+                FROM articles a
+                JOIN categories c ON c.id = a.category_id
+                LEFT JOIN users u ON u.id = a.author_id
+                WHERE " . self::PUBLISHED_FILTER . "
+                  AND a.published_at >= NOW() - INTERVAL '24 hours'
+                ORDER BY a.published_at DESC NULLS LAST
+                LIMIT " . (int)$limit . "
+            ");
+        }
+
         return array_values($rows);
     }
 
@@ -236,7 +256,7 @@ final class Article extends BaseModel
             LEFT JOIN users u ON u.id = a.author_id
             WHERE a.status = 'published'
               AND (a.published_at IS NULL OR a.published_at <= NOW())
-              AND a.breaking_score >= 60
+              AND a.breaking_score >= 40
             ORDER BY
               CASE WHEN a.is_breaking_manual = TRUE THEN 0 ELSE 1 END,
               a.breaking_score DESC,
@@ -336,6 +356,46 @@ final class Article extends BaseModel
               a.published_at DESC NULLS LAST
             LIMIT " . (int)$limit . "
         ", $excludeParams);
+    }
+
+    /**
+     * Hero articles — national/Northern Uganda headlines for homepage hero section.
+     * Filters to Ugandan source categories: Top Stories, Northern Uganda, Politics, Crime & Security.
+     * Falls back to latestPublished if not enough hero-worthy articles.
+     */
+    public static function heroArticles(int $limit = 12): array
+    {
+        $heroCategories = ['top-stories', 'northern-uganda', 'politics', 'crime-security', 'national'];
+        $placeholders = [];
+        $params = [];
+        foreach ($heroCategories as $i => $slug) {
+            $key = ":hcat{$i}";
+            $placeholders[] = $key;
+            $params[$key] = $slug;
+        }
+        $in = implode(',', $placeholders);
+
+        $rows = self::query("
+            SELECT a.id, a.title, a.slug, a.excerpt, a.content,
+                   a.featured_image, a.published_at, a.views,
+                   c.name AS category, c.slug AS category_slug,
+                   CASE WHEN a.is_crawled = TRUE " .
+                    "THEN " . self::crawlAuthorName() . " ELSE COALESCE(NULLIF(a.display_author,''), u.username, 'Staff') END AS author
+            FROM articles a
+            JOIN categories c ON c.id = a.category_id
+            LEFT JOIN users u ON u.id = a.author_id
+            WHERE " . self::PUBLISHED_FILTER . "
+              AND c.slug IN ({$in})
+            ORDER BY a.published_at DESC NULLS LAST, a.created_at DESC
+            LIMIT " . (int)$limit . "
+        ", $params);
+
+        // Fall back to latest published if not enough hero articles
+        if (count($rows) < 3) {
+            return self::latestPublished($limit);
+        }
+
+        return $rows;
     }
 
     /**

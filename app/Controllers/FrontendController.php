@@ -62,7 +62,15 @@ final class FrontendController extends Controller
       if (!empty($b['is_breaking_manual'])) { $hasManualBreaking = true; break; }
     }
 
-    // ── Latest articles (single pool for hero zone + top stories) ──
+    // ── Hero articles (national/Northern Uganda headlines) ──────────
+    $heroPool = [];
+    try {
+      $heroPool = Cache::remember('home:hero', 30, fn() => Article::heroArticles(12));
+    } catch (\Throwable $e) {
+      error_log('Home hero articles: ' . $e->getMessage());
+    }
+
+    // ── Latest articles (top stories section below hero) ──────────
     $topStories = [];
     try {
       $topStories = Article::latestPublished(30);
@@ -125,7 +133,7 @@ final class FrontendController extends Controller
     ];
 
     return $this->layout('home', compact(
-      'breaking','hasManualBreaking','topStories',
+      'breaking','hasManualBreaking','heroPool','topStories',
       'latest','most','sections','sidebarCats','ads','meta'
     ));
   }

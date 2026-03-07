@@ -50,6 +50,22 @@ services:
       - northern_times
     restart: unless-stopped
 
+  extractor:
+    build:
+      context: ./docker/extractor
+      dockerfile: Dockerfile
+    container_name: northern_times_extractor
+    ports:
+      - "5000:5000"
+    networks:
+      - northern_times
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: northern_times_pgadmin

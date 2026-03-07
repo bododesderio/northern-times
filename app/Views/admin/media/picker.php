@@ -91,7 +91,7 @@
     /* Width slider */
     .slider-wrap { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 180px; }
     .slider-wrap input[type="range"] {
-      flex: 1; -webkit-appearance: none; height: 5px;
+      flex: 1; -webkit-appearance: none; appearance: none; height: 5px;
       border-radius: 3px; background: var(--border); border: none; padding: 0;
     }
     .slider-wrap input[type="range"]::-webkit-slider-thumb {

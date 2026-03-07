@@ -5,6 +5,7 @@
  */
 $breaking          = $breaking          ?? [];
 $hasManualBreaking = $hasManualBreaking ?? false;
+$heroPool          = $heroPool          ?? [];
 $topStories        = $topStories        ?? [];
 $latest            = $latest            ?? [];
 $most              = $most              ?? [];
@@ -12,11 +13,15 @@ $sections          = $sections          ?? [];
 $ads               = $ads               ?? [];
 $sidebarCats       = $sidebarCats       ?? [];
 
-// Distribute topStories into zones
-$hero              = $topStories[0]          ?? null;
-$stackArticles     = array_slice($topStories, 1, 2);
-$gridArticles      = array_slice($topStories, 3, 6);
-$remaining         = array_slice($topStories, 9);
+// Hero zone uses national/Northern Uganda articles
+$hero              = $heroPool[0]            ?? null;
+$stackArticles     = array_slice($heroPool, 1, 2);
+$gridArticles      = array_slice($heroPool, 3, 6);
+
+// Top stories section uses all latest articles (excluding hero IDs)
+$heroIds           = array_column($heroPool, 'id');
+$remaining         = array_filter($topStories, fn($a) => !in_array($a['id'], $heroIds));
+$remaining         = array_values($remaining);
 $tsLead            = $remaining[0]           ?? null;
 $tsGrid            = array_slice($remaining, 1, 4);
 
