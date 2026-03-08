@@ -4,6 +4,7 @@
  * Route: GET /admin/performance
  */
 $pageTitle = $pageTitle ?? 'Content Performance';
+$activeNav = $activeNav ?? 'performance';
 $topArticles = $topArticles ?? [];
 $categoryStats = $categoryStats ?? [];
 $authorStats = $authorStats ?? [];

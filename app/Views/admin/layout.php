@@ -83,6 +83,10 @@ function adminSvg(string $name): string {
     'logout'      => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
     'system'        => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
     'login-quotes'  => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"/></svg>',
+    'performance' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>',
+    'engagement'  => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
+    'syndication' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>',
+    'followers'   => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>',
     'external'    => '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15,3 21,3 21,9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
     'burger'      => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>',
     'theme-light' => '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',
@@ -571,7 +575,7 @@ function sidebarLink(string $key, string $label, string $href, string $active, b
         // Determine which groups are active based on current page
         $contentActive  = in_array($activeNav, ['articles','archive','categories','media']);
         $editorialActive = in_array($activeNav, ['review','comments','notifications']);
-        $growthActive   = in_array($activeNav, ['subscribers','newsletter','popups','analytics','ads','social-posts','push-settings']);
+        $growthActive   = in_array($activeNav, ['subscribers','newsletter','popups','analytics','ads','social-posts','push-settings','performance','engagement','syndication','followers']);
         $crawlerActive  = in_array($activeNav, ['crawler','crawler-logs','crawler-seo','crawler-social','crawler-settings']);
         $adminActive    = in_array($activeNav, ['settings','users','roles','system','login-quotes']);
         $editorialActive = in_array($activeNav, ['review','comments','notifications','policies']);
@@ -645,6 +649,7 @@ function sidebarLink(string $key, string $label, string $href, string $active, b
         <div class="nt-nav-group-items">
           <?php if (user_can_any(['subscribers.view','subscribers.manage'])): ?>
           <?= sidebarLink('subscribers',   'Subscribers',    '/admin/subscribers',      $activeNav) ?>
+          <?= sidebarLink('followers',     'Topic Followers','/admin/followers',        $activeNav) ?>
           <?= sidebarLink('newsletter',    'Newsletter',     '/admin/newsletter',       $activeNav) ?>
           <?= sidebarLink('popups',        'Popups',         '/admin/popups',           $activeNav) ?>
           <?= sidebarLink('analytics',     'Popup Analytics','/admin/popups/analytics', $activeNav) ?>
@@ -654,6 +659,9 @@ function sidebarLink(string $key, string $label, string $href, string $active, b
           <?php endif; ?>
           <?= sidebarLink('social-posts',  'Social Post Log','/admin/social/posts',     $activeNav) ?>
           <?= sidebarLink('push-settings', 'Push & Social',  '/admin/push/settings',    $activeNav) ?>
+          <?= sidebarLink('performance',  'Performance',    '/admin/performance',      $activeNav) ?>
+          <?= sidebarLink('engagement',   'Engagement',     '/admin/engagement',       $activeNav) ?>
+          <?= sidebarLink('syndication',  'Syndication',    '/admin/syndication',      $activeNav) ?>
         </div>
       </div>
       <?php endif; ?>

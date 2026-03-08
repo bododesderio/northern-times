@@ -59,6 +59,13 @@ $routes->add('admin_analytics', new Route('/admin/analytics', ['_controller' => 
 $routes->add('admin_analytics_export', new Route('/admin/analytics/export', ['_controller' => [$admin, 'analyticsExport'], '_middleware' => $auth], [], [], '', [], ['GET']));
 $routes->add('admin_daily_stats_api', new Route('/admin/api/daily-stats', ['_controller' => [$admin, 'dailyStatsApi'], '_middleware' => $auth], [], [], '', [], ['GET']));
 $routes->add('admin_performance', new Route('/admin/performance', ['_controller' => [$admin, 'performance'], '_middleware' => $auth], [], [], '', [], ['GET']));
+$routes->add('admin_engagement', new Route('/admin/engagement', ['_controller' => [$admin, 'engagement'], '_middleware' => $auth], [], [], '', [], ['GET']));
+$routes->add('admin_syndication', new Route('/admin/syndication', ['_controller' => [$admin, 'syndication'], '_middleware' => $auth], [], [], '', [], ['GET']));
+
+// --- Topic Followers ---
+$routes->add('admin_followers',        new Route('/admin/followers',                ['_controller' => [$admin, 'followers'],       '_middleware' => $auth],     [], [], '', [], ['GET']));
+$routes->add('admin_follower_toggle',  new Route('/admin/followers/{id}/toggle',    ['_controller' => [$admin, 'followerToggle'],  '_middleware' => $authCsrf], [], [], '', [], ['POST']));
+$routes->add('admin_follower_delete',  new Route('/admin/followers/{id}/delete',    ['_controller' => [$admin, 'followerDelete'],  '_middleware' => $authCsrf], [], [], '', [], ['POST']));
 
 // --- Articles ---
 $routes->add('admin_articles',       new Route('/admin/articles',             ['_controller' => [$admin, 'articles'],      '_middleware' => $auth],     [], [], '', [], ['GET']));

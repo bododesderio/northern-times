@@ -993,6 +993,135 @@ final class AdminController extends Controller
     return $this->redirect('/admin/push/settings');
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // Topic Followers
+  // ══════════════════════════════════════════════════════════════
+
+  public function followers(): Response
+  {
+    $req     = Request::createFromGlobals();
+    $search  = trim((string)$req->query->get('search', ''));
+    $type    = trim((string)$req->query->get('type', 'all'));
+    $page    = max(1, (int)$req->query->get('page', 1));
+    $perPage = 50;
+
+    $pdo = DB::pdo();
+
+    // Summary counts
+    $totalCount    = 0;
+    $activeCount   = 0;
+    $categoryCount = 0;
+    $tagCount      = 0;
+
+    try {
+      $totalCount    = (int)$pdo->query("SELECT COUNT(*) FROM topic_follows")->fetchColumn();
+      $activeCount   = (int)$pdo->query("SELECT COUNT(*) FROM topic_follows WHERE is_active = TRUE")->fetchColumn();
+      $categoryCount = (int)$pdo->query("SELECT COUNT(*) FROM topic_follows WHERE follow_type = 'category'")->fetchColumn();
+      $tagCount      = (int)$pdo->query("SELECT COUNT(*) FROM topic_follows WHERE follow_type = 'tag'")->fetchColumn();
+    } catch (\Throwable $e) {
+      error_log('[followers] counts: ' . $e->getMessage());
+    }
+
+    // Build filtered query
+    $where  = [];
+    $params = [];
+
+    if ($search !== '') {
+      $where[]          = 'tf.email ILIKE :search';
+      $params[':search'] = '%' . $search . '%';
+    }
+    if ($type === 'category' || $type === 'tag') {
+      $where[]        = 'tf.follow_type = :type';
+      $params[':type'] = $type;
+    }
+
+    $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+    // Filtered total for pagination
+    $filteredTotal = 0;
+    $followers     = [];
+
+    try {
+      $countSql      = "SELECT COUNT(*) FROM topic_follows tf {$whereSql}";
+      $countStmt     = $pdo->prepare($countSql);
+      $countStmt->execute($params);
+      $filteredTotal = (int)$countStmt->fetchColumn();
+
+      $totalPages = max(1, (int)ceil($filteredTotal / $perPage));
+      $page       = min($page, $totalPages);
+      $offset     = ($page - 1) * $perPage;
+
+      $sql = "
+        SELECT tf.*,
+               CASE tf.follow_type
+                 WHEN 'category' THEN c.name
+                 WHEN 'tag'      THEN t.name
+               END AS topic_name
+        FROM topic_follows tf
+        LEFT JOIN categories c ON tf.follow_type = 'category' AND c.id = tf.follow_id
+        LEFT JOIN tags       t ON tf.follow_type = 'tag'      AND t.id = tf.follow_id
+        {$whereSql}
+        ORDER BY tf.created_at DESC
+        LIMIT :limit OFFSET :offset
+      ";
+      $stmt = $pdo->prepare($sql);
+      foreach ($params as $k => $v) {
+        $stmt->bindValue($k, $v);
+      }
+      $stmt->bindValue(':limit',  $perPage, \PDO::PARAM_INT);
+      $stmt->bindValue(':offset', $offset,  \PDO::PARAM_INT);
+      $stmt->execute();
+      $followers = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+      error_log('[followers] list: ' . $e->getMessage());
+      $totalPages = 1;
+    }
+
+    return $this->render('admin/followers', [
+      'followers'     => $followers,
+      'search'        => $search,
+      'type'          => $type,
+      'page'          => $page,
+      'totalPages'    => $totalPages ?? 1,
+      'filteredTotal' => $filteredTotal,
+      'totalCount'    => $totalCount,
+      'activeCount'   => $activeCount,
+      'categoryCount' => $categoryCount,
+      'tagCount'      => $tagCount,
+      'csrf'          => Csrf::token(),
+      'flash_success' => Flash::get('success'),
+      'flash_error'   => Flash::get('error'),
+    ]);
+  }
+
+  public function followerToggle(string $id): Response
+  {
+    try {
+      $pdo  = DB::pdo();
+      $stmt = $pdo->prepare("UPDATE topic_follows SET is_active = NOT is_active WHERE id = :id");
+      $stmt->execute([':id' => $id]);
+      Flash::set('success', 'Follower status updated.');
+    } catch (\Throwable $e) {
+      error_log('[followerToggle] ' . $e->getMessage());
+      Flash::set('error', 'Failed to update follower status.');
+    }
+    return $this->redirect('/admin/followers');
+  }
+
+  public function followerDelete(string $id): Response
+  {
+    try {
+      $pdo  = DB::pdo();
+      $stmt = $pdo->prepare("DELETE FROM topic_follows WHERE id = :id");
+      $stmt->execute([':id' => $id]);
+      Flash::set('success', 'Follower removed.');
+    } catch (\Throwable $e) {
+      error_log('[followerDelete] ' . $e->getMessage());
+      Flash::set('error', 'Failed to remove follower.');
+    }
+    return $this->redirect('/admin/followers');
+  }
+
   public function performance(): Response
   {
     $pdo = DB::pdo();
@@ -1069,11 +1198,117 @@ final class AdminController extends Controller
 
     return $this->render('admin/performance', [
       'pageTitle' => 'Content Performance',
-      'activeNav' => 'analytics',
+      'activeNav' => 'performance',
       'topArticles' => $topArticles,
       'categoryStats' => $categoryStats,
       'authorStats' => $authorStats,
       'peakHours' => $peakHours,
+      'dailyTrend' => $dailyTrend,
+      'summary' => $summary,
+    ]);
+  }
+
+  public function engagement(): Response
+  {
+    $pdo = DB::pdo();
+
+    // Top 20 articles by engagement_score
+    $topArticles = $pdo->query("
+      SELECT a.title, a.slug, a.views, a.share_count,
+             a.avg_scroll_depth, a.avg_time_on_page,
+             a.engagement_score, a.published_at
+      FROM articles a
+      WHERE a.status = 'published' AND a.deleted_at IS NULL
+        AND a.engagement_score > 0
+      ORDER BY a.engagement_score DESC
+      LIMIT 20
+    ")->fetchAll() ?: [];
+
+    // Share breakdown by platform
+    $platformBreakdown = [];
+    try {
+      $platformBreakdown = $pdo->query("
+        SELECT platform, COUNT(*) AS share_count
+        FROM article_shares
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY platform
+        ORDER BY share_count DESC
+      ")->fetchAll() ?: [];
+    } catch (\Throwable) {}
+
+    // Recent 50 shares
+    $recentShares = [];
+    try {
+      $recentShares = $pdo->query("
+        SELECT s.platform, s.created_at, a.title AS article_title
+        FROM article_shares s
+        JOIN articles a ON a.id = s.article_id
+        ORDER BY s.created_at DESC
+        LIMIT 50
+      ")->fetchAll() ?: [];
+    } catch (\Throwable) {}
+
+    // Daily engagement trend (last 30 days)
+    $dailyTrend = [];
+    try {
+      $dailyTrend = $pdo->query("
+        SELECT d.stat_date,
+               COALESCE(AVG(a.engagement_score), 0) AS avg_engagement,
+               COALESCE(sc.share_count, 0) AS total_shares
+        FROM daily_stats d
+        LEFT JOIN articles a ON a.status = 'published' AND a.deleted_at IS NULL
+          AND DATE(a.published_at) = d.stat_date AND a.engagement_score > 0
+        LEFT JOIN (
+          SELECT DATE(created_at) AS share_date, COUNT(*) AS share_count
+          FROM article_shares
+          WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
+          GROUP BY DATE(created_at)
+        ) sc ON sc.share_date = d.stat_date
+        WHERE d.stat_date >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY d.stat_date, sc.share_count
+        ORDER BY d.stat_date ASC
+      ")->fetchAll() ?: [];
+    } catch (\Throwable) {}
+
+    // Summary cards
+    $summary = [
+      'avg_engagement' => round((float)($pdo->query("
+        SELECT COALESCE(AVG(engagement_score), 0)
+        FROM articles
+        WHERE status = 'published' AND deleted_at IS NULL
+          AND published_at >= NOW() - INTERVAL '30 days'
+          AND engagement_score > 0
+      ")->fetchColumn()), 1),
+      'total_shares_30d' => 0,
+      'avg_scroll_depth' => round((float)($pdo->query("
+        SELECT COALESCE(AVG(avg_scroll_depth), 0)
+        FROM articles
+        WHERE status = 'published' AND deleted_at IS NULL
+          AND published_at >= NOW() - INTERVAL '30 days'
+          AND avg_scroll_depth > 0
+      ")->fetchColumn()), 1),
+      'avg_time_on_page' => (int)($pdo->query("
+        SELECT COALESCE(AVG(avg_time_on_page), 0)
+        FROM articles
+        WHERE status = 'published' AND deleted_at IS NULL
+          AND published_at >= NOW() - INTERVAL '30 days'
+          AND avg_time_on_page > 0
+      ")->fetchColumn()),
+    ];
+
+    try {
+      $summary['total_shares_30d'] = (int)($pdo->query("
+        SELECT COUNT(*) FROM article_shares
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+      ")->fetchColumn());
+    } catch (\Throwable) {}
+
+    return $this->render('admin/engagement', [
+      'pageTitle' => 'Engagement & Shares',
+      'activeNav' => 'engagement',
+      'topArticles' => $topArticles,
+      'platformBreakdown' => $platformBreakdown,
+      'recentShares' => $recentShares,
       'dailyTrend' => $dailyTrend,
       'summary' => $summary,
     ]);
@@ -1221,5 +1456,78 @@ final class AdminController extends Controller
     $days = min(90, max(7, (int)$request->query->get('days', 30)));
     $stats = \App\Services\StatsAggregator::getLast($days);
     return $this->json($stats);
+  }
+
+  // ── Syndication & Digest ──────────────────────────────────────
+
+  public function syndication(): Response
+  {
+    $pdo = DB::pdo();
+
+    // --- Syndication API stats ---
+    $totalArticles = (int) $pdo->query(
+      "SELECT COUNT(*) FROM articles WHERE status = 'published' AND deleted_at IS NULL"
+    )->fetchColumn();
+
+    $withSummary = (int) $pdo->query(
+      "SELECT COUNT(*) FROM articles WHERE status = 'published' AND deleted_at IS NULL AND ai_summary IS NOT NULL AND ai_summary != ''"
+    )->fetchColumn();
+
+    $thisWeek = (int) $pdo->query(
+      "SELECT COUNT(*) FROM articles WHERE status = 'published' AND deleted_at IS NULL AND published_at >= NOW() - INTERVAL '7 days'"
+    )->fetchColumn();
+
+    // --- Weekly Digest info ---
+    $subscriberCount = 0;
+    try {
+      $subscriberCount = (int) $pdo->query(
+        "SELECT COUNT(*) FROM newsletter_subscribers WHERE confirmed = TRUE"
+      )->fetchColumn();
+    } catch (\Throwable) {}
+
+    $lastDigest = null;
+    try {
+      $stmt = $pdo->prepare(
+        "SELECT sent_at FROM email_queue WHERE subject LIKE :pattern AND sent_at IS NOT NULL ORDER BY sent_at DESC LIMIT 1"
+      );
+      $stmt->execute([':pattern' => '%Weekly Digest%']);
+      $lastDigest = $stmt->fetchColumn() ?: null;
+    } catch (\Throwable) {}
+
+    $emailsQueued = 0;
+    try {
+      $emailsQueued = (int) $pdo->query(
+        "SELECT COUNT(*) FROM email_queue WHERE status = 'pending'"
+      )->fetchColumn();
+    } catch (\Throwable) {}
+
+    $recentDigests = [];
+    try {
+      $stmt = $pdo->prepare(
+        "SELECT subject, to_email, status, sent_at, created_at
+         FROM email_queue
+         WHERE subject LIKE :pattern
+         ORDER BY created_at DESC
+         LIMIT 20"
+      );
+      $stmt->execute([':pattern' => '%Weekly Digest%']);
+      $recentDigests = $stmt->fetchAll() ?: [];
+    } catch (\Throwable) {}
+
+    // Base URL
+    $baseUrl = rtrim($_ENV['APP_URL'] ?? ($_SERVER['REQUEST_SCHEME'] ?? 'https') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'), '/');
+
+    return $this->render('admin/syndication', [
+      'pageTitle'       => 'Syndication & Digest',
+      'activeNav'       => 'syndication',
+      'totalArticles'   => $totalArticles,
+      'withSummary'     => $withSummary,
+      'thisWeek'        => $thisWeek,
+      'subscriberCount' => $subscriberCount,
+      'lastDigest'      => $lastDigest,
+      'emailsQueued'    => $emailsQueued,
+      'recentDigests'   => $recentDigests,
+      'baseUrl'         => $baseUrl,
+    ]);
   }
 }
