@@ -147,7 +147,7 @@
     }
 
     var btnHTML = popup.button_text
-      ? '<button class="nt-popup-btn" data-action="click" style="background:' + escH(popup.btn_bg_color || '#cc0000') + ';color:' + escH(popup.btn_text_color || '#fff') + '">' + escH(popup.button_text) + '</button>'
+      ? '<button class="nt-popup-btn" data-action="click" style="background:' + escColor(popup.btn_bg_color || '#cc0000') + ';color:' + escColor(popup.btn_text_color || '#fff') + '">' + escH(popup.button_text) + '</button>'
       : '';
 
     var secBtnHTML = popup.secondary_btn_text
@@ -161,35 +161,35 @@
     var html = '';
 
     if (style === 'minimal_bar') {
-      html = '<div class="nt-popup nt-popup-minimal_bar ' + posClass(popup.position) + '" style="background:' + escH(popup.bg_color || '#fff') + ';color:' + escH(popup.text_color || '#1a1a1a') + '">' +
+      html = '<div class="nt-popup nt-popup-minimal_bar ' + posClass(popup.position) + '" style="background:' + escColor(popup.bg_color || '#fff') + ';color:' + escColor(popup.text_color || '#1a1a1a') + '">' +
         (hasImg ? '<img src="' + escH(popup.image_url) + '" style="width:24px;height:24px;border-radius:4px" />' : '') +
         '<span>' + escH(popup.title || '') + '</span>' +
         (popup.body ? '<span style="opacity:.7">' + escH(popup.body) + '</span>' : '') +
         btnHTML + closeHTML +
         '</div>';
     } else if (style === 'split_image') {
-      html = '<div class="nt-popup nt-popup-split_image" style="background:' + escH(popup.bg_color || '#fff') + ';color:' + escH(popup.text_color || '#1a1a1a') + '">' +
+      html = '<div class="nt-popup nt-popup-split_image" style="background:' + escColor(popup.bg_color || '#fff') + ';color:' + escColor(popup.text_color || '#1a1a1a') + '">' +
         imgHTML +
         '<div class="nt-popup-content">' + closeHTML + innerContent + '</div>' +
         '</div>';
     } else if (style === 'fullscreen') {
       var bgStyle = hasImg ? 'background-image:url(' + escH(popup.image_url) + ')' : 'background:' + escH(popup.bg_color || '#333');
       html = '<div class="nt-popup nt-popup-fullscreen" style="' + bgStyle + '">' +
-        '<div class="nt-popup-content" style="background:' + escH(popup.bg_color || '#fff') + ';color:' + escH(popup.text_color || '#1a1a1a') + '">' +
+        '<div class="nt-popup-content" style="background:' + escColor(popup.bg_color || '#fff') + ';color:' + escColor(popup.text_color || '#1a1a1a') + '">' +
         closeHTML + innerContent +
         '</div></div>';
     } else if (style === 'slide_in') {
-      html = '<div class="nt-popup nt-popup-slide_in ' + posClass(popup.position) + '" style="background:' + escH(popup.bg_color || '#fff') + ';color:' + escH(popup.text_color || '#1a1a1a') + '">' +
+      html = '<div class="nt-popup nt-popup-slide_in ' + posClass(popup.position) + '" style="background:' + escColor(popup.bg_color || '#fff') + ';color:' + escColor(popup.text_color || '#1a1a1a') + '">' +
         closeHTML + imgHTML +
         '<div class="nt-popup-content">' + innerContent + '</div></div>';
     } else if (style === 'floating') {
-      html = '<div class="nt-popup nt-popup-floating ' + posClass(popup.position) + '" style="background:' + escH(popup.bg_color || '#fff') + ';color:' + escH(popup.text_color || '#1a1a1a') + '">' +
+      html = '<div class="nt-popup nt-popup-floating ' + posClass(popup.position) + '" style="background:' + escColor(popup.bg_color || '#fff') + ';color:' + escColor(popup.text_color || '#1a1a1a') + '">' +
         imgHTML +
         '<div class="nt-popup-content">' + titleHTML + bodyHTML + btnHTML + '</div>' +
         closeHTML + '</div>';
     } else {
       // Default: card_modal
-      html = '<div class="nt-popup nt-popup-card_modal" style="background:' + escH(popup.bg_color || '#fff') + ';color:' + escH(popup.text_color || '#1a1a1a') + '">' +
+      html = '<div class="nt-popup nt-popup-card_modal" style="background:' + escColor(popup.bg_color || '#fff') + ';color:' + escColor(popup.text_color || '#1a1a1a') + '">' +
         closeHTML + imgHTML +
         '<div class="nt-popup-content">' + innerContent + '</div></div>';
     }
@@ -213,6 +213,16 @@
     wrapper.innerHTML = buildPopupHTML(popup);
     document.body.appendChild(wrapper);
 
+    // Focus management for accessibility
+    var firstFocusable = wrapper.querySelector('button, [href], input, textarea, select');
+    if (firstFocusable) firstFocusable.focus();
+
+    // Escape key to close
+    wrapper._escHandler = function (e) {
+      if (e.key === 'Escape') { closePopup(popup); track(popup.id, 'close'); }
+    };
+    document.addEventListener('keydown', wrapper._escHandler);
+
     // Track impression
     track(popup.id, 'impression');
 
@@ -227,7 +237,8 @@
 
     // Event delegation
     wrapper.addEventListener('click', function (e) {
-      var action = e.target.getAttribute('data-action') || e.target.closest('[data-action]')?.getAttribute('data-action');
+      var el = e.target.closest('[data-action]');
+      var action = e.target.getAttribute('data-action') || (el ? el.getAttribute('data-action') : null);
 
       if (action === 'close' || action === 'dismiss') {
         closePopup(popup);
@@ -245,8 +256,12 @@
 
         if (popup.button_url || popup.click_url) {
           var url = popup.button_url || popup.click_url;
-          var rel = popup.nofollow ? 'nofollow noopener' : 'noopener';
-          window.open(url, '_blank', rel);
+          try {
+            var parsed = new URL(url, window.location.origin);
+            if (/^https?:$/.test(parsed.protocol)) {
+              window.open(parsed.href, '_blank', 'noopener');
+            }
+          } catch (_) {}
         }
 
         closePopup(popup);
@@ -267,6 +282,7 @@
   function closePopup(popup) {
     var wrapper = document.getElementById('nt-popup-wrapper');
     if (wrapper) {
+      if (wrapper._escHandler) document.removeEventListener('keydown', wrapper._escHandler);
       wrapper.style.opacity = '0';
       wrapper.style.transition = 'opacity 200ms ease';
       setTimeout(function () { wrapper.remove(); }, 200);
@@ -347,13 +363,25 @@
     return div.innerHTML;
   }
 
+  function escColor(val) {
+    if (!val) return '';
+    // Only allow safe CSS color values (hex, rgb, hsl, named colors)
+    if (/^#[0-9a-fA-F]{3,8}$/.test(val)) return val;
+    if (/^(rgb|hsl)a?\([^)]*\)$/.test(val)) return val;
+    if (/^[a-zA-Z]{1,30}$/.test(val)) return val;
+    return '#333';
+  }
+
   // ── Init ─────────────────────────────────────────────────────
 
   function init() {
     incrementVisitCount();
 
     fetch(API_URL)
-      .then(function (res) { return res.json(); })
+      .then(function (res) {
+        if (!res.ok) return [];
+        return res.json();
+      })
       .then(function (popups) {
         if (!Array.isArray(popups) || popups.length === 0) return;
         // Already sorted by priority from server

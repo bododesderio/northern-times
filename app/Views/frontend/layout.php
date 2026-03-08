@@ -221,7 +221,7 @@ if ($metaType === 'article') {
   <meta name="twitter:image"       content="<?= h($ogImage) ?>" />
 
   <!-- Feeds -->
-  <link rel="alternate" type="application/rss+xml" title="<?= h($siteTitle) ?> RSS" href="/feed" />
+  <link rel="alternate" type="application/rss+xml" title="<?= h($siteTitle) ?> RSS" href="/rss.xml" />
 
   <!-- App config -->
   <meta name="theme-color"  content="<?= h(get_site_setting('theme_accent', '#cc0000')) ?>" />
@@ -542,18 +542,21 @@ if ($metaType === 'article') {
       <div class="footer-col">
         <div class="footer-heading">Connect</div>
         <div class="footer-socials">
-          <a href="#" class="footer-social-link" aria-label="X (Twitter)">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-          </a>
-          <a href="#" class="footer-social-link" aria-label="Facebook">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-          </a>
-          <a href="#" class="footer-social-link" aria-label="Instagram">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg>
-          </a>
-          <a href="#" class="footer-social-link" aria-label="YouTube">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12z"/></svg>
-          </a>
+          <?php
+            $socials = [
+              ['key' => 'social_twitter',   'label' => 'X (Twitter)', 'svg' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>'],
+              ['key' => 'social_facebook',  'label' => 'Facebook',    'svg' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>'],
+              ['key' => 'social_instagram', 'label' => 'Instagram',   'svg' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg>'],
+              ['key' => 'social_youtube',   'label' => 'YouTube',     'svg' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12z"/></svg>'],
+            ];
+            foreach ($socials as $s):
+              $url = get_site_setting($s['key'], '');
+              if ($url === '') continue;
+          ?>
+            <a href="<?= h($url) ?>" class="footer-social-link" aria-label="<?= h($s['label']) ?>" target="_blank" rel="noopener">
+              <?= $s['svg'] ?>
+            </a>
+          <?php endforeach; ?>
         </div>
         <div class="footer-tagline">
           Based in Northern Uganda.<br>
@@ -710,11 +713,11 @@ document.addEventListener('DOMContentLoaded',function(){
   if(!navigator.geolocation||sessionStorage.getItem('_geo_sent'))return;
   navigator.geolocation.getCurrentPosition(function(pos){
     sessionStorage.setItem('_geo_sent','1');
+    var ct = document.querySelector('meta[name="x-csrf-token"]');
     fetch('/api/visitor-location',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({lat:pos.coords.latitude,lon:pos.coords.longitude}),
-      keepalive:true
+      headers:{'Content-Type':'application/json','X-CSRF-Token':ct?ct.content:''},
+      body:JSON.stringify({lat:pos.coords.latitude,lon:pos.coords.longitude})
     }).catch(function(){});
   },function(err){
     console.log('Geolocation denied or unavailable:',err.message);

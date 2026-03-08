@@ -18,7 +18,7 @@ final class Cache
     private static ?\Redis $conn = null;
     private const PREFIX = 'nt:';
 
-    private static function redis(): ?\Redis
+    public static function redis(): ?\Redis
     {
         if (self::$conn !== null) return self::$conn;
 

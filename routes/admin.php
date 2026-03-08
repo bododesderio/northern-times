@@ -56,6 +56,8 @@ $routes->add('admin_dashboard_pulse', new Route('/admin/api/dashboard-pulse', ['
 $routes->add('admin_engagement_radar', new Route('/admin/api/engagement-radar', ['_controller' => [$admin, 'engagementRadar'], '_middleware' => $auth], [], [], '', [], ['GET']));
 $routes->add('admin_traffic_chart', new Route('/admin/api/traffic-chart', ['_controller' => [$admin, 'trafficChart'], '_middleware' => $auth], [], [], '', [], ['GET']));
 $routes->add('admin_analytics', new Route('/admin/analytics', ['_controller' => [$admin, 'analytics'], '_middleware' => $auth], [], [], '', [], ['GET']));
+$routes->add('admin_analytics_export', new Route('/admin/analytics/export', ['_controller' => [$admin, 'analyticsExport'], '_middleware' => $auth], [], [], '', [], ['GET']));
+$routes->add('admin_daily_stats_api', new Route('/admin/api/daily-stats', ['_controller' => [$admin, 'dailyStatsApi'], '_middleware' => $auth], [], [], '', [], ['GET']));
 
 // --- Articles ---
 $routes->add('admin_articles',       new Route('/admin/articles',             ['_controller' => [$admin, 'articles'],      '_middleware' => $auth],     [], [], '', [], ['GET']));
@@ -297,6 +299,11 @@ $routes->add('admin_system_clean_sessions',       new Route('/admin/system/clean
 $routes->add('admin_system_create_backup',        new Route('/admin/system/create-backup',           ['_controller' => [$system, 'createBackup'],        '_middleware' => $superCsrf], [], [], '', [], ['GET', 'POST']));
 $routes->add('admin_system_download_backup',      new Route('/admin/system/backup/{id}/download',    ['_controller' => [$system, 'downloadBackup'],      '_middleware' => $super],     ['id' => '[0-9]+'], [], '', [], ['GET']));
 $routes->add('admin_system_delete_backup',        new Route('/admin/system/backup/{id}/delete',      ['_controller' => [$system, 'deleteBackup'],        '_middleware' => $superCsrf], ['id' => '[0-9]+'], [], '', [], ['POST']));
+
+// Webhooks
+$routes->add('admin_system_webhooks_api',         new Route('/admin/system/webhooks-api',            ['_controller' => [$system, 'webhooksApi'],         '_middleware' => $super],     [], [], '', [], ['GET']));
+$routes->add('admin_system_webhook_create',       new Route('/admin/system/webhook',                 ['_controller' => [$system, 'webhookCreate'],       '_middleware' => $superCsrf], [], [], '', [], ['POST']));
+$routes->add('admin_system_webhook_delete',       new Route('/admin/system/webhook/{id}/delete',     ['_controller' => [$system, 'webhookDelete'],       '_middleware' => $superCsrf], ['id' => '[0-9a-f-]+'], [], '', [], ['POST']));
 
 // Environment Inspector
 $routes->add('admin_system_environment_api',      new Route('/admin/system/environment-api',         ['_controller' => [$system, 'environmentApi'],      '_middleware' => $super],     [], [], '', [], ['GET']));

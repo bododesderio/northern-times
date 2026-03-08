@@ -26,7 +26,8 @@ final class AdminCommentController extends Controller
         $params = [];
 
         if (in_array($filter, ['hidden', 'deleted', 'visible'], true)) {
-            $where[] = "c.status = '{$filter}'";
+            $where[] = "c.status = :filter";
+            $params[':filter'] = $filter;
         }
         if ($search !== '') {
             $where[] = "(c.author_name ILIKE :q OR c.author_email ILIKE :q OR c.content ILIKE :q OR a.title ILIKE :q)";

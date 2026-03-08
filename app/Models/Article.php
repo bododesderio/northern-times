@@ -32,7 +32,7 @@ final class Article extends BaseModel
 
     // ── Published-article filter (reused everywhere) ─────────────
 
-    private const PUBLISHED_FILTER = "a.status = 'published' AND (a.published_at IS NULL OR a.published_at <= NOW())";
+    private const PUBLISHED_FILTER = "a.status = 'published' AND (a.published_at IS NULL OR a.published_at <= NOW()) AND a.deleted_at IS NULL";
 
     /**
      * White-label crawl author name — resolved once per request.
@@ -565,9 +565,9 @@ final class Article extends BaseModel
         return self::paginate(
             page: $page,
             perPage: $perPage,
-            whereSql: self::PUBLISHED_FILTER . " AND (a.title ILIKE :q OR a.content ILIKE :q OR a.excerpt ILIKE :q)",
-            params: [':q' => '%' . $query . '%'],
-            orderBy: "a.published_at DESC NULLS LAST",
+            whereSql: self::PUBLISHED_FILTER . " AND a.search_vector @@ plainto_tsquery('english', :q)",
+            params: [':q' => $query],
+            orderBy: "ts_rank(a.search_vector, plainto_tsquery('english', :q)) DESC, a.published_at DESC NULLS LAST",
             selectSql: "a.id, a.title, a.slug, a.excerpt, a.featured_image, a.published_at,
                         CASE WHEN a.is_crawled = TRUE " . 
                     "THEN " . self::crawlAuthorName() . " ELSE COALESCE(NULLIF(a.display_author,''), u.username, 'Staff') END AS author,
@@ -589,10 +589,10 @@ final class Article extends BaseModel
             FROM articles a
             JOIN categories c ON c.id = a.category_id
             WHERE " . self::PUBLISHED_FILTER . "
-              AND (a.title ILIKE :q OR a.excerpt ILIKE :q)
-            ORDER BY a.published_at DESC NULLS LAST
+              AND a.search_vector @@ plainto_tsquery('english', :q)
+            ORDER BY ts_rank(a.search_vector, plainto_tsquery('english', :q)) DESC, a.published_at DESC NULLS LAST
             LIMIT " . (int)$limit . "
-        ", [':q' => '%' . $query . '%']);
+        ", [':q' => $query]);
     }
 
     /**
@@ -625,6 +625,7 @@ final class Article extends BaseModel
             FROM articles
             WHERE status = 'published'
               AND (published_at IS NULL OR published_at <= NOW())
+              AND deleted_at IS NULL
             ORDER BY published_at DESC NULLS LAST
             LIMIT :limit
         ");
@@ -773,5 +774,79 @@ final class Article extends BaseModel
         }
 
         return $count;
+    }
+
+    // ── Soft Delete ──────────────────────────────────────────────
+
+    public static function softDelete(string $id): void
+    {
+        self::execute(
+            "UPDATE articles SET deleted_at = NOW(), updated_at = NOW() WHERE id = :id AND deleted_at IS NULL",
+            [':id' => $id]
+        );
+    }
+
+    public static function restore(string $id): void
+    {
+        self::execute(
+            "UPDATE articles SET deleted_at = NULL, updated_at = NOW() WHERE id = :id AND deleted_at IS NOT NULL",
+            [':id' => $id]
+        );
+    }
+
+    public static function forceDelete(string $id): void
+    {
+        self::execute("DELETE FROM articles WHERE id = :id", [':id' => $id]);
+    }
+
+    public static function trashed(int $page = 1, int $perPage = 20): array
+    {
+        return self::paginate(
+            page: $page,
+            perPage: $perPage,
+            whereSql: "a.deleted_at IS NOT NULL",
+            orderBy: "a.deleted_at DESC",
+            selectSql: "a.id, a.title, a.slug, a.status, a.deleted_at,
+                        c.name AS category, c.slug AS category_slug",
+            fromSql: "articles a
+                      JOIN categories c ON c.id = a.category_id"
+        );
+    }
+
+    public static function purgeOldTrashed(int $daysOld = 30): int
+    {
+        $days = max(1, $daysOld);
+        $stmt = self::pdo()->prepare(
+            "DELETE FROM articles WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - make_interval(days => :days)"
+        );
+        $stmt->execute([':days' => $days]);
+        return $stmt->rowCount();
+    }
+
+    // ── Analytics Export ─────────────────────────────────────────
+
+    public static function exportForCsv(string $from, string $to, int $limit = 10000): array
+    {
+        $stmt = self::pdo()->prepare("
+            SELECT a.title, a.slug, a.status, a.published_at, a.views,
+                   a.featured_image, a.excerpt, a.quality_score, a.sentiment,
+                   c.name AS category,
+                   CASE WHEN a.is_crawled = TRUE
+                       THEN cs.name ELSE COALESCE(NULLIF(a.display_author,''), u.username, 'Staff')
+                   END AS author
+            FROM articles a
+            JOIN categories c ON c.id = a.category_id
+            LEFT JOIN users u ON u.id = a.author_id
+            LEFT JOIN crawl_sources cs ON cs.id = a.source_id
+            WHERE a.published_at BETWEEN :from AND :to
+              AND a.deleted_at IS NULL
+            ORDER BY a.published_at DESC
+            LIMIT :limit
+        ");
+        $stmt->bindValue(':from', $from);
+        $stmt->bindValue(':to', $to);
+        $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll() ?: [];
     }
 }

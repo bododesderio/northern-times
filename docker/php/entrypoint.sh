@@ -82,6 +82,9 @@ cat <<'CRONTAB' | crontab -
 # Email queue: process pending newsletter/notification emails (every 2 min)
 */2 * * * * cd /var/www/html && php bin/process-queue.php >> /var/www/html/storage/logs/queue.log 2>&1
 
+# Daily maintenance: stats aggregation, automated backup, cleanup (daily at 2am)
+0 2 * * * cd /var/www/html && php cron/daily_maintenance.php >> /var/www/html/storage/logs/maintenance.log 2>&1
+
 # Log rotation: truncate logs > 50MB (daily at 3am)
 0 3 * * * find /var/www/html/storage/logs -name "*.log" -size +50M -exec truncate -s 0 {} \;
 CRONTAB

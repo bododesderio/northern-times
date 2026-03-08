@@ -20,6 +20,18 @@
 !/storage/logs/.gitkeep
 !/storage/geoip/.gitkeep
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+venv/
+.venv/
+
+# Docker
+docker/extractor/__pycache__/
+
 # PHPUnit
 .phpunit.cache/
 .phpunit.result.cache
@@ -30,6 +42,7 @@
 *.swp
 *.swo
 *~
+.claude/
 
 # OS files
 .DS_Store
@@ -39,5 +52,9 @@ desktop.ini
 # Logs
 *.log
 
-# Claude Code
-.claude/
+# Temp/debug scripts
+scripts/check_homepage.php
+scripts/crawl_all_force.php
+scripts/crawl_punch.php
+scripts/test_crawl.php
+scripts/test_filter.php

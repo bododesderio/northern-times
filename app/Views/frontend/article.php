@@ -308,18 +308,18 @@ try { $articleTags = \App\Models\Tag::forArticle($article['id'] ?? ''); } catch 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
         <div>
           <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Name <span style="color:#c00">*</span></label>
-          <input type="text" id="commentName" placeholder="Your name" required
+          <input type="text" id="commentName" placeholder="Your name" required maxlength="100"
                  style="width:100%;padding:10px 14px;border:1px solid var(--border,#e2e2e2);border-radius:8px;font:inherit;font-size:14px" />
         </div>
         <div>
           <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Email <span style="color:var(--muted,#999);font-weight:400">(optional, not shown)</span></label>
-          <input type="email" id="commentEmail" placeholder="your@email.com"
+          <input type="email" id="commentEmail" placeholder="your@email.com" maxlength="255"
                  style="width:100%;padding:10px 14px;border:1px solid var(--border,#e2e2e2);border-radius:8px;font:inherit;font-size:14px" />
         </div>
       </div>
       <div style="margin-bottom:14px">
         <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Comment <span style="color:#c00">*</span></label>
-        <textarea id="commentBody" rows="4" placeholder="Share your thoughts…" required
+        <textarea id="commentBody" rows="4" placeholder="Share your thoughts…" required maxlength="5000"
                   style="width:100%;padding:10px 14px;border:1px solid var(--border,#e2e2e2);border-radius:8px;font:inherit;font-size:14px;resize:vertical"></textarea>
       </div>
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
@@ -365,6 +365,8 @@ try { $articleTags = \App\Models\Tag::forArticle($article['id'] ?? ''); } catch 
       statusEl.style.color = 'var(--muted,#666)';
       statusEl.textContent = 'Posting…';
 
+      var csrfMeta = document.querySelector('meta[name="x-csrf-token"]');
+      var csrfToken = csrfMeta ? csrfMeta.content : '';
       fetch('/api/comment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -373,6 +375,7 @@ try { $articleTags = \App\Models\Tag::forArticle($article['id'] ?? ''); } catch 
             + '&author_email=' + encodeURIComponent(email)
             + '&content=' + encodeURIComponent(body)
             + '&subscribe_newsletter=' + (document.getElementById('commentSubscribe').checked ? '1' : '0')
+            + '&_csrf=' + encodeURIComponent(csrfToken)
       })
       .then(function(r) { return r.json(); })
       .then(function(data) {
@@ -387,11 +390,15 @@ try { $articleTags = \App\Models\Tag::forArticle($article['id'] ?? ''); } catch 
           if (noMsg) noMsg.style.display = 'none';
           var c = data.comment;
           var initial = (c.author_name || 'A').charAt(0).toUpperCase();
+          function escComment(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+          var safeName = escComment(c.author_name || 'Anonymous');
+          var safeContent = escComment(c.content || '').replace(/\n/g, '<br>');
+          var safeTime = escComment(c.time_label || '');
           var html = '<div class="comment-item" style="display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--border,#e2e2e2)">'
             + '<div style="flex-shrink:0"><div style="width:40px;height:40px;border-radius:50%;background:var(--border,#e2e2e2);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--muted,#999)">' + initial + '</div></div>'
             + '<div style="flex:1;min-width:0">'
-            + '<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><strong style="font-size:14px">' + c.author_name + '</strong><span class="muted" style="font-size:12px">' + c.time_label + '</span></div>'
-            + '<div style="font-size:15px;line-height:1.6;color:var(--ink,#333)">' + c.content.replace(/\n/g, '<br>') + '</div>'
+            + '<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><strong style="font-size:14px">' + safeName + '</strong><span class="muted" style="font-size:12px">' + safeTime + '</span></div>'
+            + '<div style="font-size:15px;line-height:1.6;color:var(--ink,#333)">' + safeContent + '</div>'
             + '</div></div>';
           listEl.insertAdjacentHTML('beforeend', html);
 

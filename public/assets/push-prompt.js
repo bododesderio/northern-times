@@ -47,8 +47,8 @@
           return;
         }
 
-        // If user previously dismissed, respect that
-        if (sessionStorage.getItem(STORAGE_KEY)) return;
+        // If user previously dismissed, respect that (persists across sessions)
+        if (localStorage.getItem(STORAGE_KEY)) return;
         if (Notification.permission === 'denied') return;
 
         // Show prompt after delay
@@ -102,7 +102,7 @@
     });
 
     document.getElementById('nt-push-dismiss').addEventListener('click', () => {
-      sessionStorage.setItem(STORAGE_KEY, '1');
+      localStorage.setItem(STORAGE_KEY, '1');
       bar.remove();
     });
   }
@@ -132,9 +132,10 @@
   // ── Sync subscription with server ─────────────────────────
   function syncSubscription(sub) {
     const data = sub.toJSON();
+    const csrf = document.querySelector('meta[name="x-csrf-token"]')?.content || '';
     fetch('/api/push/subscribe', {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
       body: JSON.stringify({
         endpoint: data.endpoint,
         p256dh:   data.keys?.p256dh,

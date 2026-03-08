@@ -11,6 +11,7 @@ use App\Models\Comment;
 use App\Models\Subscriber;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\RateLimiter;
 use App\Services\Cache;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -324,7 +325,9 @@ final class FrontendController extends Controller
     }
 
     $tags = Tag::search($q, 10);
-    return $this->json($tags);
+    return $this->json($tags, 200, [
+      'Cache-Control' => 'public, max-age=300',
+    ]);
   }
 
   /* ================================================================
@@ -377,6 +380,14 @@ final class FrontendController extends Controller
      ================================================================ */
   public function searchApi(): Response
   {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (!RateLimiter::allow('api:search:' . $ip, 30, 60)) {
+        return new Response(json_encode(['error' => 'Rate limit exceeded']), 429, [
+            'Content-Type' => 'application/json',
+            'Retry-After' => '60',
+        ]);
+    }
+
     $request = Request::createFromGlobals();
     $q = trim((string)$request->query->get('q',''));
 
@@ -384,7 +395,9 @@ final class FrontendController extends Controller
       return $this->json(['results' => []]);
     }
 
-    return $this->json(['results' => Article::searchApi($q, 8)]);
+    return $this->json(['results' => Article::searchApi($q, 8)], 200, [
+      'Cache-Control' => 'public, max-age=60',
+    ]);
   }
 
   /* ================================================================
@@ -447,8 +460,8 @@ final class FrontendController extends Controller
       'message' => 'Comment posted!',
       'comment' => [
         'id'          => $row['id'],
-        'author_name' => $name,
-        'content'     => $body,
+        'author_name' => htmlspecialchars($name, ENT_QUOTES, 'UTF-8'),
+        'content'     => htmlspecialchars($body, ENT_QUOTES, 'UTF-8'),
         'created_at'  => $row['created_at'],
         'time_label'  => 'Just now',
       ],
@@ -634,7 +647,68 @@ Disallow: /search?
 
   public function sitemap(): Response
   {
-    $xml = Cache::remember('sitemap:xml', 1800, function () {
+    $request = Request::createFromGlobals();
+    $month = $request->query->get('month');
+
+    if ($month) {
+      return $this->sitemapMonth($month);
+    }
+
+    return $this->sitemapIndex();
+  }
+
+  private function sitemapIndex(): Response
+  {
+    $xml = Cache::remember('sitemap:index', 3600, function () {
+        $site = rtrim($_ENV['APP_URL'] ?? 'http://localhost:8080', '/');
+        $dom  = new \DOMDocument('1.0', 'UTF-8');
+        $dom->formatOutput = true;
+
+        $index = $dom->createElement('sitemapindex');
+        $index->setAttribute('xmlns', 'http://www.sitemaps.org/schemas/sitemap/0.9');
+        $dom->appendChild($index);
+
+        // Get distinct months that have published articles
+        $pdo = \App\Services\DB::pdo();
+        $months = $pdo->query("
+            SELECT DISTINCT TO_CHAR(published_at, 'YYYY-MM') AS month
+            FROM articles
+            WHERE status = 'published' AND published_at IS NOT NULL
+            ORDER BY month DESC
+        ")->fetchAll(\PDO::FETCH_COLUMN);
+
+        // Static pages sitemap
+        $sm = $dom->createElement('sitemap');
+        $sm->appendChild($dom->createElement('loc', $site . '/sitemap.xml?month=static'));
+        $index->appendChild($sm);
+
+        // Monthly article sitemaps
+        foreach ($months as $m) {
+            $sm = $dom->createElement('sitemap');
+            $sm->appendChild($dom->createElement('loc', $site . '/sitemap.xml?month=' . $m));
+            $sm->appendChild($dom->createElement('lastmod', $m . '-01T00:00:00Z'));
+            $index->appendChild($sm);
+        }
+
+        return $dom->saveXML();
+    });
+
+    return new Response($xml, 200, [
+      'Content-Type' => 'application/xml; charset=UTF-8',
+      'X-Content-Type-Options' => 'nosniff',
+      'Cache-Control' => 'public, max-age=3600',
+    ]);
+  }
+
+  private function sitemapMonth(string $month): Response
+  {
+    // Validate month format
+    if ($month !== 'static' && !preg_match('/^\d{4}-\d{2}$/', $month)) {
+      return new Response('Invalid month', 400);
+    }
+
+    $cacheKey = 'sitemap:month:' . $month;
+    $xml = Cache::remember($cacheKey, 3600, function () use ($month) {
         $site = rtrim($_ENV['APP_URL'] ?? 'http://localhost:8080', '/');
         $dom  = new \DOMDocument('1.0', 'UTF-8');
         $dom->formatOutput = true;
@@ -643,7 +717,6 @@ Disallow: /search?
         $urlset->setAttribute('xmlns', 'http://www.sitemaps.org/schemas/sitemap/0.9');
         $dom->appendChild($urlset);
 
-        // Helper to add a <url> node
         $addUrl = function (string $loc, ?string $lastmod, string $changefreq, string $priority) use ($dom, $urlset) {
             $u = $dom->createElement('url');
             $u->appendChild($dom->createElement('loc', $loc));
@@ -655,39 +728,52 @@ Disallow: /search?
             $urlset->appendChild($u);
         };
 
-        // Homepage — priority 1.0, hourly
-        $addUrl($site . '/', gmdate('Y-m-d\TH:i:s\Z'), 'hourly', '1.0');
+        if ($month === 'static') {
+            // Homepage
+            $addUrl($site . '/', gmdate('Y-m-d\TH:i:s\Z'), 'hourly', '1.0');
 
-        // Published articles — priority 0.8, weekly
-        $articles = Article::forSitemap(50000);
-        foreach ($articles as $r) {
-            $lastmod = !empty($r['updated_at'])
-                ? gmdate('Y-m-d\TH:i:s\Z', strtotime((string)$r['updated_at']))
-                : (!empty($r['published_at']) ? gmdate('Y-m-d\TH:i:s\Z', strtotime((string)$r['published_at'])) : null);
-            $addUrl($site . '/' . $r['slug'], $lastmod, 'weekly', '0.8');
-        }
-
-        // Active categories — priority 0.6, daily
-        $categories = Category::allActive();
-        foreach ($categories as $cat) {
-            $lastmod = !empty($cat['updated_at'])
-                ? gmdate('Y-m-d\TH:i:s\Z', strtotime((string)$cat['updated_at']))
-                : null;
-            $addUrl($site . '/category/' . $cat['slug'], $lastmod, 'daily', '0.6');
-        }
-
-        // Tag pages — priority 0.5, daily (Phase 10)
-        try {
-            $allTags = Tag::trending(100);
-            foreach ($allTags as $t) {
-                $addUrl($site . '/tag/' . $t['slug'], null, 'daily', '0.5');
+            // Categories
+            $categories = Category::allActive();
+            foreach ($categories as $cat) {
+                $lastmod = !empty($cat['updated_at'])
+                    ? gmdate('Y-m-d\TH:i:s\Z', strtotime((string)$cat['updated_at']))
+                    : null;
+                $addUrl($site . '/category/' . $cat['slug'], $lastmod, 'daily', '0.6');
             }
-        } catch (\Throwable) {}
 
-        // Policy pages — priority 0.4, monthly
-        $policies = ['privacy-policy', 'terms-of-service', 'cookie-policy', 'about'];
-        foreach ($policies as $pSlug) {
-            $addUrl($site . '/' . $pSlug, null, 'monthly', '0.4');
+            // Tags
+            try {
+                $allTags = Tag::trending(100);
+                foreach ($allTags as $t) {
+                    $addUrl($site . '/tag/' . $t['slug'], null, 'daily', '0.5');
+                }
+            } catch (\Throwable) {}
+
+            // Policy pages
+            $policies = ['privacy-policy', 'terms-of-service', 'cookie-policy', 'about'];
+            foreach ($policies as $pSlug) {
+                $addUrl($site . '/policy/' . $pSlug, null, 'monthly', '0.4');
+            }
+        } else {
+            // Articles for specific month
+            $pdo = \App\Services\DB::pdo();
+            $stmt = $pdo->prepare("
+                SELECT slug, updated_at, published_at
+                FROM articles
+                WHERE status = 'published'
+                  AND published_at IS NOT NULL
+                  AND TO_CHAR(published_at, 'YYYY-MM') = :month
+                ORDER BY published_at DESC
+            ");
+            $stmt->execute([':month' => $month]);
+            $articles = $stmt->fetchAll();
+
+            foreach ($articles as $r) {
+                $lastmod = !empty($r['updated_at'])
+                    ? gmdate('Y-m-d\TH:i:s\Z', strtotime((string)$r['updated_at']))
+                    : (!empty($r['published_at']) ? gmdate('Y-m-d\TH:i:s\Z', strtotime((string)$r['published_at'])) : null);
+                $addUrl($site . '/article/' . $r['slug'], $lastmod, 'weekly', '0.8');
+            }
         }
 
         return $dom->saveXML();
@@ -696,7 +782,7 @@ Disallow: /search?
     return new Response($xml, 200, [
       'Content-Type' => 'application/xml; charset=UTF-8',
       'X-Content-Type-Options' => 'nosniff',
-      'Cache-Control' => 'public, max-age=1800',
+      'Cache-Control' => 'public, max-age=3600',
     ]);
   }
 
@@ -882,6 +968,18 @@ Disallow: /search?
     $email = mb_strtolower($email);
     if ($name === '') $name = null;
 
+    // Simple rate limit via session
+    if (session_status() === PHP_SESSION_NONE) { @session_start(); }
+    $now = time();
+    $key = '_nl_rate';
+    $attempts = $_SESSION[$key] ?? [];
+    $attempts = array_filter($attempts, fn($t) => $t > $now - 600); // 10-min window
+    if (count($attempts) >= 3) {
+      return $this->json(['ok' => false, 'message' => 'Too many requests. Please try again later.'], 429);
+    }
+    $attempts[] = $now;
+    $_SESSION[$key] = $attempts;
+
     try {
       Subscriber::subscribe($email, $name);
       return $this->json(['ok' => true, 'message' => "Subscribed! You'll get the next headlines."]);
@@ -926,5 +1024,63 @@ Disallow: /search?
     }
 
     return $this->json(['ok' => true]);
+  }
+
+  /* ================================================================
+     HEALTH CHECK — /api/health
+     ================================================================ */
+  public function health(): Response
+  {
+    $checks = ['status' => 'ok', 'timestamp' => gmdate('c')];
+
+    // Database
+    try {
+      \App\Services\DB::pdo()->query('SELECT 1');
+      $checks['database'] = 'ok';
+    } catch (\Throwable) {
+      $checks['database'] = 'error';
+      $checks['status'] = 'degraded';
+    }
+
+    // Redis
+    try {
+      $checks['redis'] = Cache::available() ? 'ok' : 'unavailable';
+    } catch (\Throwable) {
+      $checks['redis'] = 'error';
+      $checks['status'] = 'degraded';
+    }
+
+    // Last crawl
+    try {
+      $row = \App\Services\DB::pdo()->query(
+        "SELECT finished_at FROM crawl_logs WHERE finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT 1"
+      )->fetch();
+      $checks['last_crawl'] = $row ? $row['finished_at'] : null;
+      if ($row) {
+        $elapsed = time() - strtotime($row['finished_at']);
+        if ($elapsed > 3600) {
+          $checks['crawl_status'] = 'stale';
+        } else {
+          $checks['crawl_status'] = 'ok';
+        }
+      }
+    } catch (\Throwable) {
+      $checks['last_crawl'] = null;
+    }
+
+    // Disk
+    $free = @disk_free_space('/var/www/html/storage');
+    if ($free !== false) {
+      $checks['disk_free_mb'] = round($free / 1048576);
+      if ($free < 104857600) { // < 100MB
+        $checks['status'] = 'degraded';
+      }
+    }
+
+    $code = $checks['status'] === 'ok' ? 200 : 503;
+    return new Response(json_encode($checks, JSON_PRETTY_PRINT), $code, [
+      'Content-Type' => 'application/json; charset=UTF-8',
+      'Cache-Control' => 'no-store',
+    ]);
   }
 }

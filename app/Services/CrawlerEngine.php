@@ -21,6 +21,9 @@ use App\Services\Cache;
  *
  * Fetches RSS/Atom feeds, extracts articles, deduplicates,
  * maps categories, and auto-publishes to the articles table.
+ *
+ * v2: Unified enrichment pipeline, semantic dedup, story clustering,
+ *     NER tagging, adaptive scheduling, parallel crawling.
  */
 final class CrawlerEngine
 {
@@ -32,6 +35,10 @@ final class CrawlerEngine
         return preg_replace('/[^A-Za-z0-9]/', '', $name) . '/1.0 (+' . $url . ')';
     }
     private const FETCH_TIMEOUT = 8;
+
+    // Semantic dedup thresholds
+    private const SEMANTIC_DEDUP_THRESHOLD = 0.82;
+    private const STORY_CLUSTER_THRESHOLD  = 0.65;
 
     /** Run a single crawl for one source. Returns [found, new, dupes]. */
     public static function crawlSource(array $source): array
@@ -66,73 +73,150 @@ final class CrawlerEngine
             // Get the first admin user as fallback author
             $authorId = $defaultAuthor ?: self::getDefaultAuthorId();
 
+            // Build system category slugs + lookup
+            $systemSlugs = array_map(fn($c) => $c['slug'], $categories);
+            $slugToId = [];
+            foreach ($categories as $cat) {
+                $slugToId[strtolower($cat['slug'])] = $cat['id'];
+            }
+
+            // Pre-fetch existing titles for cross-source dedup
+            $existingTitles = self::getRecentTitles();
+
+            // ── Phase 1: Collect eligible items (cheap PHP-side filters) ──
+            $sourceRegion = $source['region'] ?? 'international';
+            $eligible = []; // items that pass pre-filters, indexed for batch
+            $eligibleHashes = []; // parallel array of hashes
+
             foreach ($items as $item) {
+                // Skip if too old
+                if ($item['published_at'] && $maxAgeHours > 0) {
+                    $ts = strtotime($item['published_at']);
+                    if ($ts !== false && (time() - $ts) / 3600 > $maxAgeHours) continue;
+                }
+
+                // Keyword filtering
+                if (!self::passesKeywordFilter($item, $source)) continue;
+
+                // Fast dedup: hash of source URL + exact title match (PHP-side, no HTTP)
+                $hash = hash('sha256', $item['link']);
+                if (self::isDuplicate($hash, $item['title'])) {
+                    $dupes++;
+                    $details[] = ['title' => $item['title'], 'status' => 'duplicate'];
+                    continue;
+                }
+
+                $eligible[] = $item;
+                $eligibleHashes[] = $hash;
+            }
+
+            // ── Phase 2: Batch enrichment (1 HTTP call for all eligible) ──
+            $enrichResults = [];
+            if (!empty($eligible)) {
+                $batchArticles = [];
+                foreach ($eligible as $item) {
+                    $batchArticles[] = [
+                        'url'            => $item['link'],
+                        'title'          => $item['title'],
+                        'rss_categories' => $item['categories'] ?? [],
+                    ];
+                }
+
+                $batchResponse = ExtractorClient::enrichBatch($batchArticles, [
+                    'source_selectors'  => $source['content_selector'] ?? null,
+                    'strip_selectors'   => $source['strip_selectors'] ?? null,
+                    'system_categories' => $systemSlugs,
+                    'source_region'     => $sourceRegion,
+                    'existing_titles'   => $existingTitles,
+                    'dedup_threshold'   => 0.55,
+                    'options'           => [
+                        'classify_region'   => ($sourceRegion !== 'ugandan'),
+                        'classify_category' => true,
+                        'check_dedup'       => true,
+                        'embed'             => true,
+                        'summarize'         => true,
+                        'ner'               => true,
+                        'sentiment'         => true,
+                        'quality'           => true,
+                    ],
+                ]);
+
+                if ($batchResponse !== null) {
+                    $enrichResults = $batchResponse;
+                }
+            }
+
+            // ── Phase 3: Process enrichment results + insert articles ──
+            foreach ($eligible as $idx => $item) {
                 try {
-                    // Memory safety: skip if critically low (<10MB free)
+                    // Memory safety
                     $memUsed = memory_get_usage(true);
                     $memLimit = self::getMemoryLimitBytes();
                     if ($memLimit > 0 && ($memLimit - $memUsed) < 10 * 1024 * 1024) {
-                        error_log("CrawlerEngine: memory critical ({$memUsed}/{$memLimit}), stopping source {$source['name']}");
+                        error_log("CrawlerEngine: memory critical, stopping source {$source['name']}");
                         break;
                     }
 
-                    // Skip if too old
-                    if ($item['published_at'] && $maxAgeHours > 0) {
-                        $ts = strtotime($item['published_at']);
-                        if ($ts !== false) {
-                            $age = (time() - $ts) / 3600;
-                            if ($age > $maxAgeHours) continue;
-                        }
+                    $hash = $eligibleHashes[$idx];
+
+                    // Get enrichment result for this article
+                    $enrichResult = $enrichResults[$idx] ?? null;
+
+                    // Fallback: individual calls if batch failed for this article
+                    if ($enrichResult === null || empty($enrichResult['success'])) {
+                        $enrichResult = self::fallbackEnrich($item, $source, $sourceRegion, $systemSlugs, $existingTitles);
                     }
 
-                    // Keyword filtering
-                    if (!self::passesKeywordFilter($item, $source)) {
-                        continue;
-                    }
-
-                    // Region-based relevance filtering (non-Ugandan sources only)
-                    $sourceRegion = $source['region'] ?? 'international';
-                    if ($sourceRegion !== 'ugandan') {
-                        $classifyResult = ExtractorClient::classify(
-                            $item['title'],
-                            $item['description'] ?? '',
-                            $sourceRegion
-                        );
-                        if ($classifyResult && empty($classifyResult['accept'])) {
-                            $details[] = ['title' => $item['title'], 'status' => 'filtered', 'reason' => 'region:' . ($classifyResult['dominated_region'] ?? 'unknown')];
+                    // Region-based filtering (non-Ugandan sources)
+                    if ($sourceRegion !== 'ugandan' && !empty($enrichResult['region_classify'])) {
+                        if (empty($enrichResult['region_classify']['accept'])) {
+                            $details[] = [
+                                'title' => $item['title'],
+                                'status' => 'filtered',
+                                'reason' => 'region:' . ($enrichResult['region_classify']['dominated_region'] ?? 'unknown'),
+                            ];
                             continue;
                         }
                     }
 
-                    // Dedup check: hash of source URL
-                    $hash = hash('sha256', $item['link']);
-                    if (self::isDuplicate($hash, $item['title'])) {
+                    // Cross-source fuzzy dedup
+                    if (!empty($enrichResult['dedup']['is_duplicate'])) {
                         $dupes++;
-                        $details[] = ['title' => $item['title'], 'status' => 'duplicate'];
+                        $details[] = ['title' => $item['title'], 'status' => 'similar-story'];
                         continue;
                     }
 
-                    // Smart category matching (90% confidence threshold)
-                    $catResult = CategoryMatcher::match(
-                        $item, $categories,
-                        $source['default_category_id'] ?? self::getFirstCategoryId()
-                    );
-                    $categoryId = $catResult['category_id'];
+                    // ── Category determination ───────────────────────
+                    $categoryId = $source['default_category_id'] ?? self::getFirstCategoryId();
+                    if (!empty($enrichResult['category']['category_slug']) && ($enrichResult['category']['confidence'] ?? 0) >= 40) {
+                        $aiSlug = strtolower($enrichResult['category']['category_slug']);
+                        if (isset($slugToId[$aiSlug])) {
+                            $categoryId = $slugToId[$aiSlug];
+                        }
+                    } else {
+                        // Fallback: keyword-based CategoryMatcher
+                        $catResult = CategoryMatcher::match($item, $categories, $categoryId);
+                        $categoryId = $catResult['category_id'];
+                    }
 
-                    // Story thread auto-detection
+                    // Story thread auto-detection (existing)
                     $threadId = StoryThreadDetector::detect(
                         $item['title'],
                         $item['content'] ?: $item['description'] ?: ''
                     );
 
-                    // Always extract full article via Python extractor (primary)
+                    // ── Content from extraction ──────────────────────
                     $scrapedData = null;
-                    if (!empty($item['link'])) {
-                        $scrapedData = ExtractorClient::extract($item['link'], $source);
-                        // Fallback: existing PHP scraper
-                        if ($scrapedData === null) {
-                            $scrapedData = ArticleScraper::scrape($item['link'], $source);
-                        }
+                    $contentFromPython = false;
+                    if (!empty($enrichResult['extraction'])) {
+                        $scrapedData = $enrichResult['extraction'];
+                        $contentFromPython = true;
+                    }
+
+                    // If enrichment didn't extract, try fallback
+                    if ($scrapedData === null && !empty($item['link'])) {
+                        $scrapedData = ArticleScraper::scrape($item['link'], $source);
+                        $contentFromPython = false;
                     }
 
                     // Prefer extracted full article; fall back to RSS content
@@ -141,14 +225,21 @@ final class CrawlerEngine
                         $rawContent = $scrapedData['content'];
                     } else {
                         $rawContent = $rssContent;
+                        $contentFromPython = false;
                     }
-                    $content = self::cleanContent($rawContent, $source);
 
-                    // Ensure images are hotlinked with lazy loading
-                    $content = self::processImages($content);
-
-                    // Normalize HTML structure (headings, orphan text, whitespace)
-                    $content = ContentNormalizer::normalize($content);
+                    if ($contentFromPython) {
+                        // Python content_cleaner.py already handled: ad stripping,
+                        // WP boilerplate, image normalization, attribute sanitization,
+                        // h1 demotion, iframe handling, URL resolution, empty elements.
+                        // Only apply processImages as safety net for lazy loading.
+                        $content = self::processImages($rawContent);
+                    } else {
+                        // PHP fallback path: full cleaning pipeline needed
+                        $content = self::cleanContent($rawContent, $source);
+                        $content = self::processImages($content);
+                        $content = ContentNormalizer::normalize($content);
+                    }
 
                     // Use extractor metadata for better author/date/title
                     $extractorAuthors = $scrapedData['authors'] ?? [];
@@ -225,18 +316,59 @@ final class CrawlerEngine
                         $slug = $baseSlug . '-' . $suffix;
                     }
 
-                    // Insert article
+                    // ── Semantic dedup via embedding ─────────────────
+                    $embedding = $enrichResult['embedding'] ?? null;
+                    $storyClusterId = null;
+
+                    if ($embedding) {
+                        $semanticMatch = self::findSemanticMatch($pdo, $embedding);
+                        if ($semanticMatch) {
+                            if ($semanticMatch['similarity'] >= self::SEMANTIC_DEDUP_THRESHOLD) {
+                                $dupes++;
+                                $details[] = [
+                                    'title' => $item['title'],
+                                    'status' => 'semantic-duplicate',
+                                    'matched' => $semanticMatch['title'],
+                                    'similarity' => $semanticMatch['similarity'],
+                                ];
+                                continue;
+                            }
+                            // Story clustering: similar but not duplicate
+                            if ($semanticMatch['similarity'] >= self::STORY_CLUSTER_THRESHOLD) {
+                                $storyClusterId = self::getOrCreateStoryCluster(
+                                    $pdo,
+                                    $semanticMatch['id'],
+                                    $semanticMatch['story_cluster_id'],
+                                    $item['title']
+                                );
+                            }
+                        }
+                    }
+
+                    // AI-generated summary
+                    $aiSummary = $enrichResult['summary'] ?? null;
+
+                    // Sentiment
+                    $sentiment      = $enrichResult['sentiment'] ?? null;
+                    $sentimentScore = $enrichResult['sentiment_score'] ?? null;
+
+                    // Quality score
+                    $qualityScore = $enrichResult['quality_score'] ?? null;
+
+                    // ── Insert article ────────────────────────────────
                     $status = $autoPublish ? 'published' : 'draft';
                     $stmt = $pdo->prepare(
                         "INSERT INTO articles
                             (title, slug, content, excerpt, author_id, category_id,
                              featured_image, status, published_at, created_by,
-                             display_author, story_thread_id,
+                             display_author, story_thread_id, story_cluster_id,
+                             ai_summary, sentiment, sentiment_score, quality_score,
                              is_crawled, crawl_source_id, source_url, source_name, source_hash)
                          VALUES
                             (:title, :slug, :content, :excerpt, :author_id, :category_id,
                              :featured_image, :status, :published_at, :created_by,
-                             :display_author, :thread_id,
+                             :display_author, :thread_id, :cluster_id,
+                             :ai_summary, :sentiment, :sentiment_score, :quality_score,
                              TRUE, :source_id, :source_url, :source_name, :source_hash)
                          RETURNING id"
                     );
@@ -260,6 +392,11 @@ final class CrawlerEngine
                                 : 'Newsroom'
                         ),
                         ':thread_id'      => $threadId,
+                        ':cluster_id'     => $storyClusterId,
+                        ':ai_summary'     => $aiSummary,
+                        ':sentiment'      => $sentiment,
+                        ':sentiment_score' => $sentimentScore,
+                        ':quality_score'  => $qualityScore,
                         ':source_id'      => $source['id'],
                         ':source_url'     => $item['link'],
                         ':source_name'    => $source['name'],
@@ -270,11 +407,30 @@ final class CrawlerEngine
                     $new++;
                     $details[] = ['title' => $item['title'], 'status' => 'published'];
 
-                    // Score for breaking news detection
-            if ($newId) {
-                    try { BreakingNewsEngine::scoreAndUpdate($newId); } catch (\Throwable $e) {}
-                    try { \App\Models\Tag::autoTagFromContent((int)$newId, $content, $item['title']); } catch (\Throwable) {}
-        }
+                    // ── Post-insert enrichment storage ───────────────
+                    if ($newId) {
+                        // Store embedding
+                        if ($embedding) {
+                            self::storeEmbedding($pdo, $newId, $embedding);
+                        }
+
+                        // Store NER entities
+                        $entities = $enrichResult['entities'] ?? null;
+                        if ($entities) {
+                            self::storeEntities($pdo, $newId, $entities);
+                            // NER-powered auto-tagging
+                            self::autoTagFromEntities($newId, $entities);
+                        } else {
+                            // Fallback to keyword-based tagging
+                            try { \App\Models\Tag::autoTagFromContent((int)$newId, $content, $item['title']); } catch (\Throwable) {}
+                        }
+
+                        // Score for breaking news detection
+                        try { BreakingNewsEngine::scoreAndUpdate($newId); } catch (\Throwable $e) {}
+                    }
+
+                    // Add new title to existing titles for subsequent dedup in this batch
+                    $existingTitles[] = $item['title'];
 
                 } catch (\Throwable $e) {
                     $errors++;
@@ -287,6 +443,9 @@ final class CrawlerEngine
             CrawlSource::markCrawled($source['id'], $logStatus !== 'failed');
             CrawlSource::incrementStats($source['id'], $found, $new, $errors);
 
+            // Update adaptive scheduling
+            self::updateAdaptiveSchedule($source, $new);
+
             return [$found, $new, $dupes];
 
         } catch (\Throwable $e) {
@@ -297,7 +456,7 @@ final class CrawlerEngine
         }
     }
 
-    /** Run all due sources. */
+    /** Run all due sources sequentially. */
     public static function crawlAll(): array
     {
         if (Setting::get('crawler_enabled', 'false') !== 'true') {
@@ -334,6 +493,754 @@ final class CrawlerEngine
         }
 
         return $results;
+    }
+
+    /**
+     * Run all due sources with parallel feed fetching.
+     * Article processing remains sequential per source.
+     */
+    public static function crawlAllParallel(int $batchSize = 6): array
+    {
+        if (Setting::get('crawler_enabled', 'false') !== 'true') {
+            return ['skipped' => true, 'reason' => 'Crawler disabled'];
+        }
+
+        $sources = CrawlSource::dueForCrawl();
+        if (empty($sources)) return [];
+
+        $results = [];
+
+        // Batch feed fetching with curl_multi
+        $batches = array_chunk($sources, $batchSize);
+        foreach ($batches as $batch) {
+            // Fetch all feeds in parallel
+            $feedData = self::fetchFeedsParallel($batch);
+
+            // Process each source sequentially (article inserts must be sequential)
+            foreach ($batch as $i => $source) {
+                try {
+                    $xml = $feedData[$i] ?? null;
+                    if ($xml === null) {
+                        throw new \RuntimeException('Failed to fetch or parse feed');
+                    }
+
+                    // Temporarily replace fetchFeed by injecting pre-fetched XML
+                    [$found, $new, $dupes] = self::crawlSourceWithXml($source, $xml);
+                    $results[] = [
+                        'source' => $source['name'],
+                        'found'  => $found,
+                        'new'    => $new,
+                        'dupes'  => $dupes,
+                        'status' => 'ok',
+                    ];
+                } catch (\Throwable $e) {
+                    $results[] = [
+                        'source' => $source['name'],
+                        'status' => 'error',
+                        'error'  => $e->getMessage(),
+                    ];
+                }
+            }
+        }
+
+        $totalNew = array_sum(array_column($results, 'new'));
+        if ($totalNew > 0) {
+            Cache::flush('home:*');
+            Cache::flush('cat:*');
+        }
+
+        return $results;
+    }
+
+    // ── Fallback enrichment (individual calls) ───────────────
+
+    /**
+     * When unified /enrich endpoint is unavailable, fall back to individual calls.
+     */
+    private static function fallbackEnrich(
+        array $item,
+        array $source,
+        string $sourceRegion,
+        array $systemSlugs,
+        array $existingTitles
+    ): array {
+        $result = [
+            'success'         => false,
+            'extraction'      => null,
+            'region_classify' => null,
+            'category'        => null,
+            'dedup'           => null,
+            'embedding'       => null,
+            'summary'         => null,
+            'entities'        => null,
+            'sentiment'       => null,
+            'sentiment_score' => null,
+            'quality_score'   => null,
+        ];
+
+        // Region classification
+        if ($sourceRegion !== 'ugandan') {
+            $result['region_classify'] = ExtractorClient::classify(
+                $item['title'],
+                $item['description'] ?? '',
+                $sourceRegion
+            );
+        }
+
+        // Cross-source dedup
+        if (!empty($existingTitles)) {
+            $result['dedup'] = ExtractorClient::checkDuplicate($item['title'], $existingTitles);
+        }
+
+        // Extract article
+        if (!empty($item['link'])) {
+            $scrapedData = ExtractorClient::extract($item['link'], $source);
+            if ($scrapedData === null) {
+                $scrapedData = ArticleScraper::scrape($item['link'], $source);
+            }
+            if ($scrapedData) {
+                $result['extraction'] = $scrapedData;
+                $result['success'] = true;
+            }
+        }
+
+        // Category classification
+        $result['category'] = ExtractorClient::classifyCategory(
+            $item['title'] ?? '',
+            $item['content'] ?: ($item['description'] ?? ''),
+            $item['categories'] ?? [],
+            $item['link'] ?? '',
+            $systemSlugs
+        );
+
+        return $result;
+    }
+
+    // ── Semantic dedup & story clustering ─────────────────────
+
+    /**
+     * Find the most similar article by embedding cosine similarity.
+     */
+    private static function findSemanticMatch(\PDO $pdo, array $embedding): ?array
+    {
+        try {
+            $embStr = '[' . implode(',', $embedding) . ']';
+            $stmt = $pdo->prepare(
+                "SELECT id, title, story_cluster_id,
+                        1 - (embedding <=> :emb::vector) AS similarity
+                 FROM articles
+                 WHERE created_at > NOW() - INTERVAL '3 days'
+                   AND embedding IS NOT NULL
+                 ORDER BY embedding <=> :emb::vector
+                 LIMIT 1"
+            );
+            $stmt->execute([':emb' => $embStr]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if ($row && (float)$row['similarity'] >= self::STORY_CLUSTER_THRESHOLD) {
+                return $row;
+            }
+        } catch (\Throwable $e) {
+            error_log("CrawlerEngine::findSemanticMatch: " . $e->getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Store embedding vector for an article.
+     */
+    private static function storeEmbedding(\PDO $pdo, string $articleId, array $embedding): void
+    {
+        try {
+            $embStr = '[' . implode(',', $embedding) . ']';
+            $stmt = $pdo->prepare("UPDATE articles SET embedding = :emb::vector WHERE id = :id");
+            $stmt->execute([':emb' => $embStr, ':id' => $articleId]);
+        } catch (\Throwable $e) {
+            error_log("CrawlerEngine::storeEmbedding: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get or create a story cluster for related articles.
+     */
+    private static function getOrCreateStoryCluster(
+        \PDO $pdo,
+        string $matchedArticleId,
+        ?string $existingClusterId,
+        string $title
+    ): string {
+        // If matched article already has a cluster, join it
+        if ($existingClusterId) {
+            return $existingClusterId;
+        }
+
+        // Create new cluster with matched article as canonical
+        try {
+            $stmt = $pdo->prepare(
+                "INSERT INTO story_clusters (canonical_article_id, title) VALUES (:aid, :title) RETURNING id"
+            );
+            $stmt->execute([':aid' => $matchedArticleId, ':title' => mb_substr($title, 0, 255)]);
+            $clusterId = $stmt->fetchColumn();
+
+            // Update the matched article to belong to this cluster
+            $pdo->prepare("UPDATE articles SET story_cluster_id = :cid WHERE id = :aid")
+                ->execute([':cid' => $clusterId, ':aid' => $matchedArticleId]);
+
+            return $clusterId;
+        } catch (\Throwable $e) {
+            error_log("CrawlerEngine::getOrCreateStoryCluster: " . $e->getMessage());
+            return '';
+        }
+    }
+
+    // ── NER entity storage & auto-tagging ────────────────────
+
+    /**
+     * Bulk-insert NER entities for an article.
+     */
+    private static function storeEntities(\PDO $pdo, string $articleId, array $entities): void
+    {
+        if (empty($entities)) return;
+        try {
+            $stmt = $pdo->prepare(
+                "INSERT INTO article_entities (article_id, entity_text, entity_type, salience)
+                 VALUES (:aid, :text, :type, :salience)"
+            );
+            foreach ($entities as $entity) {
+                $stmt->execute([
+                    ':aid'      => $articleId,
+                    ':text'     => mb_substr($entity['text'] ?? '', 0, 255),
+                    ':type'     => $entity['type'] ?? 'UNKNOWN',
+                    ':salience' => $entity['salience'] ?? 0,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            error_log("CrawlerEngine::storeEntities: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Auto-tag article from NER entities instead of keyword frequency.
+     * Maps entity types: PERSON→person, ORG→org, GPE→location, EVENT→topic
+     */
+    private static function autoTagFromEntities(string $articleId, array $entities): void
+    {
+        try {
+            $typeMap = [
+                'PERSON' => 'person',
+                'ORG'    => 'org',
+                'GPE'    => 'location',
+                'EVENT'  => 'topic',
+            ];
+
+            $tagNames = [];
+            foreach ($entities as $entity) {
+                if (($entity['salience'] ?? 0) < 0.05) continue;
+                if (count($tagNames) >= 8) break;
+                $name = trim($entity['text'] ?? '');
+                if (strlen($name) < 2 || strlen($name) > 80) continue;
+                $tagNames[] = $name;
+            }
+
+            if (!empty($tagNames)) {
+                \App\Models\Tag::syncForArticle($articleId, $tagNames);
+            }
+        } catch (\Throwable $e) {
+            error_log("CrawlerEngine::autoTagFromEntities: " . $e->getMessage());
+        }
+    }
+
+    // ── Adaptive scheduling ──────────────────────────────────
+
+    /**
+     * Update adaptive scheduling stats after a crawl completes.
+     */
+    private static function updateAdaptiveSchedule(array $source, int $newCount): void
+    {
+        try {
+            $pdo = \App\Models\BaseModel::pdo();
+            if ($newCount > 0) {
+                // Calculate articles-per-day rate from this crawl
+                $interval = max(1, (int)($source['crawl_interval'] ?? 30));
+                $rate = $newCount * (1440.0 / $interval);
+
+                $pdo->prepare(
+                    "UPDATE crawl_sources SET
+                        consecutive_empty = 0,
+                        last_new_content_at = NOW(),
+                        avg_articles_per_day = COALESCE(avg_articles_per_day * 0.7 + :rate * 0.3, :rate)
+                     WHERE id = :id"
+                )->execute([':rate' => $rate, ':id' => $source['id']]);
+            } else {
+                $pdo->prepare(
+                    "UPDATE crawl_sources SET consecutive_empty = COALESCE(consecutive_empty, 0) + 1 WHERE id = :id"
+                )->execute([':id' => $source['id']]);
+            }
+        } catch (\Throwable $e) {
+            error_log("CrawlerEngine::updateAdaptiveSchedule: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Calculate the effective crawl interval for a source based on activity.
+     *
+     * @return int Interval in minutes
+     */
+    public static function effectiveInterval(array $source): int
+    {
+        $avg   = (float)($source['avg_articles_per_day'] ?? 0);
+        $empty = (int)($source['consecutive_empty'] ?? 0);
+
+        // Base interval from activity level
+        if ($avg > 5) {
+            $interval = 5;     // High frequency
+        } elseif ($avg > 2) {
+            $interval = 15;    // Moderate
+        } elseif ($avg > 0.5) {
+            $interval = 30;    // Slow
+        } else {
+            $interval = 60;    // Dormant
+        }
+
+        // Backoff for consecutive empty crawls
+        if ($empty >= 5) {
+            $interval = min(120, $interval * 2);
+        }
+
+        return $interval;
+    }
+
+    // ── Parallel feed fetching ───────────────────────────────
+
+    /**
+     * Fetch multiple RSS feeds in parallel using curl_multi.
+     *
+     * @return array<int, \SimpleXMLElement|null> Indexed same as input $sources
+     */
+    private static function fetchFeedsParallel(array $sources): array
+    {
+        $mh = curl_multi_init();
+        $handles = [];
+        $ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+        foreach ($sources as $i => $source) {
+            $ch = curl_init($source['feed_url']);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => self::FETCH_TIMEOUT,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS      => 5,
+                CURLOPT_USERAGENT      => $ua,
+                CURLOPT_HTTPHEADER     => ['Accept: application/rss+xml, application/xml, text/xml, */*'],
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => 0,
+            ]);
+            curl_multi_add_handle($mh, $ch);
+            $handles[$i] = $ch;
+        }
+
+        // Execute all requests
+        $running = null;
+        do {
+            curl_multi_exec($mh, $running);
+            if ($running > 0) {
+                curl_multi_select($mh, 1);
+            }
+        } while ($running > 0);
+
+        // Collect results
+        $results = [];
+        foreach ($handles as $i => $ch) {
+            $body = curl_multi_getcontent($ch);
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+
+            if ($body === false || $body === null || $body === '') {
+                $results[$i] = null;
+                continue;
+            }
+
+            // Strip BOM and invalid XML chars
+            $body = preg_replace('/^\xEF\xBB\xBF/', '', $body);
+            $body = preg_replace('/[^\x09\x0A\x0D\x20-\x{D7FF}\x{E000}-\x{FFFD}]/u', '', $body);
+
+            libxml_use_internal_errors(true);
+            $xml = @simplexml_load_string($body);
+            libxml_clear_errors();
+
+            $results[$i] = $xml ?: null;
+        }
+
+        curl_multi_close($mh);
+        return $results;
+    }
+
+    /**
+     * Crawl a source with pre-fetched XML (for parallel mode).
+     * Reuses crawlSource logic but skips feed fetching.
+     */
+    private static function crawlSourceWithXml(array $source, \SimpleXMLElement $xml): array
+    {
+        $logId = CrawlLog::start($source['id']);
+
+        try {
+            $items  = self::extractFeedItems($xml, $source['source_type']);
+            $found  = count($items);
+            $new    = 0;
+            $dupes  = 0;
+            $errors = 0;
+            $details = [];
+
+            $items = array_slice($items, 0, (int)($source['max_articles'] ?? 20));
+
+            $categories = Category::nameSlugList();
+            $autoPublish   = Setting::get('crawler_auto_publish', 'true') === 'true';
+            $maxAgeHours   = (int)Setting::get('crawler_max_age_hours', '72');
+            $defaultAuthor = Setting::get('crawler_default_author', '');
+            $authorId = $defaultAuthor ?: self::getDefaultAuthorId();
+
+            $systemSlugs = array_map(fn($c) => $c['slug'], $categories);
+            $slugToId = [];
+            foreach ($categories as $cat) {
+                $slugToId[strtolower($cat['slug'])] = $cat['id'];
+            }
+
+            $existingTitles = self::getRecentTitles();
+            $sourceRegion = $source['region'] ?? 'international';
+
+            // ── Phase 1: Collect eligible items (cheap PHP pre-filters) ──
+            $eligible = [];
+            $eligibleHashes = [];
+
+            foreach ($items as $item) {
+                if ($item['published_at'] && $maxAgeHours > 0) {
+                    $ts = strtotime($item['published_at']);
+                    if ($ts !== false && (time() - $ts) / 3600 > $maxAgeHours) continue;
+                }
+
+                if (!self::passesKeywordFilter($item, $source)) continue;
+
+                $hash = hash('sha256', $item['link']);
+                if (self::isDuplicate($hash, $item['title'])) {
+                    $dupes++;
+                    $details[] = ['title' => $item['title'], 'status' => 'duplicate'];
+                    continue;
+                }
+
+                $eligible[] = $item;
+                $eligibleHashes[] = $hash;
+            }
+
+            // ── Phase 2: Batch enrichment (1 HTTP call for all eligible) ──
+            $enrichResults = [];
+            if (!empty($eligible)) {
+                $batchArticles = [];
+                foreach ($eligible as $item) {
+                    $batchArticles[] = [
+                        'url'            => $item['link'],
+                        'title'          => $item['title'],
+                        'rss_categories' => $item['categories'] ?? [],
+                    ];
+                }
+
+                $batchResponse = ExtractorClient::enrichBatch($batchArticles, [
+                    'source_selectors'  => $source['content_selector'] ?? null,
+                    'strip_selectors'   => $source['strip_selectors'] ?? null,
+                    'system_categories' => $systemSlugs,
+                    'source_region'     => $sourceRegion,
+                    'existing_titles'   => $existingTitles,
+                    'dedup_threshold'   => 0.55,
+                    'options'           => [
+                        'classify_region'   => ($sourceRegion !== 'ugandan'),
+                        'classify_category' => true,
+                        'check_dedup'       => true,
+                        'embed'             => true,
+                        'summarize'         => true,
+                        'ner'               => true,
+                        'sentiment'         => true,
+                        'quality'           => true,
+                    ],
+                ]);
+
+                if ($batchResponse !== null) {
+                    $enrichResults = $batchResponse;
+                }
+            }
+
+            // ── Phase 3: Process enrichment results + insert articles ──
+            foreach ($eligible as $idx => $item) {
+                try {
+                    $memUsed = memory_get_usage(true);
+                    $memLimit = self::getMemoryLimitBytes();
+                    if ($memLimit > 0 && ($memLimit - $memUsed) < 10 * 1024 * 1024) {
+                        error_log("CrawlerEngine: memory critical, stopping source {$source['name']}");
+                        break;
+                    }
+
+                    $hash = $eligibleHashes[$idx];
+
+                    $enrichResult = $enrichResults[$idx] ?? null;
+
+                    if ($enrichResult === null || empty($enrichResult['success'])) {
+                        $enrichResult = self::fallbackEnrich($item, $source, $sourceRegion, $systemSlugs, $existingTitles);
+                    }
+
+                    if ($sourceRegion !== 'ugandan' && !empty($enrichResult['region_classify'])) {
+                        if (empty($enrichResult['region_classify']['accept'])) {
+                            $details[] = [
+                                'title' => $item['title'],
+                                'status' => 'filtered',
+                                'reason' => 'region:' . ($enrichResult['region_classify']['dominated_region'] ?? 'unknown'),
+                            ];
+                            continue;
+                        }
+                    }
+
+                    if (!empty($enrichResult['dedup']['is_duplicate'])) {
+                        $dupes++;
+                        $details[] = ['title' => $item['title'], 'status' => 'similar-story'];
+                        continue;
+                    }
+
+                    $categoryId = $source['default_category_id'] ?? self::getFirstCategoryId();
+                    if (!empty($enrichResult['category']['category_slug']) && ($enrichResult['category']['confidence'] ?? 0) >= 40) {
+                        $aiSlug = strtolower($enrichResult['category']['category_slug']);
+                        if (isset($slugToId[$aiSlug])) {
+                            $categoryId = $slugToId[$aiSlug];
+                        }
+                    } else {
+                        $catResult = CategoryMatcher::match($item, $categories, $categoryId);
+                        $categoryId = $catResult['category_id'];
+                    }
+
+                    $threadId = StoryThreadDetector::detect(
+                        $item['title'],
+                        $item['content'] ?: $item['description'] ?: ''
+                    );
+
+                    $scrapedData = null;
+                    $contentFromPython = false;
+                    if (!empty($enrichResult['extraction'])) {
+                        $scrapedData = $enrichResult['extraction'];
+                        $contentFromPython = true;
+                    }
+
+                    if ($scrapedData === null && !empty($item['link'])) {
+                        $scrapedData = ArticleScraper::scrape($item['link'], $source);
+                    }
+
+                    $rssContent = $item['content'] ?: $item['description'] ?: '';
+                    if ($scrapedData && !empty($scrapedData['content'])) {
+                        $rawContent = $scrapedData['content'];
+                    } else {
+                        $rawContent = $rssContent;
+                        $contentFromPython = false;
+                    }
+
+                    if ($contentFromPython) {
+                        $content = self::processImages($rawContent);
+                    } else {
+                        $content = self::cleanContent($rawContent, $source);
+                        $content = self::processImages($content);
+                        $content = ContentNormalizer::normalize($content);
+                    }
+
+                    $extractorAuthors = $scrapedData['authors'] ?? [];
+                    $extractorDate    = $scrapedData['published_date'] ?? null;
+                    $extractorTitle   = $scrapedData['title'] ?? null;
+
+                    if ($extractorTitle && preg_match('/\.{3}$|\x{2026}$/u', $item['title'])) {
+                        $item['title'] = $extractorTitle;
+                    }
+
+                    $featuredImage = null;
+                    $heroOriginalUrl = null;
+                    if ($scrapedData && !empty($scrapedData['hero_image'])) {
+                        $featuredImage = $scrapedData['hero_image'];
+                        $heroOriginalUrl = $scrapedData['hero_image'];
+                    } elseif (!empty($item['image'])) {
+                        $featuredImage = $item['image'];
+                        $heroOriginalUrl = $item['image'];
+                    }
+
+                    if ($heroOriginalUrl) {
+                        $content = self::removeHeroFromContent($content, $heroOriginalUrl);
+                    }
+
+                    $downloadImages = ($source['download_images'] ?? true);
+                    if ($downloadImages) {
+                        $content = ImageDownloader::processContentImages($content, $authorId);
+                    }
+                    if ($downloadImages && $featuredImage) {
+                        $featuredImage = ImageDownloader::download($featuredImage, $authorId);
+                    }
+
+                    $attribution = $source['attribution_text'] ?: ('Source: ' . $source['name']);
+                    $nofollow    = $source['nofollow'] ? ' rel="nofollow noopener"' : ' rel="noopener"';
+                    $attrHtml    = '<p class="crawled-attribution" style="text-align:right;margin-top:16px">'
+                        . '<a href="' . htmlspecialchars($item['link']) . '" target="_blank"' . $nofollow
+                        . ' title="' . htmlspecialchars($attribution) . '"'
+                        . ' style="color:#999;text-decoration:none;opacity:0.5;transition:opacity .2s"'
+                        . ' onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5">'
+                        . '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+                        . '</a></p>';
+                    $content .= "\n" . $attrHtml;
+
+                    $excerpt = '';
+                    if ($scrapedData && !empty($scrapedData['excerpt'])) {
+                        $excerpt = $scrapedData['excerpt'];
+                    } elseif (!empty($item['description'])) {
+                        $excerpt = $item['description'];
+                    }
+                    $excerpt = strip_tags($excerpt);
+                    $excerpt = mb_substr($excerpt, 0, 280);
+
+                    $slug = preg_replace('/[^a-z0-9]+/', '-', strtolower(trim($item['title'])));
+                    $slug = trim($slug, '-');
+                    $slug = mb_substr($slug, 0, 200);
+                    $baseSlug = $slug;
+                    $suffix = 0;
+                    $pdo = \App\Models\BaseModel::pdo();
+                    while (true) {
+                        $check = $pdo->prepare("SELECT COUNT(*) FROM articles WHERE slug = :s");
+                        $check->execute([':s' => $slug]);
+                        if ((int)$check->fetchColumn() === 0) break;
+                        $suffix++;
+                        $slug = $baseSlug . '-' . $suffix;
+                    }
+
+                    $embedding = $enrichResult['embedding'] ?? null;
+                    $storyClusterId = null;
+
+                    if ($embedding) {
+                        $semanticMatch = self::findSemanticMatch($pdo, $embedding);
+                        if ($semanticMatch) {
+                            if ($semanticMatch['similarity'] >= self::SEMANTIC_DEDUP_THRESHOLD) {
+                                $dupes++;
+                                $details[] = [
+                                    'title' => $item['title'],
+                                    'status' => 'semantic-duplicate',
+                                    'matched' => $semanticMatch['title'],
+                                    'similarity' => $semanticMatch['similarity'],
+                                ];
+                                continue;
+                            }
+                            if ($semanticMatch['similarity'] >= self::STORY_CLUSTER_THRESHOLD) {
+                                $storyClusterId = self::getOrCreateStoryCluster(
+                                    $pdo,
+                                    $semanticMatch['id'],
+                                    $semanticMatch['story_cluster_id'],
+                                    $item['title']
+                                );
+                            }
+                        }
+                    }
+
+                    $status = $autoPublish ? 'published' : 'draft';
+                    $stmt = $pdo->prepare(
+                        "INSERT INTO articles
+                            (title, slug, content, excerpt, author_id, category_id,
+                             featured_image, status, published_at, created_by,
+                             display_author, story_thread_id, story_cluster_id,
+                             ai_summary, sentiment, sentiment_score, quality_score,
+                             is_crawled, crawl_source_id, source_url, source_name, source_hash)
+                         VALUES
+                            (:title, :slug, :content, :excerpt, :author_id, :category_id,
+                             :featured_image, :status, :published_at, :created_by,
+                             :display_author, :thread_id, :cluster_id,
+                             :ai_summary, :sentiment, :sentiment_score, :quality_score,
+                             TRUE, :source_id, :source_url, :source_name, :source_hash)
+                         RETURNING id"
+                    );
+                    $stmt->execute([
+                        ':title'          => mb_substr($item['title'], 0, 255),
+                        ':slug'           => $slug,
+                        ':content'        => $content,
+                        ':excerpt'        => $excerpt,
+                        ':author_id'      => $authorId,
+                        ':category_id'    => $categoryId,
+                        ':featured_image' => $featuredImage,
+                        ':status'         => $status,
+                        ':published_at'   => $status === 'published'
+                            ? ($extractorDate ? date('Y-m-d H:i:s', strtotime($extractorDate)) ?: gmdate('Y-m-d H:i:s') : gmdate('Y-m-d H:i:s'))
+                            : null,
+                        ':created_by'     => $authorId,
+                        ':display_author' => self::cleanAuthorName(
+                            $extractorAuthors,
+                            function_exists('get_site_setting')
+                                ? get_site_setting('default_crawl_author', get_site_setting('site_title', 'Newsroom'))
+                                : 'Newsroom'
+                        ),
+                        ':thread_id'      => $threadId,
+                        ':cluster_id'     => $storyClusterId,
+                        ':ai_summary'     => $enrichResult['summary'] ?? null,
+                        ':sentiment'      => $enrichResult['sentiment'] ?? null,
+                        ':sentiment_score' => $enrichResult['sentiment_score'] ?? null,
+                        ':quality_score'  => $enrichResult['quality_score'] ?? null,
+                        ':source_id'      => $source['id'],
+                        ':source_url'     => $item['link'],
+                        ':source_name'    => $source['name'],
+                        ':source_hash'    => $hash,
+                    ]);
+
+                    $newId = $stmt->fetchColumn();
+                    $new++;
+                    $details[] = ['title' => $item['title'], 'status' => 'published'];
+
+                    if ($newId) {
+                        if ($embedding) self::storeEmbedding($pdo, $newId, $embedding);
+                        $entities = $enrichResult['entities'] ?? null;
+                        if ($entities) {
+                            self::storeEntities($pdo, $newId, $entities);
+                            self::autoTagFromEntities($newId, $entities);
+                        } else {
+                            try { \App\Models\Tag::autoTagFromContent((int)$newId, $content, $item['title']); } catch (\Throwable) {}
+                        }
+                        try { BreakingNewsEngine::scoreAndUpdate($newId); } catch (\Throwable) {}
+                    }
+
+                    $existingTitles[] = $item['title'];
+
+                } catch (\Throwable $e) {
+                    $errors++;
+                    $details[] = ['title' => $item['title'] ?? '?', 'status' => 'error', 'error' => $e->getMessage()];
+                }
+            }
+
+            $logStatus = $errors > 0 ? ($new > 0 ? 'partial' : 'failed') : 'success';
+            CrawlLog::finish($logId, $logStatus, $found, $new, $dupes, null, $details);
+            CrawlSource::markCrawled($source['id'], $logStatus !== 'failed');
+            CrawlSource::incrementStats($source['id'], $found, $new, $errors);
+            self::updateAdaptiveSchedule($source, $new);
+
+            return [$found, $new, $dupes];
+
+        } catch (\Throwable $e) {
+            CrawlLog::finish($logId, 'failed', 0, 0, 0, $e->getMessage());
+            CrawlSource::markCrawled($source['id'], false, $e->getMessage());
+            CrawlSource::incrementStats($source['id'], 0, 0, 1);
+            throw $e;
+        }
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────
+
+    /**
+     * Fetch recent article titles for cross-source dedup.
+     */
+    private static function getRecentTitles(): array
+    {
+        try {
+            $pdo = \App\Models\BaseModel::pdo();
+            $stmt = $pdo->query(
+                "SELECT title FROM articles
+                 WHERE created_at > NOW() - INTERVAL '3 days' AND is_crawled = TRUE
+                 ORDER BY created_at DESC LIMIT 200"
+            );
+            return $stmt->fetchAll(\PDO::FETCH_COLUMN) ?: [];
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     // ── Feed fetching & parsing ────────────────────────────────
@@ -494,44 +1401,28 @@ final class CrawlerEngine
 
     // ── Content processing ─────────────────────────────────────
 
+    /**
+     * Light PHP content cleaning — safety net for when Python extractor is unavailable.
+     *
+     * Primary cleaning now happens in Python content_cleaner.py (DOM-based, more thorough).
+     * This method only handles: script/style removal, plain text wrapping, empty paragraphs,
+     * and source-specific strip_selectors as a fallback.
+     */
     private static function cleanContent(string $html, array $source): string
     {
         if (trim($html) === '') return '<p>No content available.</p>';
 
-        // Strip WordPress "The post [title] appeared first on [site]." boilerplate
-        $html = preg_replace('#<p[^>]*>\s*The post\s+<a[^>]*>.*?</a>\s+appeared first on\s+<a[^>]*>.*?</a>\.\s*</p>#is', '', $html);
-        // Also strip plain text version without links
-        $html = preg_replace('#<p[^>]*>\s*The post\s+.{5,300}\s+appeared first on\s+.{3,100}\.\s*</p>#is', '', $html);
-
-        // WordPress "Share this:" / "Like this:" / "Related" sections
-        $html = preg_replace('#<h[2-6][^>]*>\s*Share\s+this\s*:?\s*</h[2-6]>.*?(?=<h[2-6]|$)#is', '', $html);
-        $html = preg_replace('#<h[2-6][^>]*>\s*Like\s+this\s*:?\s*</h[2-6]>.*?(?=<h[2-6]|$)#is', '', $html);
-        $html = preg_replace('#<h[2-6][^>]*>\s*Related\s*:?\s*</h[2-6]>.*$#is', '', $html);
-        $html = preg_replace('#<ul[^>]*>\s*(?:<li[^>]*>\s*<a[^>]*>Share\s+on\s+\w+[^<]*</a>\s*</li>\s*){2,}</ul>#is', '', $html);
-        $html = preg_replace('#<p[^>]*>\s*Like\s+Loading\s*\.{0,3}\s*</p>#is', '', $html);
-        $html = preg_replace('#<p[^>]*>\s*<a[^>]*>\s*See\s+also\s+[^<]+</a>\s*</p>#is', '', $html);
-        $html = preg_replace('#<a[^>]*>Share\s+on\s+\w+\s*\([^)]*\)\s*\w*</a>#is', '', $html);
+        // Remove <script> and <style> tags
+        $html = preg_replace('#<script[^>]*>.*?</script>#is', '', $html);
+        $html = preg_replace('#<style[^>]*>.*?</style>#is', '', $html);
 
         // If content is plain text (no HTML tags), wrap in paragraph
         if (strip_tags($html) === $html) {
             $html = '<p>' . nl2br(htmlspecialchars($html)) . '</p>';
         }
 
-        // Remove <script>, <style>, <iframe> (except video embeds)
-        $html = preg_replace('#<script[^>]*>.*?</script>#is', '', $html);
-        $html = preg_replace('#<style[^>]*>.*?</style>#is', '', $html);
-
-        // Keep video/social embeds, remove other iframes
-        $html = preg_replace_callback('#<iframe[^>]*>.*?</iframe>#is', function ($m) {
-            if (preg_match('/youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com|twitter\.com|x\.com|instagram\.com|facebook\.com|fb\.watch|tiktok\.com|rumble\.com|bitchute\.com|odysee\.com|spotify\.com|soundcloud\.com|streamable\.com|jwplatform\.com|brightcove|kaltura|vidyard|wistia/i', $m[0])) {
-                return $m[0];
-            }
-            return '';
-        }, $html);
-
-        // Strip CSS selectors specified by source
+        // Strip CSS selectors specified by source (fallback — Python handles this too)
         if (!empty($source['strip_selectors'])) {
-            // Simple class/id stripping (not a full DOM parser but covers common cases)
             $selectors = array_map('trim', explode(',', $source['strip_selectors']));
             foreach ($selectors as $sel) {
                 if (str_starts_with($sel, '.')) {
@@ -546,9 +1437,6 @@ final class CrawlerEngine
 
         // Remove empty paragraphs
         $html = preg_replace('#<p>\s*</p>#i', '', $html);
-
-        // Remove inline styles
-        $html = preg_replace('/\sstyle="[^"]*"/i', '', $html);
 
         return trim($html);
     }

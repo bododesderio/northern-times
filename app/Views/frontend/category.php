@@ -44,7 +44,7 @@ $gridStories = array_slice($articles, 3);
           <a href="/article/<?= h($a['slug']) ?>">
             <div class="cat-side-row">
               <?php if (!empty($a['featured_image'])): ?>
-                <img src="<?= h($a['featured_image']) ?>" alt="" class="cat-side-thumb" loading="lazy" />
+                <img src="<?= h($a['featured_image']) ?>" alt="<?= h($a['title']) ?>" class="cat-side-thumb" loading="lazy" />
               <?php endif; ?>
               <div class="cat-side-text">
                 <h4><?= h($a['title']) ?></h4>

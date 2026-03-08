@@ -338,14 +338,14 @@ final class AdminCrawlerController extends Controller
                 'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
             ]);
 
-            $body = @file_get_contents($url, false, $ctx);
+            $body = file_get_contents($url, false, $ctx);
             if ($body === false) {
                 return $this->json(['ok' => false, 'error' => 'Could not fetch URL']);
             }
 
             $body = preg_replace('/^\xEF\xBB\xBF/', '', $body);
             libxml_use_internal_errors(true);
-            $xml = @simplexml_load_string($body);
+            $xml = simplexml_load_string($body);
             libxml_clear_errors();
 
             if (!$xml) {

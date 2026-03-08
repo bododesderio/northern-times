@@ -5,7 +5,6 @@ namespace App\Middleware;
 
 use App\Models\SiteVisitor;
 use App\Services\GeoIP;
-use App\Services\UserAgentParser;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -38,7 +37,7 @@ final class VisitorMiddleware implements MiddlewareInterface
             }
 
             // Parse device info from user agent
-            $device = UserAgentParser::parse($userAgent);
+            $device = self::parseUserAgent($userAgent);
 
             SiteVisitor::record($ip, $userAgent, $firstPage, $geo, $device);
 
@@ -46,5 +45,68 @@ final class VisitorMiddleware implements MiddlewareInterface
         }
 
         return $next($request);
+    }
+
+    /**
+     * Parse user agent string into device_type, browser, and OS.
+     */
+    private static function parseUserAgent(string $ua): array
+    {
+        $ua = strtolower($ua);
+
+        // Device type
+        if (preg_match('/tablet|ipad|playbook|silk/i', $ua)) {
+            $deviceType = 'tablet';
+        } elseif (preg_match('/mobile|android.*mobile|iphone|ipod|blackberry|opera mini|iemobile|wpdesktop|windows phone/i', $ua)) {
+            $deviceType = 'mobile';
+        } elseif (preg_match('/bot|crawl|spider|slurp|wget|curl/i', $ua)) {
+            $deviceType = 'bot';
+        } else {
+            $deviceType = 'desktop';
+        }
+
+        // Browser
+        $browser = 'Other';
+        if (str_contains($ua, 'edg/') || str_contains($ua, 'edge/')) {
+            $browser = 'Edge';
+        } elseif (str_contains($ua, 'opr/') || str_contains($ua, 'opera')) {
+            $browser = 'Opera';
+        } elseif (str_contains($ua, 'chrome') && !str_contains($ua, 'edg')) {
+            $browser = 'Chrome';
+        } elseif (str_contains($ua, 'safari') && !str_contains($ua, 'chrome')) {
+            $browser = 'Safari';
+        } elseif (str_contains($ua, 'firefox')) {
+            $browser = 'Firefox';
+        } elseif (str_contains($ua, 'msie') || str_contains($ua, 'trident')) {
+            $browser = 'IE';
+        } elseif (str_contains($ua, 'samsung')) {
+            $browser = 'Samsung Internet';
+        } elseif (str_contains($ua, 'ucbrowser')) {
+            $browser = 'UC Browser';
+        } elseif (str_contains($ua, 'brave')) {
+            $browser = 'Brave';
+        }
+
+        // OS
+        $os = 'Other';
+        if (str_contains($ua, 'windows')) {
+            $os = 'Windows';
+        } elseif (str_contains($ua, 'mac os') || str_contains($ua, 'macintosh')) {
+            $os = 'macOS';
+        } elseif (str_contains($ua, 'iphone') || str_contains($ua, 'ipad')) {
+            $os = 'iOS';
+        } elseif (str_contains($ua, 'android')) {
+            $os = 'Android';
+        } elseif (str_contains($ua, 'linux')) {
+            $os = 'Linux';
+        } elseif (str_contains($ua, 'chromeos') || str_contains($ua, 'cros')) {
+            $os = 'ChromeOS';
+        }
+
+        return [
+            'device_type' => $deviceType,
+            'browser'     => $browser,
+            'os'          => $os,
+        ];
     }
 }

@@ -4,7 +4,7 @@
 
 set -e
 
-DB_CMD="PGPASSWORD=${DB_PASS:-udZNUhBQIVrzWShHULiDdy78fIwOiBB} psql -h ${DB_HOST:-db} -U ${DB_USER:-northern} -d ${DB_NAME:-northern_times} -t -A"
+DB_CMD="PGPASSWORD=${DB_PASS} psql -h ${DB_HOST:-db} -U ${DB_USER:-northern} -d ${DB_NAME:-northern_times} -t -A"
 
 echo "========================================="
 echo " FULL CRAWL RESET"

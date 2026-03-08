@@ -23,21 +23,22 @@ set_time_limit(0);
 ini_set('memory_limit', '512M');
 ini_set('max_execution_time', '0');
 
-// Lock file — prevent overlapping cron runs
+// Lock file — prevent overlapping cron runs (atomic flock)
 $lockFile = sys_get_temp_dir() . '/nt_crawler.lock';
-if (file_exists($lockFile)) {
-    $lockAge = time() - filemtime($lockFile);
-    if ($lockAge < 1800) { // 30 min max lock
-        echo "[" . date('Y-m-d H:i:s') . "] Crawler already running (lock age: {$lockAge}s). Skipping.\n";
-        exit(0);
-    }
-    // Stale lock — remove it
-    unlink($lockFile);
+$lockHandle = @fopen($lockFile, 'c');
+if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    echo "[" . date('Y-m-d H:i:s') . "] Crawler already running (locked). Skipping.\n";
+    if ($lockHandle) fclose($lockHandle);
+    exit(0);
 }
-file_put_contents($lockFile, getmypid());
+ftruncate($lockHandle, 0);
+fwrite($lockHandle, (string)getmypid());
+fflush($lockHandle);
 
-// Cleanup lock on exit
-register_shutdown_function(function () use ($lockFile) {
+// Release lock on exit
+register_shutdown_function(function () use ($lockHandle, $lockFile) {
+    @flock($lockHandle, LOCK_UN);
+    @fclose($lockHandle);
     @unlink($lockFile);
 });
 
@@ -65,8 +66,10 @@ try {
     // Table may not exist yet
 }
 
+$useParallel = in_array('--parallel', $argv ?? [], true);
+
 try {
-    $results = CrawlerEngine::crawlAll();
+    $results = $useParallel ? CrawlerEngine::crawlAllParallel() : CrawlerEngine::crawlAll();
 
     if (isset($results['skipped'])) {
         echo "[{$ts}] Skipped: {$results['reason']}\n";

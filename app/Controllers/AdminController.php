@@ -349,6 +349,9 @@ final class AdminController extends Controller
         }
     }
 
+    // Sanitize HTML content to prevent stored XSS
+    $content = self::sanitizeHtml($content);
+
     $newArticle = Article::store([
       'title'             => $title,
       'slug'              => Slug::unique(Slug::make($title)),
@@ -481,6 +484,9 @@ final class AdminController extends Controller
       $slug = Slug::unique(Slug::make($title), $id);
     }
 
+    // Sanitize HTML content to prevent stored XSS
+    $content = self::sanitizeHtml($content);
+
     Article::updateArticle($id, [
       'title'             => $title,
       'content'           => $content,
@@ -508,6 +514,10 @@ final class AdminController extends Controller
         if ($published) {
             try { SocialPoster::postArticle($published); } catch (\Throwable) {}
             try { WebPush::notifyArticle($published);    } catch (\Throwable) {}
+            try { \App\Services\WebhookDispatcher::dispatch('article.published', [
+                'id' => $published['id'], 'title' => $published['title'],
+                'slug' => $published['slug'], 'url' => ($_ENV['APP_URL'] ?? '') . '/article/' . $published['slug'],
+            ]); } catch (\Throwable) {}
         }
     }
 
@@ -542,7 +552,7 @@ final class AdminController extends Controller
     }
     if (!RBAC::canEditArticle($row)) return new Response("403 Forbidden", 403);
 
-    Article::execute("UPDATE articles SET status = 'archived', updated_at = NOW() WHERE id = :id", [':id' => $id]);
+    Article::execute("UPDATE articles SET status = 'archived', deleted_at = NOW(), updated_at = NOW() WHERE id = :id", [':id' => $id]);
     Flash::set('success', 'Article moved to archive.');
     return $this->redirect('/admin/articles');
   }
@@ -580,7 +590,7 @@ final class AdminController extends Controller
       Flash::set('error', 'Article not found.');
       return $this->redirect('/admin/articles/archive');
     }
-    Article::execute("UPDATE articles SET status = 'draft', updated_at = NOW() WHERE id = :id", [':id' => $id]);
+    Article::execute("UPDATE articles SET status = 'draft', deleted_at = NULL, updated_at = NOW() WHERE id = :id", [':id' => $id]);
     Flash::set('success', 'Article restored as draft.');
     return $this->redirect('/admin/articles/archive');
   }
@@ -622,6 +632,10 @@ final class AdminController extends Controller
     try { \App\Services\Cache::forget('home:breaking_cards'); } catch (\Throwable $e) {}
 
     $referer = $request->headers->get('referer', '/admin/articles');
+    // Restrict redirect to admin paths only
+    if (!str_starts_with($referer, '/admin')) {
+        $referer = '/admin/articles';
+    }
     return $this->redirect($referer);
   }
 
@@ -712,9 +726,9 @@ final class AdminController extends Controller
     $visitorsTotal   = (int)$safe("SELECT COUNT(*) FROM site_visitors");
 
     // ── Page views ─────────────────────────────────────────────────
-    $viewsToday  = (int)$safe("SELECT COUNT(*) FROM article_views WHERE created_at >= CURRENT_DATE");
-    $viewsWeek   = (int)$safe("SELECT COUNT(*) FROM article_views WHERE created_at >= NOW() - INTERVAL '7 days'");
-    $viewsMonth  = (int)$safe("SELECT COUNT(*) FROM article_views WHERE created_at >= NOW() - INTERVAL '30 days'");
+    $viewsToday  = (int)$safe("SELECT COUNT(*) FROM article_views WHERE viewed_at >= CURRENT_DATE");
+    $viewsWeek   = (int)$safe("SELECT COUNT(*) FROM article_views WHERE viewed_at >= NOW() - INTERVAL '7 days'");
+    $viewsMonth  = (int)$safe("SELECT COUNT(*) FROM article_views WHERE viewed_at >= NOW() - INTERVAL '30 days'");
 
     // ── Top articles (last 30 days) ────────────────────────────────
     $topArticles = [];
@@ -983,5 +997,143 @@ final class AdminController extends Controller
   {
     Auth::logout();
     return $this->redirect('/admin/login');
+  }
+
+  /**
+   * Sanitize HTML content to prevent stored XSS.
+   * Allows safe formatting tags, strips everything else.
+   */
+  private static function sanitizeHtml(string $html): string
+  {
+    // Allowed tags (content formatting only)
+    $allowed = '<p><br><strong><b><em><i><u><s><strike><del>'
+             . '<h2><h3><h4><h5><h6>'
+             . '<ul><ol><li>'
+             . '<blockquote><pre><code><hr>'
+             . '<a><img><figure><figcaption>'
+             . '<table><thead><tbody><tfoot><tr><th><td>'
+             . '<div><span><sub><sup>';
+
+    $html = strip_tags($html, $allowed);
+
+    // Use DOMDocument to sanitize attributes
+    if (trim($html) === '') {
+        return '';
+    }
+
+    $dom = new \DOMDocument();
+    libxml_use_internal_errors(true);
+    $dom->loadHTML(
+        '<?xml encoding="UTF-8"><body>' . $html . '</body>',
+        LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
+    );
+    libxml_clear_errors();
+
+    // Allowed attributes per tag
+    $allowedAttrs = [
+        'a'     => ['href', 'title', 'target', 'rel'],
+        'img'   => ['src', 'alt', 'width', 'height', 'loading'],
+        'td'    => ['colspan', 'rowspan'],
+        'th'    => ['colspan', 'rowspan'],
+        'ol'    => ['start', 'type'],
+    ];
+
+    $xpath = new \DOMXPath($dom);
+    $elements = $xpath->query('//*');
+
+    foreach ($elements as $el) {
+        if (!$el instanceof \DOMElement) continue;
+
+        $tag = strtolower($el->tagName);
+        $tagAttrs = $allowedAttrs[$tag] ?? [];
+
+        // Remove all non-whitelisted attributes
+        $remove = [];
+        foreach ($el->attributes as $attr) {
+            if (!in_array($attr->name, $tagAttrs, true)) {
+                $remove[] = $attr->name;
+            }
+        }
+        foreach ($remove as $name) {
+            $el->removeAttribute($name);
+        }
+
+        // Sanitize href — block javascript: URIs
+        if ($tag === 'a' && $el->hasAttribute('href')) {
+            $href = trim($el->getAttribute('href'));
+            if (preg_match('/^\s*javascript\s*:/i', $href)) {
+                $el->setAttribute('href', '#');
+            }
+            // Force rel on external links
+            if (str_starts_with($href, 'http')) {
+                $el->setAttribute('rel', 'noopener nofollow');
+            }
+        }
+
+        // Sanitize img src — block javascript: and data: URIs (except data:image)
+        if ($tag === 'img' && $el->hasAttribute('src')) {
+            $src = trim($el->getAttribute('src'));
+            if (preg_match('/^\s*javascript\s*:/i', $src)) {
+                $el->parentNode->removeChild($el);
+            } elseif (preg_match('/^\s*data:/i', $src) && !preg_match('/^\s*data:image\//i', $src)) {
+                $el->parentNode->removeChild($el);
+            }
+        }
+    }
+
+    $body = $dom->getElementsByTagName('body')->item(0);
+    if (!$body) return '';
+
+    $result = '';
+    foreach ($body->childNodes as $child) {
+        $result .= $dom->saveHTML($child);
+    }
+
+    return $result;
+  }
+
+  // ── Analytics Export (CSV) ───────────────────────────────────
+
+  public function analyticsExport(): Response
+  {
+    $request = Request::createFromGlobals();
+    $from = $request->query->get('from', date('Y-m-d', strtotime('-30 days')));
+    $to   = $request->query->get('to', date('Y-m-d'));
+
+    // Validate dates
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
+      return new Response('Invalid date format', 400);
+    }
+
+    $articles = Article::exportForCsv($from, $to);
+
+    $csv = "Title,Slug,Status,Published At,Views,Category,Author,Quality Score,Sentiment\n";
+    foreach ($articles as $row) {
+        $csv .= '"' . str_replace('"', '""', $row['title'] ?? '') . '",';
+        $csv .= '"' . ($row['slug'] ?? '') . '",';
+        $csv .= '"' . ($row['status'] ?? '') . '",';
+        $csv .= '"' . ($row['published_at'] ?? '') . '",';
+        $csv .= ($row['views'] ?? 0) . ',';
+        $csv .= '"' . str_replace('"', '""', $row['category'] ?? '') . '",';
+        $csv .= '"' . str_replace('"', '""', $row['author'] ?? '') . '",';
+        $csv .= ($row['quality_score'] ?? '') . ',';
+        $csv .= '"' . ($row['sentiment'] ?? '') . '"' . "\n";
+    }
+
+    $filename = 'articles_export_' . $from . '_to_' . $to . '.csv';
+    return new Response($csv, 200, [
+        'Content-Type' => 'text/csv; charset=UTF-8',
+        'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+    ]);
+  }
+
+  // ── Daily Stats API ──────────────────────────────────────────
+
+  public function dailyStatsApi(): Response
+  {
+    $request = Request::createFromGlobals();
+    $days = min(90, max(7, (int)$request->query->get('days', 30)));
+    $stats = \App\Services\StatsAggregator::getLast($days);
+    return $this->json($stats);
   }
 }

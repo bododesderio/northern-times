@@ -39,7 +39,7 @@
     t.style.userSelect = "none";
 
     if (type === "ok")   t.style.borderColor = "#a8e6cf";
-    if (type === "bad")  t.style.borderColor = "#ffcccc"; t.style.color = "#c00";
+    if (type === "bad")  { t.style.borderColor = "#ffcccc"; t.style.color = "#c00"; }
 
     container.appendChild(t);
 

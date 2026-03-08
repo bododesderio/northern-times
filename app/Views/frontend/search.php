@@ -33,7 +33,7 @@ $articles = $articles ?? [];
           <div class="search-result-row">
             <?php if (!empty($a['featured_image'])): ?>
               <div class="search-result-img">
-                <img src="<?= h($a['featured_image']) ?>" alt="" loading="lazy" />
+                <img src="<?= h($a['featured_image']) ?>" alt="<?= h($a['title']) ?>" loading="lazy" />
               </div>
             <?php endif; ?>
             <div class="search-result-text">
@@ -94,14 +94,20 @@ $articles = $articles ?? [];
           return;
         }
 
+        function esc(s) {
+          const d = document.createElement('div');
+          d.textContent = s;
+          return d.innerHTML;
+        }
+
         let html = '';
         data.results.forEach(r => {
-          html += `<a class="live-item" href="/article/${r.slug}">
-            ${r.image ? `<img src="${r.image}" alt="" class="live-thumb" />` : ''}
+          html += `<a class="live-item" href="/article/${encodeURIComponent(r.slug)}">
+            ${r.image ? `<img src="${esc(r.image)}" alt="${esc(r.title)}" class="live-thumb" />` : ''}
             <div class="live-text">
-              <span class="live-cat">${r.category}</span>
-              <span class="live-title">${r.title}</span>
-              <span class="live-date">${r.date}</span>
+              <span class="live-cat">${esc(r.category)}</span>
+              <span class="live-title">${esc(r.title)}</span>
+              <span class="live-date">${esc(r.date || '')}</span>
             </div>
           </a>`;
         });

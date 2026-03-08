@@ -229,8 +229,11 @@ final class AdminUserController extends Controller
         try {
             $pdo->prepare("UPDATE articles SET author_id = :admin WHERE author_id = :uid")
                 ->execute([':admin' => $me['id'], ':uid' => $id]);
-        } catch (\Throwable) {
-            try { if ($pdo->inTransaction()) $pdo->rollBack(); } catch (\Throwable) {}
+        } catch (\Throwable $e) {
+            error_log('[UserDelete] DB error: ' . $e->getMessage());
+            try { if ($pdo->inTransaction()) $pdo->rollBack(); } catch (\Throwable $rb) {
+                error_log('[UserDelete] Rollback failed: ' . $rb->getMessage());
+            }
             $pdo = DB::reconnect();
         }
 
@@ -238,8 +241,11 @@ final class AdminUserController extends Controller
         try {
             $pdo->prepare("UPDATE media_library SET uploaded_by = :admin WHERE uploaded_by = :uid")
                 ->execute([':admin' => $me['id'], ':uid' => $id]);
-        } catch (\Throwable) {
-            try { if ($pdo->inTransaction()) $pdo->rollBack(); } catch (\Throwable) {}
+        } catch (\Throwable $e) {
+            error_log('[UserDelete] DB error: ' . $e->getMessage());
+            try { if ($pdo->inTransaction()) $pdo->rollBack(); } catch (\Throwable $rb) {
+                error_log('[UserDelete] Rollback failed: ' . $rb->getMessage());
+            }
             $pdo = DB::reconnect();
         }
 

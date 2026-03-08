@@ -1,0 +1,33 @@
+.git
+.gitignore
+.env
+.env.example
+.claude/
+node_modules
+__pycache__/
+*.pyc
+
+# Storage runtime data
+storage/logs/*
+storage/uploads/*
+storage/cache/*
+storage/backups/*
+
+# Tests
+.phpunit.cache
+tests
+
+# Docs
+*.md
+LICENSE
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker extractor built separately
+docker/extractor/

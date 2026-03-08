@@ -17,6 +17,10 @@ final class ImageDownloader
     public const UPLOAD_DIR = 'Crawled';
     private const TIMEOUT    = 25;
     private const MAX_RETRIES = 2;
+    private const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB max download
+    private const MAX_WIDTH  = 1200;  // Resize images wider than this
+    private const MAX_HEIGHT = 1200;  // Resize images taller than this
+    private const JPEG_QUALITY = 82;
 
     /** All image MIME types we accept. If it's image/*, we download it. */
     private const MIME_TO_EXT = [
@@ -67,6 +71,9 @@ final class ImageDownloader
             $mime  = $finfo->buffer($imageData);
             if (!str_starts_with($mime, 'image/')) return $url;
 
+            // Reject SVGs (potential XSS vector) and ICO (useless for articles)
+            if (in_array($mime, ['image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon'])) return $url;
+
             $ext = self::MIME_TO_EXT[$mime] ?? self::guessExtension($url, $mime);
 
             // Storage directory
@@ -90,6 +97,19 @@ final class ImageDownloader
                 $height = $dimensions[1];
             } elseif (self::hasConvert()) {
                 [$width, $height] = self::identifyDimensions($filePath);
+            }
+
+            // Resize oversized images in-place (keeps same path)
+            if ($width && $height && ($width > self::MAX_WIDTH || $height > self::MAX_HEIGHT)) {
+                self::resizeInPlace($filePath, self::MAX_WIDTH, self::MAX_HEIGHT);
+                // Re-read dimensions after resize
+                $newDims = @getimagesize($filePath);
+                if ($newDims) {
+                    $width  = $newDims[0];
+                    $height = $newDims[1];
+                }
+                // Update image data size
+                $imageData = file_get_contents($filePath);
             }
 
             // Create thumbnail using best available backend
@@ -117,7 +137,9 @@ final class ImageDownloader
                     'height'        => $height,
                     'uploaded_by'   => $authorId,
                 ]);
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) {
+                error_log('[ImageDownloader] Media library insert failed: ' . $e->getMessage());
+            }
 
             return $publicUrl;
 
@@ -141,11 +163,23 @@ final class ImageDownloader
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  FETCHING — 2 attempts, NO size limit
+    //  FETCHING — 2 attempts, 10MB size limit
     // ═══════════════════════════════════════════════════════════
 
     private static function fetchImage(string $url): ?string
     {
+        // Skip known ad/tracking URLs
+        $adDomains = ['doubleclick.net', 'googlesyndication.com', 'googleads.g.doubleclick',
+                      'facebook.com/tr', 'pixel.', 'beacon.', 'analytics.',
+                      'scorecardresearch.com', 'quantserve.com', 'outbrain.com', 'taboola.com'];
+        $urlLower = strtolower($url);
+        foreach ($adDomains as $ad) {
+            if (str_contains($urlLower, $ad)) return null;
+        }
+
+        // Skip tiny tracking pixel URLs (common patterns)
+        if (preg_match('/[?&](?:w|width|sz|size)=(?:1|2|0)\b/i', $url)) return null;
+
         $userAgents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Mozilla/5.0 (compatible; NorthernTimesBot/1.0)',
@@ -162,8 +196,9 @@ final class ImageDownloader
                 CURLOPT_CONNECTTIMEOUT => 10,
                 CURLOPT_USERAGENT      => $userAgents[$attempt] ?? $userAgents[0],
                 CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_MAXFILESIZE    => self::MAX_FILE_SIZE,
                 CURLOPT_HTTPHEADER     => [
-                    'Accept: image/avif,image/webp,image/heic,image/apng,image/*,*/*;q=0.8',
+                    'Accept: image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
                     'Referer: ' . parse_url($url, PHP_URL_SCHEME) . '://' . parse_url($url, PHP_URL_HOST) . '/',
                     'Accept-Language: en-US,en;q=0.9',
                 ],
@@ -173,7 +208,7 @@ final class ImageDownloader
             $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
 
-            if ($data !== false && $code === 200 && strlen($data) >= 100) {
+            if ($data !== false && $code === 200 && strlen($data) >= 100 && strlen($data) <= self::MAX_FILE_SIZE) {
                 return $data;
             }
 
@@ -222,6 +257,7 @@ final class ImageDownloader
     private static function thumbConvert(string $src, string $dst, int $maxWidth): bool
     {
         try {
+            $maxWidth = max(1, min($maxWidth, 2000)); // Constrain to safe range
             $cmd = self::getConvertCmd();
             $srcE = escapeshellarg($src . '[0]'); // [0] = first frame/page only
             $dstE = escapeshellarg($dst);
@@ -288,6 +324,56 @@ final class ImageDownloader
             imagedestroy($thumb);
 
             return file_exists($dst) && filesize($dst) > 0;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  RESIZING — downscale oversized images in-place
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Resize an image in-place if it exceeds max dimensions.
+     * Converts to JPEG for consistency and smaller file size.
+     */
+    private static function resizeInPlace(string $filePath, int $maxW, int $maxH): bool
+    {
+        // Backend 1: ImageMagick CLI (best quality, handles all formats)
+        if (self::hasConvert()) {
+            $cmd = self::getConvertCmd();
+            $src = escapeshellarg($filePath . '[0]');
+            $dst = escapeshellarg($filePath);
+            exec("{$cmd} {$src} -resize {$maxW}x{$maxH}\\> -quality " . self::JPEG_QUALITY . " -strip -colorspace sRGB {$dst} 2>&1", $out, $code);
+            return $code === 0;
+        }
+
+        // Backend 2: PHP GD
+        try {
+            $data = file_get_contents($filePath);
+            if (!$data) return false;
+            $source = @imagecreatefromstring($data);
+            if (!$source) return false;
+
+            $origW = imagesx($source);
+            $origH = imagesy($source);
+
+            if ($origW <= $maxW && $origH <= $maxH) {
+                imagedestroy($source);
+                return true; // Already within limits
+            }
+
+            // Calculate new dimensions maintaining aspect ratio
+            $ratio = min($maxW / $origW, $maxH / $origH);
+            $newW  = (int)round($origW * $ratio);
+            $newH  = (int)round($origH * $ratio);
+
+            $resized = imagecreatetruecolor($newW, $newH);
+            imagecopyresampled($resized, $source, 0, 0, 0, 0, $newW, $newH, $origW, $origH);
+            imagejpeg($resized, $filePath, self::JPEG_QUALITY);
+            imagedestroy($source);
+            imagedestroy($resized);
+            return true;
         } catch (\Throwable) {
             return false;
         }

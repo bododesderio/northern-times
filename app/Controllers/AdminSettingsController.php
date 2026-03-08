@@ -238,8 +238,8 @@ final class AdminSettingsController extends Controller
 
             $value = trim((string)$value);
 
-            // Strip actual HTML tags but preserve CSS values (quotes, parens, etc.)
-            $value = preg_replace('/<[^>]+>/', '', $value) ?? $value;
+            // Strip all HTML tags
+            $value = strip_tags($value);
             $value = trim($value);
 
             // FIX (S-02): Validate CSS colour tokens against a safe format.

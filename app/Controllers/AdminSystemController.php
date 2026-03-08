@@ -948,6 +948,56 @@ final class AdminSystemController extends Controller
         return $this->redirect('/admin/system');
     }
 
+    // ── Webhooks ──────────────────────────────────────────────────
+
+    public function webhooksApi(): Response
+    {
+        $pdo = DB::pdo();
+        if (!$this->tableExists($pdo, 'webhooks')) {
+            return $this->json(['webhooks' => [], 'message' => 'Webhooks table not initialized']);
+        }
+
+        $webhooks = $pdo->query("SELECT id, name, url, events, is_active, last_triggered_at, last_status_code, failure_count, created_at FROM webhooks ORDER BY created_at DESC")->fetchAll();
+        return $this->json(['webhooks' => $webhooks]);
+    }
+
+    public function webhookCreate(): Response
+    {
+        $request = \Symfony\Component\HttpFoundation\Request::createFromGlobals();
+        $name   = trim((string)$request->request->get('name', ''));
+        $url    = trim((string)$request->request->get('url', ''));
+        $events = trim((string)$request->request->get('events', 'article.published'));
+        $secret = trim((string)$request->request->get('secret', ''));
+
+        if ($name === '' || $url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
+            Flash::set('error', 'Webhook name and valid URL are required.');
+            return $this->redirect('/admin/system');
+        }
+
+        try {
+            $pdo = DB::pdo();
+            $pdo->prepare("INSERT INTO webhooks (name, url, events, secret) VALUES (:name, :url, :events, :secret)")
+                ->execute([':name' => mb_substr($name, 0, 100), ':url' => mb_substr($url, 0, 500), ':events' => $events, ':secret' => $secret ?: null]);
+            Flash::set('success', "Webhook '{$name}' created.");
+        } catch (\Throwable $e) {
+            Flash::set('error', 'Failed to create webhook: ' . $e->getMessage());
+        }
+
+        return $this->redirect('/admin/system');
+    }
+
+    public function webhookDelete(string $id): Response
+    {
+        try {
+            $pdo = DB::pdo();
+            $pdo->prepare("DELETE FROM webhooks WHERE id = :id")->execute([':id' => $id]);
+            Flash::set('success', 'Webhook deleted.');
+        } catch (\Throwable $e) {
+            Flash::set('error', 'Failed to delete webhook: ' . $e->getMessage());
+        }
+        return $this->redirect('/admin/system');
+    }
+
     // ── Environment Inspector ───────────────────────────────────
 
     public function environmentApi(): Response
@@ -1026,8 +1076,22 @@ final class AdminSystemController extends Controller
         return (bool)$stmt->fetchColumn();
     }
 
+    private const ALLOWED_PURGE_TABLES = [
+        'comments', 'newsletter_subscribers', 'notifications', 'email_queue',
+        'crawl_log', 'crawl_logs', 'social_mentions', 'login_attempts',
+        'article_views', 'site_visitors', 'popup_events', 'seo_issues',
+        'seo_audits', 'image_health_log', 'story_threads', 'tags',
+        'push_subscriptions', 'social_posts_log', 'article_revisions',
+        'article_tags', 'articles', 'ad_slots', 'ad_events',
+    ];
+
     private function purgeTable(string $table, string $action, string $label, string $level): Response
     {
+        if (!in_array($table, self::ALLOWED_PURGE_TABLES, true)) {
+            Flash::set('error', "Table '{$table}' is not allowed for purge.");
+            return $this->redirect('/admin/system');
+        }
+
         $pdo = DB::pdo();
 
         if (!$this->tableExists($pdo, $table)) {
@@ -1035,8 +1099,8 @@ final class AdminSystemController extends Controller
             return $this->redirect('/admin/system');
         }
 
-        $count = (int)$pdo->query("SELECT COUNT(*) FROM {$table}")->fetchColumn();
-        $pdo->exec("TRUNCATE {$table} CASCADE");
+        $count = (int)$pdo->query("SELECT COUNT(*) FROM " . $table)->fetchColumn();
+        $pdo->exec("TRUNCATE " . $table . " CASCADE");
 
         SystemLog::log($action, "Purged all {$label}", $count, $level);
         Flash::set('success', "Purged {$label} ({$count} records).");
