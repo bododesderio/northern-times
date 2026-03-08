@@ -85,6 +85,9 @@ cat <<'CRONTAB' | crontab -
 # Daily maintenance: stats aggregation, automated backup, cleanup (daily at 2am)
 0 2 * * * cd /var/www/html && php cron/daily_maintenance.php >> /var/www/html/storage/logs/maintenance.log 2>&1
 
+# Weekly digest: send top articles email (Sunday 8am)
+0 8 * * 0 cd /var/www/html && php cron/weekly_digest.php >> /var/www/html/storage/logs/digest.log 2>&1
+
 # Log rotation: truncate logs > 50MB (daily at 3am)
 0 3 * * * find /var/www/html/storage/logs -name "*.log" -size +50M -exec truncate -s 0 {} \;
 CRONTAB

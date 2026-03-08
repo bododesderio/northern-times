@@ -225,6 +225,7 @@ if ($metaType === 'article') {
 
   <!-- App config -->
   <meta name="theme-color"  content="<?= h(get_site_setting('theme_accent', '#cc0000')) ?>" />
+  <link rel="manifest" href="/manifest.json" />
   <meta name="x-csrf-token" content="<?= h($csrf) ?>" />
   <meta name="x-app-url"    content="<?= h(\app_url('/')) ?>" />
 
@@ -723,6 +724,29 @@ document.addEventListener('DOMContentLoaded',function(){
     console.log('Geolocation denied or unavailable:',err.message);
     sessionStorage.setItem('_geo_sent','1');
   },{enableHighAccuracy:true,timeout:10000,maximumAge:300000});
+})();
+</script>
+<script>
+(function(){
+  document.querySelectorAll('.follow-form').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var email = form.querySelector('input[type="email"]').value;
+      var type = form.getAttribute('data-type');
+      var id = form.getAttribute('data-id');
+      var msg = form.querySelector('.follow-msg');
+      var csrf = document.querySelector('meta[name="x-csrf-token"]');
+      fetch('/api/follow-topic', {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':csrf?csrf.content:''},
+        body: 'email='+encodeURIComponent(email)+'&type='+encodeURIComponent(type)+'&id='+encodeURIComponent(id)+'&_csrf='+(csrf?encodeURIComponent(csrf.content):'')
+      }).then(function(r){return r.json()}).then(function(d){
+        msg.textContent = d.message || 'Subscribed!';
+        msg.style.color = d.ok ? 'green' : '#c00';
+        if(d.ok) form.querySelector('input[type="email"]').value = '';
+      }).catch(function(){msg.textContent='Network error';msg.style.color='#c00'});
+    });
+  });
 })();
 </script>
 </body>

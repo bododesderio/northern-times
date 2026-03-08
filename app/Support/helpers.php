@@ -938,11 +938,11 @@ function share_buttons(string $url, string $title, string $excerpt = ''): string
     $copyOnClick = "navigator.clipboard?.writeText(this.dataset.url).then(()=>{ this.title='Copied!'; }).catch(()=>{ prompt('Copy link:', this.dataset.url); })";
 
     return '<div class="share">'
-         . '<a href="' . $twitter  . '" target="_blank" rel="noopener" class="share-btn" style="background:#000"     title="Share on X">'        . $svgX    . '</a>'
-         . '<a href="' . $facebook . '" target="_blank" rel="noopener" class="share-btn" style="background:#1877F2"  title="Share on Facebook">'  . $svgFb   . '</a>'
-         . '<a href="' . $whatsapp . '" target="_blank" rel="noopener" class="share-btn" style="background:#25D366"  title="Share on WhatsApp">'  . $svgWa   . '</a>'
-         . '<a href="' . $linkedin . '" target="_blank" rel="noopener" class="share-btn" style="background:#0A66C2"  title="Share on LinkedIn">'  . $svgLi   . '</a>'
-         . '<a href="' . $email    . '" class="share-btn" style="background:#555"                                    title="Email this article">' . $svgMail . '</a>'
-         . '<button class="share-btn share-copy-btn" style="background:#888" title="Copy link" data-url="' . h($url) . '" onclick="' . h($copyOnClick) . '">' . $svgLink . '</button>'
+         . '<a href="' . $twitter  . '" target="_blank" rel="noopener" class="share-btn" data-share="twitter"  style="background:#000"     title="Share on X">'        . $svgX    . '</a>'
+         . '<a href="' . $facebook . '" target="_blank" rel="noopener" class="share-btn" data-share="facebook" style="background:#1877F2"  title="Share on Facebook">'  . $svgFb   . '</a>'
+         . '<a href="' . $whatsapp . '" target="_blank" rel="noopener" class="share-btn" data-share="whatsapp" style="background:#25D366"  title="Share on WhatsApp">'  . $svgWa   . '</a>'
+         . '<a href="' . $linkedin . '" target="_blank" rel="noopener" class="share-btn" data-share="linkedin" style="background:#0A66C2"  title="Share on LinkedIn">'  . $svgLi   . '</a>'
+         . '<a href="' . $email    . '" class="share-btn" data-share="email" style="background:#555"                                    title="Email this article">' . $svgMail . '</a>'
+         . '<button class="share-btn share-copy-btn" data-share="copy" style="background:#888" title="Copy link" data-url="' . h($url) . '" onclick="' . h($copyOnClick) . '">' . $svgLink . '</button>'
          . '</div>';
 }

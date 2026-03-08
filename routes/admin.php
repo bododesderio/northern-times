@@ -58,6 +58,7 @@ $routes->add('admin_traffic_chart', new Route('/admin/api/traffic-chart', ['_con
 $routes->add('admin_analytics', new Route('/admin/analytics', ['_controller' => [$admin, 'analytics'], '_middleware' => $auth], [], [], '', [], ['GET']));
 $routes->add('admin_analytics_export', new Route('/admin/analytics/export', ['_controller' => [$admin, 'analyticsExport'], '_middleware' => $auth], [], [], '', [], ['GET']));
 $routes->add('admin_daily_stats_api', new Route('/admin/api/daily-stats', ['_controller' => [$admin, 'dailyStatsApi'], '_middleware' => $auth], [], [], '', [], ['GET']));
+$routes->add('admin_performance', new Route('/admin/performance', ['_controller' => [$admin, 'performance'], '_middleware' => $auth], [], [], '', [], ['GET']));
 
 // --- Articles ---
 $routes->add('admin_articles',       new Route('/admin/articles',             ['_controller' => [$admin, 'articles'],      '_middleware' => $auth],     [], [], '', [], ['GET']));

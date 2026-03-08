@@ -26,6 +26,7 @@ $routes->add('policy',   new Route('/policy/{slug}',   ['_controller' => [$polic
 
 // --- Feeds & API ---
 $routes->add('rss',        new Route('/rss.xml',        ['_controller' => [$front, 'rss']],        [], [], '', [], ['GET']));
+$routes->add('rss_category', new Route('/category/{slug}/rss.xml', ['_controller' => [$front, 'feed']], [], [], '', [], ['GET']));
 $routes->add('robots',     new Route('/robots.txt',     ['_controller' => [$front, 'robotsTxt']],   [], [], '', [], ['GET']));
 $routes->add('sitemap',    new Route('/sitemap.xml',    ['_controller' => [$front, 'sitemap']],    [], [], '', [], ['GET']));
 $routes->add('newsletter', new Route('/api/newsletter', ['_controller' => [$front, 'newsletter'], '_middleware' => ['csrf']], [], [], '', [], ['POST']));
@@ -51,6 +52,17 @@ $routes->add('api_popup_track',  new Route('/api/popup-track',  ['_controller' =
 
 // --- Health Check ---
 $routes->add('api_health', new Route('/api/health', ['_controller' => [$front, 'health']], [], [], '', [], ['GET']));
+$routes->add('api_share_track', new Route('/api/share-track', ['_controller' => [$front, 'shareTrack']], [], [], '', [], ['POST']));
+$routes->add('api_engagement', new Route('/api/engagement', ['_controller' => [$front, 'engagementTrack']], [], [], '', [], ['POST']));
+$routes->add('api_trending', new Route('/api/trending', ['_controller' => [$front, 'trending']], [], [], '', [], ['GET']));
+
+// --- Follow Topics (Email Alerts) ---
+$routes->add('api_follow_topic', new Route('/api/follow-topic', ['_controller' => [$front, 'followTopic'], '_middleware' => ['csrf']], [], [], '', [], ['POST']));
+$routes->add('api_unfollow_topic', new Route('/api/unfollow-topic', ['_controller' => [$front, 'unfollowTopic']], [], [], '', [], ['GET']));
+
+// --- Syndication API (v1) ---
+$routes->add('api_syndication',        new Route('/api/v1/articles',        ['_controller' => [$front, 'syndicationApi']],     [], [], '', [], ['GET']));
+$routes->add('api_syndication_single', new Route('/api/v1/articles/{slug}', ['_controller' => [$front, 'syndicationArticle']], [], [], '', [], ['GET']));
 
 // --- Push Notification API (Phase 11) ---
 $routes->add('api_push_subscribe',   new Route('/api/push/subscribe',   ['_controller' => [$front, 'pushSubscribe'],   '_middleware' => ['csrf']], [], [], '', [], ['POST']));

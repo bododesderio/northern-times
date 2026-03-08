@@ -126,8 +126,11 @@ try { $articleTags = \App\Models\Tag::forArticle($article['id'] ?? ''); } catch 
       <?php endif; ?>
     </div>
 
-    <div style="margin-top:16px;display:flex;justify-content:center">
+    <div style="margin-top:16px;display:flex;justify-content:center;align-items:center;gap:12px">
       <?= share_buttons($articleUrl, $title, $excerpt) ?>
+      <button class="bookmark-btn" id="bookmarkBtn" data-slug="<?= h($article['slug'] ?? '') ?>" data-title="<?= h($title) ?>" data-image="<?= h($heroImg) ?>" data-category="<?= h($category) ?>" data-date="<?= h($pubDate) ?>" aria-label="Save article" title="Save for later">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      </button>
     </div>
   </header>
 
@@ -135,6 +138,18 @@ try { $articleTags = \App\Models\Tag::forArticle($article['id'] ?? ''); } catch 
     <div class="article-hero">
       <?= responsive_img($heroImg, $title, 'eager', 'high', '(max-width: 640px) 100vw, (max-width: 1024px) 80vw, 1000px') ?>
     </div>
+  <?php endif; ?>
+
+  <?php if (!empty($article['ai_summary'])): ?>
+  <div class="tldr-box">
+    <button class="tldr-toggle" type="button" aria-expanded="false">
+      <span class="tldr-label">TL;DR</span>
+      <svg class="tldr-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <div class="tldr-content" hidden>
+      <p><?= h($article['ai_summary']) ?></p>
+    </div>
+  </div>
   <?php endif; ?>
 
   <?php if ($hasSidebarAd): ?>
@@ -661,4 +676,141 @@ document.querySelectorAll('.share-copy-btn').forEach(function(btn) {
   'wordCount' => str_word_count(strip_tags($content)),
   'keywords' => !empty($articleTags) ? implode(', ', array_column($articleTags, 'name')) : null,
 ]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_PRETTY_PRINT) ?>
+</script>
+
+<style>
+.bookmark-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1.5px solid var(--border, #ddd); background: var(--surface, #fff);
+  cursor: pointer; color: var(--muted, #888); transition: all .2s;
+}
+.bookmark-btn:hover { color: var(--accent, #cc0000); border-color: var(--accent, #cc0000); }
+.bookmark-btn.saved { color: var(--accent, #cc0000); background: rgba(204,0,0,.08); border-color: var(--accent, #cc0000); }
+.bookmark-btn.saved svg { fill: var(--accent, #cc0000); }
+.tldr-box {
+  max-width: var(--content-max, 780px); margin: 20px auto;
+  border: 1.5px solid var(--border, #e2e2e2); border-radius: 10px;
+  overflow: hidden; background: var(--surface, #fafafa);
+}
+.tldr-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 12px 16px; border: none; background: none;
+  cursor: pointer; font-weight: 700; font-size: 14px;
+  color: var(--accent, #cc0000); text-transform: uppercase; letter-spacing: .05em;
+}
+.tldr-toggle[aria-expanded="true"] .tldr-chevron { transform: rotate(180deg); }
+.tldr-chevron { transition: transform .2s; }
+.tldr-content { padding: 0 16px 14px; font-size: 15px; line-height: 1.6; color: var(--ink, #333); }
+.tldr-content p { margin: 0; }
+</style>
+<script>
+(function() {
+  var btn = document.getElementById('bookmarkBtn');
+  if (!btn) return;
+  var slug = btn.getAttribute('data-slug');
+  var KEY = 'nt_bookmarks';
+
+  function getBookmarks() {
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch(e) { return []; }
+  }
+  function saveBookmarks(bm) {
+    try { localStorage.setItem(KEY, JSON.stringify(bm)); } catch(e) {}
+  }
+  function isBookmarked() {
+    return getBookmarks().some(function(b) { return b.slug === slug; });
+  }
+  function updateUI() {
+    if (isBookmarked()) {
+      btn.classList.add('saved');
+      btn.title = 'Remove from saved';
+    } else {
+      btn.classList.remove('saved');
+      btn.title = 'Save for later';
+    }
+  }
+  btn.addEventListener('click', function() {
+    var bm = getBookmarks();
+    if (isBookmarked()) {
+      bm = bm.filter(function(b) { return b.slug !== slug; });
+    } else {
+      bm.unshift({
+        slug: slug,
+        title: btn.getAttribute('data-title'),
+        image: btn.getAttribute('data-image'),
+        category: btn.getAttribute('data-category'),
+        date: btn.getAttribute('data-date'),
+        savedAt: new Date().toISOString()
+      });
+      if (bm.length > 50) bm = bm.slice(0, 50);
+    }
+    saveBookmarks(bm);
+    updateUI();
+  });
+  updateUI();
+
+  // TL;DR toggle
+  var tldrBtn = document.querySelector('.tldr-toggle');
+  if (tldrBtn) {
+    tldrBtn.addEventListener('click', function() {
+      var content = tldrBtn.nextElementSibling;
+      var expanded = tldrBtn.getAttribute('aria-expanded') === 'true';
+      tldrBtn.setAttribute('aria-expanded', String(!expanded));
+      content.hidden = expanded;
+    });
+  }
+})();
+</script>
+
+<script>
+(function() {
+  var articleId = '<?= h($article['id'] ?? '') ?>';
+  if (!articleId) return;
+
+  // Share tracking — intercept share button clicks
+  document.querySelectorAll('.share-btn, [data-share]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var platform = btn.getAttribute('data-share') || btn.getAttribute('data-platform') || 'unknown';
+      try {
+        navigator.sendBeacon('/api/share-track', JSON.stringify({article_id: articleId, platform: platform}));
+      } catch(e) {}
+    });
+  });
+
+  // Engagement tracking — scroll depth + time on page
+  var maxScroll = 0;
+  var startTime = Date.now();
+  var tracked = false;
+
+  function getScrollPct() {
+    var docH = document.documentElement.scrollHeight - window.innerHeight;
+    if (docH <= 0) return 100;
+    return Math.round((window.scrollY / docH) * 100);
+  }
+
+  window.addEventListener('scroll', function() {
+    var pct = getScrollPct();
+    if (pct > maxScroll) maxScroll = pct;
+  }, {passive: true});
+
+  function sendEngagement() {
+    if (tracked) return;
+    tracked = true;
+    var timeOnPage = Math.round((Date.now() - startTime) / 1000);
+    try {
+      navigator.sendBeacon('/api/engagement', JSON.stringify({
+        article_id: articleId,
+        scroll_depth: maxScroll,
+        time_on_page: timeOnPage
+      }));
+    } catch(e) {}
+  }
+
+  // Send on page unload or after 5 minutes
+  window.addEventListener('beforeunload', sendEngagement);
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') sendEngagement();
+  });
+  setTimeout(sendEngagement, 300000);
+})();
 </script>

@@ -13,6 +13,13 @@ $gridStories = array_slice($articles, 3);
   <header class="cat-page-header">
     <h1><?= h($category['name']) ?></h1>
     <p class="muted"><?= h($category['description'] ?: ('Latest stories in ' . $category['name'] . '.')) ?></p>
+    <div class="follow-topic-form" style="margin-top:12px">
+      <form class="follow-form" data-type="category" data-id="<?= h($category['id'] ?? '') ?>" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="email" placeholder="Your email" required style="padding:6px 12px;border:1px solid var(--border,#ddd);border-radius:6px;font-size:13px;width:200px">
+        <button type="submit" style="padding:6px 14px;background:var(--accent,#cc0000);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">Follow this topic</button>
+        <span class="follow-msg" style="font-size:12px;color:var(--muted,#888)"></span>
+      </form>
+    </div>
   </header>
 
   <?php if ($lead): ?>

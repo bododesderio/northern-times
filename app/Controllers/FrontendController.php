@@ -1027,6 +1027,299 @@ Disallow: /search?
   }
 
   /* ================================================================
+     FOLLOW TOPIC — /api/follow-topic  (Email Alerts)
+     ================================================================ */
+  public function followTopic(): Response
+  {
+    $request = Request::createFromGlobals();
+    $email = filter_var(trim((string)$request->request->get('email', '')), FILTER_VALIDATE_EMAIL);
+    $type = trim((string)$request->request->get('type', ''));
+    $id = trim((string)$request->request->get('id', ''));
+
+    if (!$email || !in_array($type, ['category', 'tag'], true) || !$id) {
+      return $this->json(['ok' => false, 'message' => 'Invalid request.'], 400);
+    }
+
+    // Rate limit
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (!RateLimiter::allow('follow:' . $ip, 10, 60)) {
+      return $this->json(['ok' => false, 'message' => 'Too many requests.'], 429);
+    }
+
+    try {
+      $pdo = \App\Services\DB::pdo();
+      $pdo->prepare("
+        INSERT INTO topic_follows (email, follow_type, follow_id)
+        VALUES (:email, :type, :id)
+        ON CONFLICT (email, follow_type, follow_id) DO UPDATE SET is_active = TRUE
+      ")->execute([':email' => $email, ':type' => $type, ':id' => $id]);
+
+      return $this->json(['ok' => true, 'message' => 'You will be notified about new articles.']);
+    } catch (\Throwable $e) {
+      return $this->json(['ok' => false, 'message' => 'Failed to subscribe.'], 500);
+    }
+  }
+
+  public function unfollowTopic(): Response
+  {
+    $request = Request::createFromGlobals();
+    $token = trim((string)$request->query->get('token', ''));
+
+    if (strlen($token) < 32) {
+      return new Response('Invalid token.', 400);
+    }
+
+    try {
+      $pdo = \App\Services\DB::pdo();
+      $pdo->prepare("UPDATE topic_follows SET is_active = FALSE WHERE unsub_token = :token")
+        ->execute([':token' => $token]);
+    } catch (\Throwable) {}
+
+    return $this->layout('unsubscribe', [
+      'status' => 'success',
+      'message' => 'You have been unsubscribed from this topic.',
+      'meta' => ['title' => 'Unsubscribed — ' . $this->siteTitle()],
+    ]);
+  }
+
+  /* ================================================================
+     SHARE TRACKING — /api/share-track
+     ================================================================ */
+  public function shareTrack(): Response
+  {
+    try {
+      $body = json_decode(file_get_contents('php://input'), true);
+      $articleId = $body['article_id'] ?? '';
+      $platform = $body['platform'] ?? '';
+
+      if (!$articleId || !$platform || !preg_match('/^[0-9a-f\-]{36}$/i', $articleId)) {
+        return new Response('', 400);
+      }
+
+      $allowed = ['twitter', 'facebook', 'whatsapp', 'linkedin', 'email', 'copy'];
+      if (!in_array($platform, $allowed, true)) {
+        return new Response('', 400);
+      }
+
+      $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+      $pdo = \App\Services\DB::pdo();
+
+      $pdo->prepare("INSERT INTO article_shares (article_id, platform, ip_address) VALUES (:aid, :p, :ip::inet)")
+        ->execute([':aid' => $articleId, ':p' => $platform, ':ip' => $ip]);
+
+      $pdo->prepare("UPDATE articles SET share_count = share_count + 1 WHERE id = :id")
+        ->execute([':id' => $articleId]);
+    } catch (\Throwable) {}
+
+    return new Response('', 204);
+  }
+
+  /* ================================================================
+     ENGAGEMENT TRACKING — /api/engagement
+     ================================================================ */
+  public function engagementTrack(): Response
+  {
+    try {
+      $body = json_decode(file_get_contents('php://input'), true);
+      $articleId = $body['article_id'] ?? '';
+      $scrollDepth = min(100, max(0, (float)($body['scroll_depth'] ?? 0)));
+      $timeOnPage = min(3600, max(0, (int)($body['time_on_page'] ?? 0)));
+
+      if (!$articleId || !preg_match('/^[0-9a-f\-]{36}$/i', $articleId)) {
+        return new Response('', 400);
+      }
+
+      if ($scrollDepth < 5 && $timeOnPage < 3) {
+        return new Response('', 204); // Ignore bounces
+      }
+
+      $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+      $pdo = \App\Services\DB::pdo();
+
+      $pdo->prepare("INSERT INTO engagement_events (article_id, ip_address, scroll_depth, time_on_page) VALUES (:aid, :ip::inet, :sd, :tp)")
+        ->execute([':aid' => $articleId, ':ip' => $ip, ':sd' => $scrollDepth, ':tp' => $timeOnPage]);
+
+      // Update article aggregate every 10th event
+      $count = $pdo->prepare("SELECT COUNT(*) FROM engagement_events WHERE article_id = :aid");
+      $count->execute([':aid' => $articleId]);
+      if ((int)$count->fetchColumn() % 10 === 0) {
+        $pdo->prepare("
+          UPDATE articles SET
+            avg_scroll_depth = (SELECT AVG(scroll_depth) FROM engagement_events WHERE article_id = :aid1),
+            avg_time_on_page = (SELECT AVG(time_on_page)::integer FROM engagement_events WHERE article_id = :aid2),
+            engagement_score = (
+              (SELECT AVG(scroll_depth) FROM engagement_events WHERE article_id = :aid3) * 0.4 +
+              LEAST((SELECT AVG(time_on_page) FROM engagement_events WHERE article_id = :aid4), 300) / 3 * 0.3 +
+              LEAST(share_count, 100) * 0.3
+            )
+          WHERE id = :aid5
+        ")->execute([':aid1' => $articleId, ':aid2' => $articleId, ':aid3' => $articleId, ':aid4' => $articleId, ':aid5' => $articleId]);
+      }
+    } catch (\Throwable) {}
+
+    return new Response('', 204);
+  }
+
+  /* ================================================================
+     TRENDING API — /api/trending
+     ================================================================ */
+  public function trending(): Response
+  {
+    $articles = Cache::remember('api:trending', 300, function () {
+      $pdo = \App\Services\DB::pdo();
+      return $pdo->query("
+        SELECT a.title, a.slug, a.excerpt, a.featured_image, a.published_at,
+               a.views, a.share_count, a.engagement_score,
+               c.name AS category, c.slug AS category_slug,
+               CASE WHEN a.published_at > NOW() - INTERVAL '6 hours'
+                    THEN a.views * 4
+                    WHEN a.published_at > NOW() - INTERVAL '24 hours'
+                    THEN a.views * 2
+                    ELSE a.views
+               END AS trending_score
+        FROM articles a
+        JOIN categories c ON c.id = a.category_id
+        WHERE a.status = 'published'
+          AND a.published_at >= NOW() - INTERVAL '3 days'
+          AND a.deleted_at IS NULL
+        ORDER BY trending_score DESC, a.published_at DESC
+        LIMIT 10
+      ")->fetchAll() ?: [];
+    });
+
+    return $this->json($articles, 200, ['Cache-Control' => 'public, max-age=300']);
+  }
+
+  // ── Syndication API (v1) ─────────────────────────────────────
+
+  public function syndicationApi(): Response
+  {
+    $request = Request::createFromGlobals();
+    $page = max(1, (int)$request->query->get('page', 1));
+    $perPage = min(50, max(1, (int)$request->query->get('per_page', 20)));
+    $category = trim((string)$request->query->get('category', ''));
+    $since = trim((string)$request->query->get('since', ''));
+
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (!RateLimiter::allow('api:syndication:' . $ip, 60, 60)) {
+      return $this->json(['error' => 'Rate limit exceeded'], 429, ['Retry-After' => '60']);
+    }
+
+    $where = ["a.status = 'published'", "a.deleted_at IS NULL", "(a.published_at IS NULL OR a.published_at <= NOW())"];
+    $params = [];
+
+    if ($category && preg_match('/^[a-z0-9\-]+$/', $category)) {
+      $where[] = "c.slug = :cat";
+      $params[':cat'] = $category;
+    }
+    if ($since && preg_match('/^\d{4}-\d{2}-\d{2}/', $since)) {
+      $where[] = "a.published_at >= :since";
+      $params[':since'] = $since;
+    }
+
+    $whereSql = implode(' AND ', $where);
+    $offset = ($page - 1) * $perPage;
+
+    $pdo = \App\Services\DB::pdo();
+
+    $countSql = "SELECT COUNT(*) FROM articles a JOIN categories c ON c.id = a.category_id WHERE {$whereSql}";
+    $countStmt = $pdo->prepare($countSql);
+    $countStmt->execute($params);
+    $total = (int)$countStmt->fetchColumn();
+
+    $sql = "SELECT a.title, a.slug, a.excerpt, a.content, a.featured_image,
+                   a.published_at, a.updated_at, a.views, a.ai_summary,
+                   c.name AS category, c.slug AS category_slug,
+                   CASE WHEN a.is_crawled = TRUE THEN cs.name ELSE COALESCE(NULLIF(a.display_author,''), u.username, 'Staff') END AS author
+            FROM articles a
+            JOIN categories c ON c.id = a.category_id
+            LEFT JOIN users u ON u.id = a.author_id
+            LEFT JOIN crawl_sources cs ON cs.id = a.source_id
+            WHERE {$whereSql}
+            ORDER BY a.published_at DESC NULLS LAST
+            LIMIT :limit OFFSET :offset";
+
+    $stmt = $pdo->prepare($sql);
+    foreach ($params as $k => $v) $stmt->bindValue($k, $v);
+    $stmt->bindValue(':limit', $perPage, \PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+    $stmt->execute();
+    $articles = $stmt->fetchAll() ?: [];
+
+    $siteUrl = rtrim($_ENV['APP_URL'] ?? '', '/');
+    $result = array_map(function($a) use ($siteUrl) {
+      return [
+        'title' => $a['title'],
+        'slug' => $a['slug'],
+        'url' => $siteUrl . '/article/' . $a['slug'],
+        'excerpt' => $a['excerpt'],
+        'summary' => $a['ai_summary'],
+        'featured_image' => $a['featured_image'],
+        'published_at' => $a['published_at'],
+        'updated_at' => $a['updated_at'],
+        'category' => $a['category'],
+        'category_slug' => $a['category_slug'],
+        'author' => $a['author'],
+      ];
+    }, $articles);
+
+    return $this->json([
+      'data' => $result,
+      'meta' => [
+        'page' => $page,
+        'per_page' => $perPage,
+        'total' => $total,
+        'total_pages' => (int)ceil($total / $perPage),
+        'site' => $siteUrl,
+        'name' => function_exists('site_name') ? site_name() : 'News',
+      ],
+    ], 200, [
+      'Cache-Control' => 'public, max-age=300',
+      'Access-Control-Allow-Origin' => '*',
+    ]);
+  }
+
+  public function syndicationArticle(string $slug): Response
+  {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (!RateLimiter::allow('api:syndication:' . $ip, 60, 60)) {
+      return $this->json(['error' => 'Rate limit exceeded'], 429);
+    }
+
+    $article = Article::findPublished($slug);
+    if (!$article) {
+      return $this->json(['error' => 'Article not found'], 404);
+    }
+
+    $siteUrl = rtrim($_ENV['APP_URL'] ?? '', '/');
+
+    return $this->json([
+      'data' => [
+        'title' => $article['title'],
+        'slug' => $article['slug'],
+        'url' => $siteUrl . '/article/' . $article['slug'],
+        'content' => $article['content'],
+        'excerpt' => $article['excerpt'],
+        'summary' => $article['ai_summary'] ?? null,
+        'featured_image' => $article['featured_image'],
+        'published_at' => $article['published_at'],
+        'updated_at' => $article['updated_at'],
+        'category' => $article['category'] ?? null,
+        'author' => $article['author'] ?? null,
+        'tags' => array_map(function($t) { return $t['name']; }, \App\Models\Tag::forArticle($article['id'])),
+      ],
+      'meta' => [
+        'site' => $siteUrl,
+        'name' => function_exists('site_name') ? site_name() : 'News',
+        'license' => 'All rights reserved. Attribution required for syndication.',
+      ],
+    ], 200, [
+      'Cache-Control' => 'public, max-age=300',
+      'Access-Control-Allow-Origin' => '*',
+    ]);
+  }
+
+  /* ================================================================
      HEALTH CHECK — /api/health
      ================================================================ */
   public function health(): Response

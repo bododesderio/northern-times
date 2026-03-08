@@ -993,6 +993,92 @@ final class AdminController extends Controller
     return $this->redirect('/admin/push/settings');
   }
 
+  public function performance(): Response
+  {
+    $pdo = DB::pdo();
+
+    // Top articles by views (last 30 days)
+    $topArticles = $pdo->query("
+      SELECT a.title, a.slug, a.views, a.share_count, a.engagement_score,
+             a.published_at, c.name AS category,
+             (SELECT COUNT(*) FROM comments cm WHERE cm.article_id = a.id) AS comment_count
+      FROM articles a
+      JOIN categories c ON c.id = a.category_id
+      WHERE a.status = 'published' AND a.published_at >= NOW() - INTERVAL '30 days' AND a.deleted_at IS NULL
+      ORDER BY a.views DESC
+      LIMIT 20
+    ")->fetchAll() ?: [];
+
+    // Category performance
+    $categoryStats = $pdo->query("
+      SELECT c.name, COUNT(a.id) AS article_count,
+             SUM(a.views) AS total_views,
+             AVG(a.views) AS avg_views,
+             SUM(a.share_count) AS total_shares
+      FROM categories c
+      JOIN articles a ON a.category_id = c.id
+      WHERE a.status = 'published' AND a.published_at >= NOW() - INTERVAL '30 days' AND a.deleted_at IS NULL
+      GROUP BY c.name
+      ORDER BY total_views DESC
+    ")->fetchAll() ?: [];
+
+    // Author leaderboard
+    $authorStats = $pdo->query("
+      SELECT COALESCE(NULLIF(u.display_name,''), u.username, 'Staff') AS author_name,
+             COUNT(a.id) AS article_count,
+             SUM(a.views) AS total_views,
+             AVG(a.views) AS avg_views
+      FROM articles a
+      LEFT JOIN users u ON u.id = a.author_id
+      WHERE a.status = 'published' AND a.published_at >= NOW() - INTERVAL '30 days'
+        AND a.deleted_at IS NULL AND a.is_crawled = FALSE
+      GROUP BY author_name
+      ORDER BY total_views DESC
+      LIMIT 10
+    ")->fetchAll() ?: [];
+
+    // Peak hours (article views by hour of day)
+    $peakHours = [];
+    try {
+      $peakHours = $pdo->query("
+        SELECT EXTRACT(HOUR FROM viewed_at) AS hour, COUNT(*) AS views
+        FROM article_views
+        WHERE viewed_at >= NOW() - INTERVAL '30 days'
+        GROUP BY hour ORDER BY hour
+      ")->fetchAll() ?: [];
+    } catch (\Throwable) {}
+
+    // Daily stats trend
+    $dailyTrend = [];
+    try {
+      $dailyTrend = $pdo->query("
+        SELECT stat_date, total_views, unique_visitors, articles_published
+        FROM daily_stats
+        WHERE stat_date >= CURRENT_DATE - INTERVAL '30 days'
+        ORDER BY stat_date ASC
+      ")->fetchAll() ?: [];
+    } catch (\Throwable) {}
+
+    // Summary numbers
+    $summary = [
+      'total_views_30d' => (int)($pdo->query("SELECT COALESCE(SUM(views),0) FROM articles WHERE status='published' AND published_at >= NOW() - INTERVAL '30 days'")->fetchColumn()),
+      'total_articles_30d' => (int)($pdo->query("SELECT COUNT(*) FROM articles WHERE status='published' AND published_at >= NOW() - INTERVAL '30 days'")->fetchColumn()),
+      'total_shares_30d' => (int)($pdo->query("SELECT COALESCE(SUM(share_count),0) FROM articles WHERE status='published' AND published_at >= NOW() - INTERVAL '30 days'")->fetchColumn()),
+      'avg_engagement' => round((float)($pdo->query("SELECT COALESCE(AVG(engagement_score),0) FROM articles WHERE status='published' AND published_at >= NOW() - INTERVAL '30 days' AND engagement_score > 0")->fetchColumn()), 1),
+    ];
+
+    return $this->render('admin/performance', [
+      'pageTitle' => 'Content Performance',
+      'activeNav' => 'analytics',
+      'topArticles' => $topArticles,
+      'categoryStats' => $categoryStats,
+      'authorStats' => $authorStats,
+      'peakHours' => $peakHours,
+      'dailyTrend' => $dailyTrend,
+      'summary' => $summary,
+    ]);
+  }
+
   public function logout(): Response
   {
     Auth::logout();
