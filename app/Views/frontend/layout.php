@@ -263,9 +263,8 @@ if ($metaType === 'article') {
   <style>
     .skip{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
     .skip:focus{left:18px;top:18px;width:auto;height:auto;background:var(--surface,#fff);border:1px solid var(--border,#e2e2e2);padding:10px 12px;border-radius:12px;z-index:99999}
-    .masthead-logo-img{max-height:80px;width:auto;max-width:360px;display:block;margin:0 auto}
-    /* Prevent layout shift on topbar location */
-    #locationLabel{min-width:80px;display:inline-block}
+    .header-logo{max-height:48px;width:auto;display:block}
+    .header-title{font-size:36px;line-height:1}
     /* Prevent image CLS */
     img{max-width:100%;height:auto}
     img[loading="lazy"]{content-visibility:auto}
@@ -302,103 +301,57 @@ if ($metaType === 'article') {
 <a class="skip" href="#content">Skip to content</a>
 
 <header class="site-header">
-  <div class="topbar">
-    <div class="topbar-inner container">
-      <div class="topbar-left">
-        <?php if ($locationMode !== 'off'): ?>
-          <?php if ($locationMode === 'static'): ?>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="opacity:.6;vertical-align:-1px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            <span class="tiny" title="<?= h($locationTitle) ?>"><?= h($locationStatic) ?></span>
-          <?php else: ?>
-            <!-- Auto mode: server-side GeoIP, JS upgrades if browser has better data -->
-            <span class="tiny" id="locationLabel" title="<?= h($locationTitle) ?>"><?php
-              // Render flag emoji + location directly from PHP
-              if ($geoCountry !== '' && strlen($geoCountry) === 2) {
-                // Regional indicator symbols are in supplementary Unicode plane (U+1F1E6–U+1F1FF)
-                // mb_chr() may fail on some PHP builds, so use pack() + mb_convert_encoding()
-                $flag = '';
-                for ($fi = 0; $fi < 2; $fi++) {
-                  $cp = 0x1F1E6 + ord(strtoupper($geoCountry[$fi])) - 65;
-                  $flag .= mb_convert_encoding(pack('N', $cp), 'UTF-8', 'UTF-32BE');
-                }
-                echo $flag . ' ';
-              }
-              echo h($geoLabel ?: 'Online');
-            ?></span>
-          <?php endif; ?>
-        <?php endif; ?>
+  <!-- Compact header bar -->
+  <div class="header-bar">
+    <div class="header-bar-inner container">
+      <div class="header-left">
+        <button class="burger" id="openDrawer" type="button" aria-label="Open menu" aria-controls="drawer" aria-expanded="false">
+          <span class="burger-lines" aria-hidden="true"><span></span><span></span><span></span></span>
+        </button>
+        <span class="header-date tiny"><?= h(date('l, F j, Y')) ?></span>
       </div>
 
-      <form class="topbar-search" action="/search" method="GET" role="search" aria-label="Site search">
-        <input type="search" name="q"
-               placeholder="Search <?= h($siteTitle) ?>…"
-               value="<?= h($searchQ) ?>" />
-        <button type="submit" aria-label="Search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></button>
-      </form>
+      <a class="header-brand" href="/">
+        <?php if ($siteLogoUrl): ?>
+          <img src="<?= h($siteLogoUrl) ?>" alt="<?= h($siteTitle) ?>" class="header-logo" fetchpriority="high" decoding="async" />
+        <?php else: ?>
+          <span class="header-title"><?= h($siteTitle) ?></span>
+        <?php endif; ?>
+      </a>
 
-      <div class="topbar-right">
-        <button type="button" id="darkToggle" class="dark-toggle" aria-label="Toggle dark mode" title="Toggle dark/light mode">
+      <div class="header-right">
+        <button type="button" class="header-icon-btn" id="searchToggle" aria-label="Toggle search">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        </button>
+        <button type="button" id="darkToggle" class="header-icon-btn" aria-label="Toggle dark mode" title="Toggle dark/light mode">
           <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
           <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         </button>
-        <span class="tiny"><?= h(date('l, F j, Y')) ?></span>
       </div>
     </div>
   </div>
 
-  <!-- Masthead: ad-left | logo | ad-right -->
-  <div class="masthead container">
-    <div class="masthead-inner">
-      <div class="masthead-ad-left">
-        <?= render_ad($ads ?? [], 'masthead-left', 'ad-masthead-left') ?>
-      </div>
-      <div class="masthead-center">
-        <?php if ($siteLogoUrl): ?>
-          <a href="/" aria-label="<?= h($siteTitle) ?> — Home">
-            <img src="<?= h($siteLogoUrl) ?>"
-                 alt="<?= h($siteTitle) ?>"
-                 class="masthead-logo-img"
-                 fetchpriority="high"
-                 decoding="async" />
-          </a>
-        <?php else: ?>
-          <a class="masthead-title" href="/"><?= h($siteTitle) ?></a>
-        <?php endif; ?>
-        <div class="masthead-tagline"><?= h($siteTagline) ?></div>
-      </div>
-      <div class="masthead-ad-right">
-        <?= render_ad($ads ?? [], 'masthead-right', 'ad-masthead-right') ?>
-      </div>
-    </div>
-  </div>
-
-  <nav class="nav" aria-label="Primary">
-    <!-- Mobile row -->
-    <div class="container nav-mobile">
-      <button class="burger"
-              id="openDrawer"
-              type="button"
-              aria-label="Open menu"
-              aria-controls="drawer"
-              aria-expanded="false">
-        <span class="burger-lines" aria-hidden="true"><span></span><span></span><span></span></span>
-        <span>Menu</span>
+  <!-- Expandable search bar (hidden by default) -->
+  <div class="search-expand" id="searchExpand" hidden>
+    <form class="search-expand-inner container" action="/search" method="GET" role="search">
+      <input type="search" name="q" placeholder="Search <?= h($siteTitle) ?>…" value="<?= h($searchQ) ?>" autofocus />
+      <button type="submit" aria-label="Search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
       </button>
-      <a class="nav-item" href="/search">Search</a>
-    </div>
+      <button type="button" class="search-close" id="searchClose" aria-label="Close search">&times;</button>
+    </form>
+  </div>
 
-    <!-- Desktop row — dynamic from DB, with active state -->
-    <div class="container nav-inner">
-      <a href="/" class="nav-item"
-         <?= $path === '/' ? 'aria-current="page"' : '' ?>>Home</a>
+  <!-- Category tabs (scrollable, visible on ALL screen sizes) -->
+  <nav class="cat-tabs" aria-label="Primary">
+    <div class="cat-tabs-inner container">
+      <a href="/" class="cat-tab <?= $path === '/' ? 'active' : '' ?>">Home</a>
       <?php foreach ($navCats as $cat): ?>
         <?php
           $catPath  = '/category/' . (string)$cat['slug'];
           $isActive = ($path === $catPath) || str_starts_with($path, $catPath . '/');
         ?>
-        <a href="<?= h($catPath) ?>"
-           class="nav-item"
-           <?= $isActive ? 'aria-current="page"' : '' ?>><?= h($cat['name']) ?></a>
+        <a href="<?= h($catPath) ?>" class="cat-tab <?= $isActive ? 'active' : '' ?>"><?= h($cat['name']) ?></a>
       <?php endforeach; ?>
     </div>
   </nav>
@@ -417,6 +370,10 @@ if ($metaType === 'article') {
     <?php endif; ?>
     <button class="drawer-close" id="closeDrawer" type="button" aria-label="Close menu">Close</button>
   </div>
+
+  <form class="drawer-search" action="/search" method="GET" role="search">
+    <input type="search" name="q" placeholder="Search…" value="<?= h($searchQ) ?>" />
+  </form>
 
   <a href="/" <?= $path === '/' ? 'aria-current="page"' : '' ?>>Home</a>
   <?php foreach ($navCats as $cat): ?>
@@ -632,6 +589,19 @@ if ($metaType === 'article') {
         }
       }
     });
+  }
+
+  // ── Search toggle ────────────────────────────────────────────
+  const searchToggle = document.getElementById('searchToggle');
+  const searchExpand = document.getElementById('searchExpand');
+  const searchClose = document.getElementById('searchClose');
+  if (searchToggle && searchExpand) {
+    searchToggle.addEventListener('click', () => {
+      const open = !searchExpand.hidden;
+      searchExpand.hidden = open;
+      if (!open) searchExpand.querySelector('input')?.focus();
+    });
+    searchClose?.addEventListener('click', () => { searchExpand.hidden = true; });
   }
 
   // ── Location label (auto mode — JS upgrade only) ──────────────

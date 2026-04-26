@@ -1115,6 +1115,13 @@ final class CrawlerEngine
                     $excerpt = strip_tags($excerpt);
                     $excerpt = mb_substr($excerpt, 0, 280);
 
+                    // Quality gate: reject articles with insufficient content
+                    $plainText = strip_tags($content);
+                    if (mb_strlen($plainText) < 200) {
+                        $details[] = ['title' => $item['title'], 'status' => 'too-short'];
+                        continue;
+                    }
+
                     // Generate slug (uses INSERT ON CONFLICT to avoid TOCTOU race)
                     $slug = preg_replace('/[^a-z0-9]+/', '-', strtolower(trim($item['title'])));
                     $slug = trim($slug, '-');
@@ -1441,9 +1448,22 @@ final class CrawlerEngine
     {
         if (trim($html) === '') return '<p>No content available.</p>';
 
-        // Remove <script> and <style> tags
+        // Remove <script>, <style>, <noscript> tags
         $html = preg_replace('#<script[^>]*>.*?</script>#is', '', $html);
         $html = preg_replace('#<style[^>]*>.*?</style>#is', '', $html);
+        $html = preg_replace('#<noscript[^>]*>.*?</noscript>#is', '', $html);
+
+        // Remove non-article structural elements (nav, header, footer, sidebar, forms)
+        $html = preg_replace('#<nav[^>]*>.*?</nav>#is', '', $html);
+        $html = preg_replace('#<header[^>]*>.*?</header>#is', '', $html);
+        $html = preg_replace('#<footer[^>]*>.*?</footer>#is', '', $html);
+        $html = preg_replace('#<aside[^>]*>.*?</aside>#is', '', $html);
+        $html = preg_replace('#<form[^>]*>.*?</form>#is', '', $html);
+        $html = preg_replace('#<iframe[^>]*>.*?</iframe>#is', '', $html);
+
+        // Strip all class, style, onclick, data-* attributes (keep src, href, alt, title)
+        $html = preg_replace('#\s+(class|style|onclick|onload|onerror|data-[a-z\-]+)="[^"]*"#i', '', $html);
+        $html = preg_replace("#\s+(class|style|onclick|onload|onerror|data-[a-z\-]+)='[^']*'#i", '', $html);
 
         // If content is plain text (no HTML tags), wrap in paragraph
         if (strip_tags($html) === $html) {
@@ -1464,8 +1484,21 @@ final class CrawlerEngine
             }
         }
 
-        // Remove empty paragraphs
+        // Remove empty paragraphs, divs, spans
         $html = preg_replace('#<p>\s*</p>#i', '', $html);
+        $html = preg_replace('#<div>\s*</div>#i', '', $html);
+        $html = preg_replace('#<span>\s*</span>#i', '', $html);
+
+        // Reject junk: if content > 100KB after cleaning, it's a full-page scrape
+        if (strlen($html) > 102400) {
+            // Try to extract just <p> tags as a last resort
+            preg_match_all('#<p[^>]*>(.+?)</p>#is', $html, $pMatches);
+            if (!empty($pMatches[0])) {
+                $html = implode("\n", $pMatches[0]);
+            } else {
+                $html = '<p>' . mb_substr(strip_tags($html), 0, 2000) . '</p>';
+            }
+        }
 
         return trim($html);
     }
