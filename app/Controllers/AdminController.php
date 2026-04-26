@@ -631,12 +631,7 @@ final class AdminController extends Controller
     try { \App\Services\Cache::forget('home:breaking'); } catch (\Throwable $e) {}
     try { \App\Services\Cache::forget('home:breaking_cards'); } catch (\Throwable $e) {}
 
-    $referer = $request->headers->get('referer', '/admin/articles');
-    // Restrict redirect to admin paths only
-    if (!str_starts_with($referer, '/admin')) {
-        $referer = '/admin/articles';
-    }
-    return $this->redirect($referer);
+    return $this->safeAdminRedirect($request, '/admin/articles');
   }
 
   /**

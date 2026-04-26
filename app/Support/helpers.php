@@ -207,7 +207,7 @@ function get_theme_css(): string
         }
     } else {
         // Locked mode: stable cache key based on env tokens so we render once
-        $ver = 'locked-' . md5(serialize($envT));
+        $ver = 'locked-' . hash('sha256', serialize($envT));
         if ($rendered !== null && $renderedVer === $ver) {
             return $rendered;
         }

@@ -141,7 +141,7 @@ final class Mailer
                 self::smtpSend($socket, "EHLO " . gethostname());
             }
 
-            // AUTH LOGIN
+            // AUTH LOGIN requires base64-encoded credentials per RFC 4954
             if ($username !== '' && $password !== '') {
                 self::smtpSend($socket, "AUTH LOGIN");
                 self::smtpSend($socket, base64_encode($username));

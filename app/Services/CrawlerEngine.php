@@ -301,22 +301,13 @@ final class CrawlerEngine
                     $excerpt = strip_tags($excerpt);
                     $excerpt = mb_substr($excerpt, 0, 280);
 
-                    // Generate slug
+                    // Generate slug (uses INSERT ON CONFLICT to avoid TOCTOU race)
                     $slug = preg_replace('/[^a-z0-9]+/', '-', strtolower(trim($item['title'])));
                     $slug = trim($slug, '-');
                     $slug = mb_substr($slug, 0, 200);
-                    $baseSlug = $slug;
-                    $suffix = 0;
-                    $pdo = \App\Models\BaseModel::pdo();
-                    while (true) {
-                        $check = $pdo->prepare("SELECT COUNT(*) FROM articles WHERE slug = :s");
-                        $check->execute([':s' => $slug]);
-                        if ((int)$check->fetchColumn() === 0) break;
-                        $suffix++;
-                        $slug = $baseSlug . '-' . $suffix;
-                    }
 
                     // ── Semantic dedup via embedding ─────────────────
+                    $pdo = \App\Models\BaseModel::pdo();
                     $embedding = $enrichResult['embedding'] ?? null;
                     $storyClusterId = null;
 
@@ -355,7 +346,8 @@ final class CrawlerEngine
                     // Quality score
                     $qualityScore = $enrichResult['quality_score'] ?? null;
 
-                    // ── Insert article ────────────────────────────────
+                    // ── Insert article (ON CONFLICT avoids slug race) ──
+                    $slug = self::resolveUniqueSlug($pdo, $slug);
                     $status = $autoPublish ? 'published' : 'draft';
                     $stmt = $pdo->prepare(
                         "INSERT INTO articles
@@ -370,6 +362,7 @@ final class CrawlerEngine
                              :display_author, :thread_id, :cluster_id,
                              :ai_summary, :sentiment, :sentiment_score, :quality_score,
                              TRUE, :source_id, :source_url, :source_name, :source_hash)
+                         ON CONFLICT (slug) DO NOTHING
                          RETURNING id"
                     );
                     $stmt->execute([
@@ -404,6 +397,11 @@ final class CrawlerEngine
                     ]);
 
                     $newId = $stmt->fetchColumn();
+                    if (!$newId) {
+                        $dupes++;
+                        $details[] = ['title' => $item['title'], 'status' => 'slug-conflict'];
+                        continue;
+                    }
                     $new++;
                     $details[] = ['title' => $item['title'], 'status' => 'published'];
 
@@ -614,6 +612,28 @@ final class CrawlerEngine
         );
 
         return $result;
+    }
+
+    /**
+     * Resolve a unique slug by appending a suffix if the base slug already exists.
+     * Uses a single query to find the next available suffix atomically.
+     */
+    private static function resolveUniqueSlug(\PDO $pdo, string $baseSlug): string
+    {
+        $stmt = $pdo->prepare(
+            "SELECT slug FROM articles WHERE slug = :slug OR slug LIKE :pattern ORDER BY slug DESC LIMIT 1"
+        );
+        $stmt->execute([':slug' => $baseSlug, ':pattern' => $baseSlug . '-%']);
+        $existing = $stmt->fetchColumn();
+
+        if (!$existing) return $baseSlug;
+
+        // Extract the highest suffix number
+        if ($existing === $baseSlug) {
+            return $baseSlug . '-1';
+        }
+        $suffix = (int)substr($existing, strlen($baseSlug) + 1);
+        return $baseSlug . '-' . ($suffix + 1);
     }
 
     // ── Semantic dedup & story clustering ─────────────────────
@@ -1095,20 +1115,12 @@ final class CrawlerEngine
                     $excerpt = strip_tags($excerpt);
                     $excerpt = mb_substr($excerpt, 0, 280);
 
+                    // Generate slug (uses INSERT ON CONFLICT to avoid TOCTOU race)
                     $slug = preg_replace('/[^a-z0-9]+/', '-', strtolower(trim($item['title'])));
                     $slug = trim($slug, '-');
                     $slug = mb_substr($slug, 0, 200);
-                    $baseSlug = $slug;
-                    $suffix = 0;
-                    $pdo = \App\Models\BaseModel::pdo();
-                    while (true) {
-                        $check = $pdo->prepare("SELECT COUNT(*) FROM articles WHERE slug = :s");
-                        $check->execute([':s' => $slug]);
-                        if ((int)$check->fetchColumn() === 0) break;
-                        $suffix++;
-                        $slug = $baseSlug . '-' . $suffix;
-                    }
 
+                    $pdo = \App\Models\BaseModel::pdo();
                     $embedding = $enrichResult['embedding'] ?? null;
                     $storyClusterId = null;
 
@@ -1136,6 +1148,8 @@ final class CrawlerEngine
                         }
                     }
 
+                    // Resolve unique slug atomically
+                    $slug = self::resolveUniqueSlug($pdo, $slug);
                     $status = $autoPublish ? 'published' : 'draft';
                     $stmt = $pdo->prepare(
                         "INSERT INTO articles
@@ -1150,6 +1164,7 @@ final class CrawlerEngine
                              :display_author, :thread_id, :cluster_id,
                              :ai_summary, :sentiment, :sentiment_score, :quality_score,
                              TRUE, :source_id, :source_url, :source_name, :source_hash)
+                         ON CONFLICT (slug) DO NOTHING
                          RETURNING id"
                     );
                     $stmt->execute([
@@ -1184,6 +1199,11 @@ final class CrawlerEngine
                     ]);
 
                     $newId = $stmt->fetchColumn();
+                    if (!$newId) {
+                        $dupes++;
+                        $details[] = ['title' => $item['title'], 'status' => 'slug-conflict'];
+                        continue;
+                    }
                     $new++;
                     $details[] = ['title' => $item['title'], 'status' => 'published'];
 
@@ -1197,6 +1217,15 @@ final class CrawlerEngine
                             try { \App\Models\Tag::autoTagFromContent((int)$newId, $content, $item['title']); } catch (\Throwable) {}
                         }
                         try { BreakingNewsEngine::scoreAndUpdate($newId); } catch (\Throwable) {}
+                        try {
+                            \App\Services\WebhookDispatcher::dispatch('article.published', [
+                                'id' => $newId,
+                                'title' => $item['title'] ?? '',
+                                'slug' => $slug,
+                                'source' => 'crawler',
+                                'url' => ($_ENV['APP_URL'] ?? '') . '/article/' . $slug,
+                            ]);
+                        } catch (\Throwable) {}
                     }
 
                     $existingTitles[] = $item['title'];

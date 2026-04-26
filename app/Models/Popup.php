@@ -105,6 +105,11 @@ final class Popup extends BaseModel
     {
         $pdo = DB::pdo();
         $cols = array_keys($data);
+        foreach ($cols as $c) {
+            if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $c)) {
+                throw new \InvalidArgumentException("Invalid column name: {$c}");
+            }
+        }
         $placeholders = array_map(fn($c) => ':' . $c, $cols);
 
         $sql = 'INSERT INTO popups (' . implode(',', $cols) . ') VALUES (' . implode(',', $placeholders) . ') RETURNING *';
@@ -173,7 +178,7 @@ final class Popup extends BaseModel
 
         unset($original['id'], $original['created_at'], $original['updated_at']);
         $original['name'] = $original['name'] . ' (Copy)';
-        $original['slug'] = $original['slug'] . '-copy-' . substr(md5((string)time()), 0, 6);
+        $original['slug'] = $original['slug'] . '-copy-' . substr(hash('sha256', (string)time() . random_bytes(4)), 0, 6);
         $original['status'] = 'draft';
         $original['impressions'] = 0;
         $original['clicks'] = 0;
@@ -381,6 +386,7 @@ final class Popup extends BaseModel
         if (!in_array($dimension, $allowed, true)) return [];
 
         $pdo = DB::pdo();
+        // $dimension is validated against $allowed whitelist above — safe to interpolate
         $stmt = $pdo->prepare(
             "SELECT p.{$dimension} AS dimension,
                     COUNT(*) FILTER (WHERE pe.event_type = 'impression') AS impressions,

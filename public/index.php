@@ -144,10 +144,12 @@ try {
     );
 
 } catch (Throwable $e) {
-    $debugInfo = $e->getMessage() . "\n"
-               . $e->getFile() . ':' . $e->getLine() . "\n"
+    $safeMsg  = preg_replace('/[\r\n\x00]/', ' ', $e->getMessage());
+    $safeFile = preg_replace('/[\r\n\x00]/', '', $e->getFile());
+    $debugInfo = $safeMsg . "\n"
+               . $safeFile . ':' . $e->getLine() . "\n"
                . $e->getTraceAsString();
-    error_log('[bootstrap] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    error_log('[bootstrap] ' . $safeMsg . ' in ' . $safeFile . ':' . $e->getLine());
     $response = renderErrorPage(500, $isDebug ? $debugInfo : '');
 }
 

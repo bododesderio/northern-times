@@ -365,7 +365,8 @@ def extract_with_readability(html: str, url: str, source_selectors: str | None =
         for selector in selectors_to_try:
             try:
                 el = soup.select_one(selector)
-            except Exception:
+            except Exception as e:
+                logger.warning("CSS selector '%s' failed: %s", selector, e)
                 continue
             if el and len(el.get_text(strip=True)) >= MIN_CONTENT_LENGTH:
                 result["content"] = str(el)

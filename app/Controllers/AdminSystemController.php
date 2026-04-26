@@ -1099,8 +1099,10 @@ final class AdminSystemController extends Controller
             return $this->redirect('/admin/system');
         }
 
-        $count = (int)$pdo->query("SELECT COUNT(*) FROM " . $table)->fetchColumn();
-        $pdo->exec("TRUNCATE " . $table . " CASCADE");
+        // CWE-89: Quote identifier for defense-in-depth (table is already whitelist-validated)
+        $quotedTable = '"' . str_replace('"', '""', $table) . '"';
+        $count = (int)$pdo->query("SELECT COUNT(*) FROM " . $quotedTable)->fetchColumn();
+        $pdo->exec("TRUNCATE " . $quotedTable . " CASCADE");
 
         SystemLog::log($action, "Purged all {$label}", $count, $level);
         Flash::set('success', "Purged {$label} ({$count} records).");

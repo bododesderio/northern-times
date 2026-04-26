@@ -97,6 +97,11 @@ final class AdminMediaController extends Controller
             $folder = 'Articles';
         }
 
+        // CWE-434: Reject path traversal attempts in folder name
+        if (str_contains($folder, '..') || str_contains($folder, '/') || str_contains($folder, '\\')) {
+            return $this->failUpload($wantsJson, 'Invalid folder name.');
+        }
+
         $file = $_FILES['file'];
         if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
             $msg = $this->phpUploadError((int)($file['error'] ?? 0));
@@ -160,6 +165,12 @@ final class AdminMediaController extends Controller
         $storageDir = $root . DIRECTORY_SEPARATOR . $slugFolder;
         if (!is_dir($storageDir)) {
             mkdir($storageDir, 0775, true);
+        }
+
+        // CWE-434: Verify resolved path is within uploads root
+        $realStorageDir = realpath($storageDir);
+        if ($realStorageDir === false || !str_starts_with($realStorageDir, $root)) {
+            return $this->failUpload($wantsJson, 'Invalid storage path.');
         }
 
         $baseName = date('Ymd_His') . '_' . substr($sha, 0, 12);

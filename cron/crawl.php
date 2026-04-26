@@ -81,11 +81,14 @@ try {
             if ($r['status'] === 'ok') {
                 $ok++;
                 if ($r['new'] > 0) {
-                    echo "[{$ts}] ✅ {$r['source']}: {$r['found']} found, {$r['new']} new\n";
+                    $source = preg_replace('/[\r\n\x00]/', '', (string)($r['source'] ?? ''));
+                    echo "[{$ts}] OK {$source}: {$r['found']} found, {$r['new']} new\n";
                 }
             } else {
                 $err++;
-                echo "[{$ts}] ❌ {$r['source']}: {$r['error']}\n";
+                $source = preg_replace('/[\r\n\x00]/', '', (string)($r['source'] ?? ''));
+                $error  = preg_replace('/[\r\n\x00]/', '', substr((string)($r['error'] ?? ''), 0, 500));
+                echo "[{$ts}] FAIL {$source}: {$error}\n";
             }
         }
         $totalNew = array_sum(array_column($results, 'new'));
@@ -102,7 +105,8 @@ try {
         } catch (\Throwable $e) {}
     }
 } catch (\Throwable $e) {
-    echo "[{$ts}] ❌ Fatal: {$e->getMessage()}\n";
+    $safeMsg = preg_replace('/[\r\n\x00]/', ' ', $e->getMessage());
+    echo "[{$ts}] Fatal: {$safeMsg}\n";
     if ($cronRun) {
         try { \App\Models\CronRun::fail($cronRun['id'], $e->getMessage()); } catch (\Throwable $e2) {}
     }

@@ -53,7 +53,11 @@ app = FastAPI(title="Article Extractor", version="2.0.0")
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "2.0.0"}
+    from model_registry import _models, _LOADERS
+    model_status = {}
+    for name in _LOADERS:
+        model_status[name] = "loaded" if name in _models else "not_loaded"
+    return {"status": "ok", "version": "2.0.0", "models": model_status}
 
 
 # ── Extraction ────────────────────────────────────────────────
@@ -66,7 +70,8 @@ def extract(req: ExtractRequest):
             return ExtractResponse(success=False, error="Extraction failed or content too short")
         return ExtractResponse(success=True, data=ExtractedArticle(**result))
     except Exception as e:
-        logger.error("Extract failed for %s: %s\n%s", req.url, e, traceback.format_exc())
+        safe_url = str(req.url).replace('\n', '').replace('\r', '')[:500]
+        logger.error("Extract failed for %s: %s\n%s", safe_url, e, traceback.format_exc())
         return ExtractResponse(success=False, error=f"Extraction error: {type(e).__name__}")
 
 
@@ -81,7 +86,8 @@ def extract_batch(req: BatchExtractRequest):
             else:
                 results.append(ExtractResponse(success=True, data=ExtractedArticle(**result)))
         except Exception as e:
-            logger.error("Batch extract error for %s: %s", url, e)
+            safe_url = str(url).replace('\n', '').replace('\r', '')[:500]
+            logger.error("Batch extract error for %s: %s", safe_url, e)
             results.append(ExtractResponse(success=False, error=f"Error: {type(e).__name__}"))
     return BatchExtractResponse(results=results)
 
@@ -90,28 +96,40 @@ def extract_batch(req: BatchExtractRequest):
 
 @app.post("/classify", response_model=ClassifyResponse)
 def classify(req: ClassifyRequest):
-    result = classify_article(req.title, req.excerpt, req.source_region)
-    return ClassifyResponse(**result)
+    try:
+        result = classify_article(req.title, req.excerpt, req.source_region)
+        return ClassifyResponse(**result)
+    except Exception as e:
+        logger.error("Classify failed: %s\n%s", e, traceback.format_exc())
+        return ClassifyResponse(dominated_region="unknown", relevance_score=0, is_sports=False, accept=False)
 
 
 @app.post("/classify-category", response_model=CategoryClassifyResponse)
 def classify_cat(req: CategoryClassifyRequest):
-    result = classify_category(
-        title=req.title,
-        content=req.content,
-        rss_categories=req.rss_categories,
-        url=req.url,
-        system_categories=req.system_categories if req.system_categories else None,
-    )
-    return CategoryClassifyResponse(**result)
+    try:
+        result = classify_category(
+            title=req.title,
+            content=req.content,
+            rss_categories=req.rss_categories,
+            url=req.url,
+            system_categories=req.system_categories if req.system_categories else None,
+        )
+        return CategoryClassifyResponse(**result)
+    except Exception as e:
+        logger.error("Classify-category failed: %s\n%s", e, traceback.format_exc())
+        return CategoryClassifyResponse(category_slug="world", confidence=0, ai_scores={}, method="error", conflict_guard=False)
 
 
 # ── Deduplication ─────────────────────────────────────────────
 
 @app.post("/check-duplicate", response_model=DedupResponse)
 def check_dup(req: DedupRequest):
-    result = check_duplicate(req.title, req.existing_titles, req.threshold)
-    return DedupResponse(**result)
+    try:
+        result = check_duplicate(req.title, req.existing_titles, req.threshold)
+        return DedupResponse(**result)
+    except Exception as e:
+        logger.error("Check-duplicate failed: %s\n%s", e, traceback.format_exc())
+        return DedupResponse(is_duplicate=False, matched_title=None, similarity=0.0, fingerprint="")
 
 
 # ── Embedding ─────────────────────────────────────────────────
@@ -186,41 +204,7 @@ def enrich_endpoint(req: EnrichRequest):
         options=req.options,
     )
 
-    # Build response, mapping dicts to pydantic models
-    extraction = None
-    if result.get("extraction"):
-        extraction = ExtractedArticle(**result["extraction"])
-
-    region_classify = None
-    if result.get("region_classify"):
-        region_classify = ClassifyResponse(**result["region_classify"])
-
-    category = None
-    if result.get("category"):
-        category = CategoryClassifyResponse(**result["category"])
-
-    dedup = None
-    if result.get("dedup"):
-        dedup = DedupResponse(**result["dedup"])
-
-    entities = None
-    if result.get("entities"):
-        entities = [EntityItem(**e) for e in result["entities"]]
-
-    return EnrichResponse(
-        success=result.get("success", False),
-        error=result.get("error"),
-        extraction=extraction,
-        region_classify=region_classify,
-        category=category,
-        dedup=dedup,
-        embedding=result.get("embedding"),
-        summary=result.get("summary"),
-        entities=entities,
-        sentiment=result.get("sentiment"),
-        sentiment_score=result.get("sentiment_score"),
-        quality_score=result.get("quality_score"),
-    )
+    return _build_enrich_response(result)
 
 
 # ── Batch Enrich ─────────────────────────────────────────────

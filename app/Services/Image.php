@@ -89,6 +89,7 @@ final class Image
     // Convert public URL to absolute filesystem path
     if (!str_starts_with($publicUrl, $mediaBase . '/')) return null;
     $relPath = ltrim(substr($publicUrl, strlen($mediaBase)), '/');
+    if (str_contains($relPath, '..')) return null;
     $absPath = $storageRoot . '/' . $relPath;
 
     if (!is_file($absPath)) return null;
@@ -214,6 +215,7 @@ final class Image
       if (!str_starts_with($publicUrl, $mediaBase . '/')) return $publicUrl;
 
       $relPath  = ltrim(substr($publicUrl, strlen($mediaBase)), '/');
+      if (str_contains($relPath, '..')) return $publicUrl;
       $absPath  = $storageRoot . '/uploads/' . $relPath;
 
       if (!is_file($absPath)) return $publicUrl;

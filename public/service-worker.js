@@ -12,6 +12,8 @@ const CACHE_NAME = 'site-cache-v1';
 // ── Message handler — receives site title from page ───────────
 self._siteTitle = '';
 self.addEventListener('message', (event) => {
+  // Only accept messages from same origin
+  if (event.origin && event.origin !== self.location.origin) return;
   if (event.data && event.data.type === 'SET_SITE_TITLE') {
     self._siteTitle = event.data.title || '';
   }

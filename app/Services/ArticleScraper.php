@@ -167,7 +167,7 @@ final class ArticleScraper
             'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         ];
 
-        $cookieFile = sys_get_temp_dir() . '/crawl_' . md5($url) . '.txt';
+        $cookieFile = sys_get_temp_dir() . '/crawl_' . hash('sha256', $url) . '.txt';
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL            => $url,

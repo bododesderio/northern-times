@@ -47,7 +47,7 @@ final class AdminPolicyController extends Controller
 
         $slug = Slug::make($data['slug'] ?: $data['title']);
         if (PolicyPage::findBySlug($slug)) {
-            $slug = $slug . '-' . substr(uniqid(), -4);
+            $slug = $slug . '-' . random_int(1000, 9999);
         }
 
         PolicyPage::create([
@@ -105,7 +105,7 @@ final class AdminPolicyController extends Controller
                 [':slug' => $newSlug, ':id' => $id]
             );
             if ($dupe) {
-                $newSlug = $newSlug . '-' . substr(uniqid(), -4);
+                $newSlug = $newSlug . '-' . random_int(1000, 9999);
             }
         }
 

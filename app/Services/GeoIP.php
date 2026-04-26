@@ -285,6 +285,6 @@ final class GeoIP
 
     private static function cacheFile(string $ip): string
     {
-        return self::cacheDir() . '/' . md5($ip) . '.json';
+        return self::cacheDir() . '/' . hash('sha256', $ip) . '.json';
     }
 }

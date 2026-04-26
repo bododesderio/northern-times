@@ -209,7 +209,18 @@ final class BreakingNewsEngine
 
         $baselines = self::getVelocityBaselines($pdo);
         $threadCounts = self::getThreadCounts($pdo);
-        $titleClusters = self::buildTitleClusters([$article]);
+
+        // Fetch ALL recent articles for cluster comparison (not just the one being scored)
+        $recentStmt = $pdo->prepare("
+            SELECT a.id, a.title, a.source_id
+            FROM articles a
+            WHERE a.status = 'published'
+              AND a.published_at >= NOW() - INTERVAL '24 hours'
+              AND a.deleted_at IS NULL
+        ");
+        $recentStmt->execute();
+        $recentArticles = $recentStmt->fetchAll(\PDO::FETCH_ASSOC);
+        $titleClusters = self::buildTitleClusters($recentArticles ?: [$article]);
 
         $score = self::scoreArticle($article, $baselines, $threadCounts, $titleClusters, $pdo);
         $isBreaking = $score >= self::THRESHOLD;

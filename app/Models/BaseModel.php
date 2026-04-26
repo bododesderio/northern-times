@@ -53,11 +53,26 @@ abstract class BaseModel
     }
 
     /**
+     * Sanitise an ORDER BY clause — only allows column names, ASC/DESC, NULLS FIRST/LAST.
+     */
+    protected static function sanitizeOrderBy(string $order): string
+    {
+        $parts = array_map('trim', explode(',', $order));
+        $safe = [];
+        foreach ($parts as $part) {
+            if (preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?(?:\s+(?:ASC|DESC))?(?:\s+NULLS\s+(?:FIRST|LAST))?$/i', $part)) {
+                $safe[] = $part;
+            }
+        }
+        return !empty($safe) ? implode(', ', $safe) : static::$orderBy;
+    }
+
+    /**
      * Get all records (with optional ordering override).
      */
     public static function all(?string $orderBy = null): array
     {
-        $order = $orderBy ?? static::$orderBy;
+        $order = static::sanitizeOrderBy($orderBy ?? static::$orderBy);
         $sql = "SELECT * FROM " . static::$table . " ORDER BY {$order}";
         return DB::pdo()->query($sql)->fetchAll() ?: [];
     }
@@ -84,7 +99,7 @@ abstract class BaseModel
             $i++;
         }
 
-        $order = $orderBy ?? static::$orderBy;
+        $order = static::sanitizeOrderBy($orderBy ?? static::$orderBy);
         $sql = "SELECT * FROM " . static::$table
              . " WHERE " . implode(' AND ', $clauses)
              . " ORDER BY {$order}";
@@ -224,7 +239,7 @@ abstract class BaseModel
     ): array {
         $page   = max(1, $page);
         $offset = ($page - 1) * $perPage;
-        $order  = $orderBy ?? static::$orderBy;
+        $order  = static::sanitizeOrderBy($orderBy ?? static::$orderBy);
         $from   = $fromSql ?: static::$table;
         $whereClause = $whereSql !== '' ? "WHERE {$whereSql}" : '';
 

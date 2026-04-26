@@ -272,8 +272,8 @@ function detectRegion(string $ws): array {
 <?php endif; ?>
 
 <script>
-const CSRF='<?= $csrf ?>';
-const SRC={<?php foreach($sources as $s){[$f,$r]=detectRegion($s['website_url']??'');echo "'".$s['id']."':{n:".json_encode($s['name']).",f:'".$f."',r:'".$r."',a:".($s['is_active']?'1':'0')."},";}?>};
+const CSRF='<?= h($csrf) ?>';
+const SRC={<?php foreach($sources as $s){[$f,$r]=detectRegion($s['website_url']??'');echo "'".htmlspecialchars($s['id'],ENT_QUOTES,'UTF-8')."':{n:".json_encode($s['name'],JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP).",f:'".htmlspecialchars($f,ENT_QUOTES,'UTF-8')."',r:'".htmlspecialchars($r,ENT_QUOTES,'UTF-8')."',a:".($s['is_active']?'1':'0')."},";}?>};
 let run=0,pau=0,stp=0,Q=[],I=0,tN=0,tF=0,tD=0,tE=0,T0=0,spd=[],res=[],gCtx;
 
 function initG(){const c=document.getElementById('crCanvas');if(!c)return;gCtx=c.getContext('2d');c.width=c.offsetWidth*(devicePixelRatio||1);c.height=40*(devicePixelRatio||1);gCtx.scale(devicePixelRatio||1,devicePixelRatio||1)}

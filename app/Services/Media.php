@@ -96,6 +96,7 @@ final class Media
 
     $folder = trim($folder) !== '' ? trim($folder) : ($_ENV['MEDIA_DEFAULT_FOLDER'] ?? 'Articles');
     $folder = preg_replace('/[^A-Za-z0-9 _-]+/', '', $folder) ?? 'Articles';
+    if ($folder === '' || str_contains($folder, '..')) $folder = 'Articles';
 
     $datePath = date('Y/m');
     $baseDir = self::storageRoot() . '/' . $folder . '/' . $datePath;

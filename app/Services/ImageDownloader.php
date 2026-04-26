@@ -53,6 +53,15 @@ final class ImageDownloader
         if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) return $url;
         if (str_starts_with($url, '/uploads/') || str_starts_with($url, '/storage/')) return $url;
 
+        // Block SSRF: reject private/reserved IP ranges
+        $host = parse_url($url, PHP_URL_HOST);
+        if ($host) {
+            $ip = @gethostbyname($host);
+            if ($ip && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+                return $url;
+            }
+        }
+
         try {
             // Dedup by URL hash
             $urlHash = hash('sha256', $url);

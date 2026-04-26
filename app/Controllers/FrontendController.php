@@ -494,7 +494,7 @@ final class FrontendController extends Controller
             ? Article::query("
                 SELECT a.title, a.slug, a.excerpt, a.content, a.published_at, a.updated_at,
                        a.featured_image,
-                       CASE WHEN a.is_crawled = TRUE THEN '" . (function_exists('get_site_setting') ? get_site_setting('default_crawl_author', get_site_setting('site_title', 'Newsroom')) : 'Newsroom') . "' ELSE COALESCE(NULLIF(a.display_author,''), u.username, 'Staff') END AS author,
+                       CASE WHEN a.is_crawled = TRUE THEN (SELECT COALESCE(NULLIF(su.display_name,''), su.username, 'Staff') FROM users su WHERE su.role = 'super_admin' ORDER BY su.id LIMIT 1) ELSE COALESCE(NULLIF(a.display_author,''), u.username, 'Staff') END AS author,
                        c.name AS category
                 FROM articles a
                 JOIN categories c ON c.id = a.category_id
@@ -528,7 +528,7 @@ final class FrontendController extends Controller
         $channel->appendChild($dom->createElement('generator', $this->siteTitle() . ' CMS'));
 
         // Atom self link
-        $feedUrl = $slug ? "{$site}/feed/category/{$slug}" : "{$site}/feed";
+        $feedUrl = $slug ? "{$site}/category/{$slug}/rss.xml" : "{$site}/rss.xml";
         $atomLink = $dom->createElement('atom:link');
         $atomLink->setAttribute('href', $feedUrl);
         $atomLink->setAttribute('rel', 'self');
@@ -1048,11 +1048,14 @@ Disallow: /search?
 
     try {
       $pdo = \App\Services\DB::pdo();
+      $token = bin2hex(random_bytes(32));
       $pdo->prepare("
-        INSERT INTO topic_follows (email, follow_type, follow_id)
-        VALUES (:email, :type, :id)
-        ON CONFLICT (email, follow_type, follow_id) DO UPDATE SET is_active = TRUE
-      ")->execute([':email' => $email, ':type' => $type, ':id' => $id]);
+        INSERT INTO topic_follows (email, follow_type, follow_id, unsub_token)
+        VALUES (:email, :type, :id, :token)
+        ON CONFLICT (email, follow_type, follow_id) DO UPDATE
+          SET is_active = TRUE,
+              unsub_token = COALESCE(topic_follows.unsub_token, EXCLUDED.unsub_token)
+      ")->execute([':email' => $email, ':type' => $type, ':id' => $id, ':token' => $token]);
 
       return $this->json(['ok' => true, 'message' => 'You will be notified about new articles.']);
     } catch (\Throwable $e) {
@@ -1129,7 +1132,7 @@ Disallow: /search?
         return new Response('', 400);
       }
 
-      if ($scrollDepth < 5 && $timeOnPage < 3) {
+      if ($scrollDepth < 5 || $timeOnPage < 3) {
         return new Response('', 204); // Ignore bounces
       }
 
@@ -1234,7 +1237,7 @@ Disallow: /search?
             FROM articles a
             JOIN categories c ON c.id = a.category_id
             LEFT JOIN users u ON u.id = a.author_id
-            LEFT JOIN crawl_sources cs ON cs.id = a.source_id
+            LEFT JOIN crawl_sources cs ON cs.id = a.crawl_source_id
             WHERE {$whereSql}
             ORDER BY a.published_at DESC NULLS LAST
             LIMIT :limit OFFSET :offset";

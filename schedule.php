@@ -48,6 +48,12 @@ try {
                 \App\Models\NewsletterIssue::markSent($issue['id'], 0, 0);
                 continue;
             }
+            // CWE-89: Sanitize article IDs to prevent SQL injection via stored data
+            $articleIds = array_filter($articleIds, fn($id) => preg_match('/^[0-9a-f\-]{36}$/i', (string)$id));
+            if (empty($articleIds)) {
+                \App\Models\NewsletterIssue::markSent($issue['id'], 0, 0);
+                continue;
+            }
 
             $subscribers = \App\Models\Subscriber::activeSubscribers();
             if (empty($subscribers)) {
@@ -79,8 +85,9 @@ try {
             echo "[{$ts}] Dispatched scheduled newsletter: {$subject} ({$queued} subscribers)\n";
         }
     } catch (\Throwable $e) {
-        echo "[{$ts}] Newsletter schedule error: {$e->getMessage()}\n";
-        error_log('schedule.php newsletter: ' . $e->getMessage());
+        $safeMsg = preg_replace('/[\r\n\x00]/', ' ', $e->getMessage());
+        echo "[{$ts}] Newsletter schedule error: {$safeMsg}\n";
+        error_log('schedule.php newsletter: ' . $safeMsg);
     }
 
     if ($run) {
@@ -91,8 +98,10 @@ try {
         } catch (\Throwable $e) {}
     }
 } catch (Throwable $e) {
-    echo "[{$ts}] ERROR: {$e->getMessage()} in {$e->getFile()}:{$e->getLine()}\n";
-    error_log("schedule.php: " . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    $safeMsg2  = preg_replace('/[\r\n\x00]/', ' ', $e->getMessage());
+    $safeFile2 = preg_replace('/[\r\n\x00]/', '', $e->getFile());
+    echo "[{$ts}] ERROR: {$safeMsg2} in {$safeFile2}:{$e->getLine()}\n";
+    error_log("schedule.php: " . $safeMsg2 . ' in ' . $safeFile2 . ':' . $e->getLine());
 
     if (isset($run) && $run) {
         try {

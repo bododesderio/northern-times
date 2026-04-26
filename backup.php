@@ -62,9 +62,10 @@ exec($cmd, $output, $exitCode);
 putenv("PGPASSWORD");
 
 if ($exitCode !== 0) {
-    $error = implode("\n", $output);
-    echo "[{$ts}] ERROR: pg_dump failed (exit {$exitCode}): {$error}\n";
-    error_log("backup.php: pg_dump failed (exit {$exitCode}): {$error}");
+    $error = preg_replace('/[\r\n\x00]/', ' ', implode(" ", $output));
+    $safeError = substr($error, 0, 500);
+    echo "[{$ts}] ERROR: pg_dump failed (exit {$exitCode}): {$safeError}\n";
+    error_log("backup.php: pg_dump failed (exit {$exitCode}): {$safeError}");
 
     // Clean up empty/broken file
     if (file_exists($filepath)) {

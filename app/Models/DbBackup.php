@@ -115,7 +115,14 @@ final class DbBackup extends BaseModel
             return null;
         }
 
-        return [$record['file_path'], $record['filename']];
+        // Validate path is within backup directory to prevent path traversal
+        $realPath = realpath($record['file_path']);
+        $backupDir = realpath(dirname(__DIR__, 2) . '/storage/backups');
+        if (!$realPath || !$backupDir || !str_starts_with($realPath, $backupDir)) {
+            return null;
+        }
+
+        return [$realPath, $record['filename']];
     }
 
     /**

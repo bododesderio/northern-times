@@ -160,7 +160,7 @@ def clean_and_normalize(
             try:
                 for el in soup.select(selector):
                     el.decompose()
-            except Exception:
+            except (ValueError, AttributeError, TypeError):
                 pass
 
     # ── Phase 3: Image normalization ──────────────────────────

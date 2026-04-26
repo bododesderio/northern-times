@@ -14,20 +14,57 @@ final class WebhookDispatcher
             $pdo = DB::pdo();
             $stmt = $pdo->prepare("
                 SELECT id, url, secret FROM webhooks
-                WHERE is_active = TRUE AND events LIKE :event
+                WHERE is_active = TRUE
+                  AND (events = :event
+                       OR events LIKE :starts_with
+                       OR events LIKE :ends_with
+                       OR events LIKE :middle)
             ");
-            $stmt->execute([':event' => '%' . $event . '%']);
+            $stmt->execute([
+                ':event' => $event,
+                ':starts_with' => $event . ',%',
+                ':ends_with' => '%,' . $event,
+                ':middle' => '%,' . $event . ',%',
+            ]);
             $webhooks = $stmt->fetchAll();
 
+            if (empty($webhooks)) return;
+
+            // Prepare all curl handles
+            $mh = curl_multi_init();
+            $handles = [];
+
             foreach ($webhooks as $wh) {
-                self::send($wh, $event, $payload);
+                $ch = self::buildCurlHandle($wh, $event, $payload);
+                curl_multi_add_handle($mh, $ch);
+                $handles[] = ['ch' => $ch, 'webhook' => $wh];
             }
+
+            // Execute all in parallel (fire-and-forget with 5s max)
+            $running = null;
+            do {
+                curl_multi_exec($mh, $running);
+                if ($running > 0) {
+                    curl_multi_select($mh, 0.1);
+                }
+            } while ($running > 0);
+
+            // Log results
+            foreach ($handles as $h) {
+                $response = curl_multi_getcontent($h['ch']);
+                $httpCode = (int)curl_getinfo($h['ch'], CURLINFO_HTTP_CODE);
+                curl_multi_remove_handle($mh, $h['ch']);
+                curl_close($h['ch']);
+                self::logResult($h['webhook'], $event, $payload, $httpCode, $response);
+            }
+
+            curl_multi_close($mh);
         } catch (\Throwable $e) {
             error_log('[Webhook] Dispatch error: ' . $e->getMessage());
         }
     }
 
-    private static function send(array $webhook, string $event, array $payload): void
+    private static function buildCurlHandle(array $webhook, string $event, array $payload): \CurlHandle
     {
         $body = json_encode([
             'event' => $event,
@@ -51,15 +88,21 @@ final class WebhookDispatcher
             CURLOPT_POSTFIELDS => $body,
             CURLOPT_HTTPHEADER => $headers,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 10,
-            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 5,
+            CURLOPT_CONNECTTIMEOUT => 3,
         ]);
 
-        $response = curl_exec($ch);
-        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        return $ch;
+    }
 
-        // Log the webhook call
+    private static function logResult(array $webhook, string $event, array $payload, int $httpCode, ?string $response): void
+    {
+        $body = json_encode([
+            'event' => $event,
+            'timestamp' => gmdate('c'),
+            'data' => $payload,
+        ]);
+
         try {
             $pdo = DB::pdo();
             $pdo->prepare("

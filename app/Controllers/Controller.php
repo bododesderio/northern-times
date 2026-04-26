@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 abstract class Controller
@@ -13,8 +14,26 @@ abstract class Controller
         return __DIR__ . '/../Views/' . $view . '.php';
     }
 
+    protected function safeAdminRedirect(Request $request, string $fallback = '/admin'): Response
+    {
+        $referer = $request->headers->get('referer', $fallback);
+        $parsed = parse_url($referer);
+        $path = $parsed['path'] ?? $fallback;
+        if (!str_starts_with($path, '/admin') || str_contains($path, '..')) {
+            $path = $fallback;
+        }
+        if (!empty($parsed['query'])) {
+            $path .= '?' . $parsed['query'];
+        }
+        return $this->redirect($path);
+    }
+
     protected function render(string $view, array $data = [], int $status = 200, array $headers = []): Response
     {
+        if (str_contains($view, '..')) {
+            throw new \InvalidArgumentException('Invalid view path');
+        }
+
         $path = $this->viewPath($view);
 
         if (!is_file($path)) {

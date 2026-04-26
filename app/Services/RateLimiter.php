@@ -100,4 +100,40 @@ final class RateLimiter
     {
         return self::check($ip)['remaining'];
     }
+
+    /**
+     * Generic rate limiter using Redis sliding window.
+     * Returns true if the request is allowed, false if rate-limited.
+     *
+     * @param string $key   Unique key (e.g. 'api:search:127.0.0.1')
+     * @param int    $max   Max requests allowed in the window
+     * @param int    $window Window size in seconds
+     */
+    public static function allow(string $key, int $max = 30, int $window = 60): bool
+    {
+        try {
+            $redis = Cache::redis();
+            if (!$redis) return true; // fail open if Redis unavailable
+
+            $redisKey = 'rl:' . $key;
+            $now = microtime(true);
+
+            // Remove expired entries
+            $redis->zRemRangeByScore($redisKey, '-inf', (string)($now - $window));
+
+            // Count current entries
+            $count = $redis->zCard($redisKey);
+            if ($count >= $max) {
+                return false;
+            }
+
+            // Add this request
+            $redis->zAdd($redisKey, $now, $now . ':' . bin2hex(random_bytes(4)));
+            $redis->expire($redisKey, $window + 1);
+
+            return true;
+        } catch (\Throwable) {
+            return true; // fail open
+        }
+    }
 }
