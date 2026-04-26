@@ -49,6 +49,7 @@ if (file_exists(__DIR__ . '/../.env')) {
     $dotenv->safeLoad();
 }
 require_once __DIR__ . '/../app/Support/helpers.php';
+\App\Services\ErrorTracker::register();
 
 use App\Services\CrawlerEngine;
 use App\Services\BreakingNewsEngine;

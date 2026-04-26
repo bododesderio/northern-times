@@ -46,16 +46,29 @@ foreach ($files as $file) {
   echo "Running migration: {$name}\n";
 
   try {
-    $pdo->beginTransaction();
+    // Some migrations contain their own BEGIN/COMMIT — detect and skip wrapping
+    $hasOwnTransaction = preg_match('/^\s*BEGIN\s*;/im', $sql);
+
+    if (!$hasOwnTransaction) {
+      $pdo->beginTransaction();
+    }
+
     $pdo->exec($sql);
 
-    $stmt = $pdo->prepare("INSERT INTO migrations (migration) VALUES (:m)");
-    $stmt->execute([':m' => $name]);
+    // Record migration (outside the migration's own transaction if it had one)
+    if ($hasOwnTransaction) {
+      $pdo->exec("INSERT INTO migrations (migration) VALUES ('" . addslashes($name) . "')");
+    } else {
+      $stmt = $pdo->prepare("INSERT INTO migrations (migration) VALUES (:m)");
+      $stmt->execute([':m' => $name]);
+      $pdo->commit();
+    }
 
-    $pdo->commit();
     $ran++;
   } catch (Throwable $e) {
-    $pdo->rollBack();
+    if ($pdo->inTransaction()) {
+      $pdo->rollBack();
+    }
     fwrite(STDERR, "Migration failed: {$name}\n");
     fwrite(STDERR, $e->getMessage() . "\n");
     exit(1);

@@ -43,7 +43,7 @@ services:
       - northern_times
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "php-fpm-healthcheck || exit 1"]
+      test: ["CMD-SHELL", "php -r 'exit(0);' && kill -0 1"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -33,6 +33,9 @@ $dotenv->safeLoad();
 // Load helpers after env is available
 require __DIR__ . '/../app/Support/helpers.php';
 
+// ── Sentry error tracking (if SENTRY_DSN is set) ─────────────────
+\App\Services\ErrorTracker::register();
+
 // ── Error handling ────────────────────────────────────────────────
 $isDebug = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
 if ($isDebug) {
@@ -144,6 +147,7 @@ try {
     );
 
 } catch (Throwable $e) {
+    \App\Services\ErrorTracker::capture($e);
     $safeMsg  = preg_replace('/[\r\n\x00]/', ' ', $e->getMessage());
     $safeFile = preg_replace('/[\r\n\x00]/', '', $e->getFile());
     $debugInfo = $safeMsg . "\n"

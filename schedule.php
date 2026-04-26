@@ -14,6 +14,7 @@ $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
 $dotenv->safeLoad();
 
 require __DIR__ . '/app/Support/helpers.php';
+\App\Services\ErrorTracker::register();
 
 // Silence display, log errors
 ini_set('display_errors', '0');

@@ -1,22 +1,29 @@
 -- Migration: 0057_ugandan_sources.sql
 -- Add 4 new Ugandan crawl sources: Nile Post, Observer, Independent UG, Uganda Radio Network
 -- Also ensure region column exists on crawl_sources
+-- Uses slug-based category lookups (portable across DB instances)
 
 ALTER TABLE crawl_sources ADD COLUMN IF NOT EXISTS region VARCHAR(50) DEFAULT 'international';
 
 -- Set region for existing Ugandan sources
 UPDATE crawl_sources SET region = 'ugandan' WHERE website_url ILIKE '%monitor.co.ug%' OR website_url ILIKE '%newvision.co.ug%' OR website_url ILIKE '%dokolopost.com%' OR website_url ILIKE '%nation.africa%';
 
--- Category UUIDs:
---   Top Stories     = dd929398-6a5b-43e2-9f1e-4445d9cde194
---   Northern Uganda = 64afe329-92af-48c3-9a6f-78bb96d11bbc
---   Business        = e0046bd8-1301-493c-9dde-d5ad98d17945
---   Opinion         = bb9890e7-83a4-448c-a8dc-bc0f57e4cedf
---   Politics        = d82c59cd-7618-450e-97b6-12e6cc65d355
---   Technology      = cc1828a7-fd2a-4c46-ab39-516abd9172d2
---   World           = 5f65cdc8-a083-411c-8338-6c2684eb732f
---   Health          = 15a554c0-ac0b-4ff5-ad94-db17f7a7192f
---   Sports          = 7d908d92-418a-4f0c-9727-0bf915ee9b3e
+-- Ensure required categories exist (idempotent)
+INSERT INTO categories (id, name, slug, created_at) VALUES
+  (gen_random_uuid(), 'Business',    'business',       NOW()),
+  (gen_random_uuid(), 'Opinion',     'opinion',        NOW()),
+  (gen_random_uuid(), 'Politics',    'politics',       NOW()),
+  (gen_random_uuid(), 'Technology',  'technology',     NOW()),
+  (gen_random_uuid(), 'World',       'world',          NOW()),
+  (gen_random_uuid(), 'Health',      'health',         NOW()),
+  (gen_random_uuid(), 'Sports',      'sports',         NOW()),
+  (gen_random_uuid(), 'Crime & Security', 'crime-security', NOW()),
+  (gen_random_uuid(), 'National',    'national',       NOW()),
+  (gen_random_uuid(), 'Entertainment', 'entertainment', NOW()),
+  (gen_random_uuid(), 'Education',   'education',      NOW()),
+  (gen_random_uuid(), 'Environment', 'environment',    NOW()),
+  (gen_random_uuid(), 'Lifestyle',   'lifestyle',      NOW())
+ON CONFLICT (slug) DO NOTHING;
 
 -- 1. Nile Post
 INSERT INTO crawl_sources (
@@ -30,18 +37,18 @@ INSERT INTO crawl_sources (
   'https://nilepost.co.ug',
   'rss', TRUE,
   30,
-  'dd929398-6a5b-43e2-9f1e-4445d9cde194',
+  (SELECT id FROM categories WHERE slug = 'top-stories' LIMIT 1),
   'ugandan',
-  '{
-    "news": "dd929398-6a5b-43e2-9f1e-4445d9cde194",
-    "politics": "d82c59cd-7618-450e-97b6-12e6cc65d355",
-    "business": "e0046bd8-1301-493c-9dde-d5ad98d17945",
-    "sport": "7d908d92-418a-4f0c-9727-0bf915ee9b3e",
-    "sports": "7d908d92-418a-4f0c-9727-0bf915ee9b3e",
-    "health": "15a554c0-ac0b-4ff5-ad94-db17f7a7192f",
-    "opinion": "bb9890e7-83a4-448c-a8dc-bc0f57e4cedf",
-    "technology": "cc1828a7-fd2a-4c46-ab39-516abd9172d2"
-  }'::jsonb,
+  (SELECT jsonb_build_object(
+    'news',       (SELECT id::text FROM categories WHERE slug = 'top-stories' LIMIT 1),
+    'politics',   (SELECT id::text FROM categories WHERE slug = 'politics' LIMIT 1),
+    'business',   (SELECT id::text FROM categories WHERE slug = 'business' LIMIT 1),
+    'sport',      (SELECT id::text FROM categories WHERE slug = 'sports' LIMIT 1),
+    'sports',     (SELECT id::text FROM categories WHERE slug = 'sports' LIMIT 1),
+    'health',     (SELECT id::text FROM categories WHERE slug = 'health' LIMIT 1),
+    'opinion',    (SELECT id::text FROM categories WHERE slug = 'opinion' LIMIT 1),
+    'technology', (SELECT id::text FROM categories WHERE slug = 'technology' LIMIT 1)
+  )),
   '',
   'sponsored,advertisement,casino,betting',
   20,
@@ -63,18 +70,18 @@ INSERT INTO crawl_sources (
   'https://observer.ug',
   'rss', TRUE,
   30,
-  'dd929398-6a5b-43e2-9f1e-4445d9cde194',
+  (SELECT id FROM categories WHERE slug = 'top-stories' LIMIT 1),
   'ugandan',
-  '{
-    "news": "dd929398-6a5b-43e2-9f1e-4445d9cde194",
-    "politics": "d82c59cd-7618-450e-97b6-12e6cc65d355",
-    "business": "e0046bd8-1301-493c-9dde-d5ad98d17945",
-    "sport": "7d908d92-418a-4f0c-9727-0bf915ee9b3e",
-    "sports": "7d908d92-418a-4f0c-9727-0bf915ee9b3e",
-    "health": "15a554c0-ac0b-4ff5-ad94-db17f7a7192f",
-    "opinion": "bb9890e7-83a4-448c-a8dc-bc0f57e4cedf",
-    "technology": "cc1828a7-fd2a-4c46-ab39-516abd9172d2"
-  }'::jsonb,
+  (SELECT jsonb_build_object(
+    'news',       (SELECT id::text FROM categories WHERE slug = 'top-stories' LIMIT 1),
+    'politics',   (SELECT id::text FROM categories WHERE slug = 'politics' LIMIT 1),
+    'business',   (SELECT id::text FROM categories WHERE slug = 'business' LIMIT 1),
+    'sport',      (SELECT id::text FROM categories WHERE slug = 'sports' LIMIT 1),
+    'sports',     (SELECT id::text FROM categories WHERE slug = 'sports' LIMIT 1),
+    'health',     (SELECT id::text FROM categories WHERE slug = 'health' LIMIT 1),
+    'opinion',    (SELECT id::text FROM categories WHERE slug = 'opinion' LIMIT 1),
+    'technology', (SELECT id::text FROM categories WHERE slug = 'technology' LIMIT 1)
+  )),
   '',
   'sponsored,advertisement,casino,betting',
   20,
@@ -96,18 +103,18 @@ INSERT INTO crawl_sources (
   'https://www.independent.co.ug',
   'rss', TRUE,
   30,
-  'dd929398-6a5b-43e2-9f1e-4445d9cde194',
+  (SELECT id FROM categories WHERE slug = 'top-stories' LIMIT 1),
   'ugandan',
-  '{
-    "news": "dd929398-6a5b-43e2-9f1e-4445d9cde194",
-    "politics": "d82c59cd-7618-450e-97b6-12e6cc65d355",
-    "business": "e0046bd8-1301-493c-9dde-d5ad98d17945",
-    "sport": "7d908d92-418a-4f0c-9727-0bf915ee9b3e",
-    "sports": "7d908d92-418a-4f0c-9727-0bf915ee9b3e",
-    "health": "15a554c0-ac0b-4ff5-ad94-db17f7a7192f",
-    "opinion": "bb9890e7-83a4-448c-a8dc-bc0f57e4cedf",
-    "technology": "cc1828a7-fd2a-4c46-ab39-516abd9172d2"
-  }'::jsonb,
+  (SELECT jsonb_build_object(
+    'news',       (SELECT id::text FROM categories WHERE slug = 'top-stories' LIMIT 1),
+    'politics',   (SELECT id::text FROM categories WHERE slug = 'politics' LIMIT 1),
+    'business',   (SELECT id::text FROM categories WHERE slug = 'business' LIMIT 1),
+    'sport',      (SELECT id::text FROM categories WHERE slug = 'sports' LIMIT 1),
+    'sports',     (SELECT id::text FROM categories WHERE slug = 'sports' LIMIT 1),
+    'health',     (SELECT id::text FROM categories WHERE slug = 'health' LIMIT 1),
+    'opinion',    (SELECT id::text FROM categories WHERE slug = 'opinion' LIMIT 1),
+    'technology', (SELECT id::text FROM categories WHERE slug = 'technology' LIMIT 1)
+  )),
   '',
   'sponsored,advertisement,casino,betting',
   20,
@@ -129,22 +136,22 @@ INSERT INTO crawl_sources (
   'https://ugandaradionetwork.net',
   'rss', TRUE,
   30,
-  'dd929398-6a5b-43e2-9f1e-4445d9cde194',
+  (SELECT id FROM categories WHERE slug = 'top-stories' LIMIT 1),
   'ugandan',
-  '{
-    "news": "dd929398-6a5b-43e2-9f1e-4445d9cde194",
-    "politics": "d82c59cd-7618-450e-97b6-12e6cc65d355",
-    "business": "e0046bd8-1301-493c-9dde-d5ad98d17945",
-    "sport": "7d908d92-418a-4f0c-9727-0bf915ee9b3e",
-    "sports": "7d908d92-418a-4f0c-9727-0bf915ee9b3e",
-    "health": "15a554c0-ac0b-4ff5-ad94-db17f7a7192f",
-    "opinion": "bb9890e7-83a4-448c-a8dc-bc0f57e4cedf",
-    "northern": "64afe329-92af-48c3-9a6f-78bb96d11bbc",
-    "gulu": "64afe329-92af-48c3-9a6f-78bb96d11bbc",
-    "lira": "64afe329-92af-48c3-9a6f-78bb96d11bbc",
-    "acholi": "64afe329-92af-48c3-9a6f-78bb96d11bbc",
-    "lango": "64afe329-92af-48c3-9a6f-78bb96d11bbc"
-  }'::jsonb,
+  (SELECT jsonb_build_object(
+    'news',       (SELECT id::text FROM categories WHERE slug = 'top-stories' LIMIT 1),
+    'politics',   (SELECT id::text FROM categories WHERE slug = 'politics' LIMIT 1),
+    'business',   (SELECT id::text FROM categories WHERE slug = 'business' LIMIT 1),
+    'sport',      (SELECT id::text FROM categories WHERE slug = 'sports' LIMIT 1),
+    'sports',     (SELECT id::text FROM categories WHERE slug = 'sports' LIMIT 1),
+    'health',     (SELECT id::text FROM categories WHERE slug = 'health' LIMIT 1),
+    'opinion',    (SELECT id::text FROM categories WHERE slug = 'opinion' LIMIT 1),
+    'northern',   (SELECT id::text FROM categories WHERE slug = 'northern-uganda' LIMIT 1),
+    'gulu',       (SELECT id::text FROM categories WHERE slug = 'northern-uganda' LIMIT 1),
+    'lira',       (SELECT id::text FROM categories WHERE slug = 'northern-uganda' LIMIT 1),
+    'acholi',     (SELECT id::text FROM categories WHERE slug = 'northern-uganda' LIMIT 1),
+    'lango',      (SELECT id::text FROM categories WHERE slug = 'northern-uganda' LIMIT 1)
+  )),
   '',
   'sponsored,advertisement,casino,betting',
   20,
