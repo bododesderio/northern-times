@@ -1622,9 +1622,9 @@ html.dark [type="button"]:focus-visible {
 }
 
 /* ── Navigation ────────────────────────────────────────────────── */
-html.dark .nav,
+html.dark .cat-tabs,
 html.dark .site-header,
-html.dark .topbar {
+html.dark .header-bar {
   background: var(--color-bg-primary);
   border-color: var(--color-border);
 }

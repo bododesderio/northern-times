@@ -91,7 +91,7 @@
 
   /* ── Logo swap (Upgrade) ────────────────────────────────────── */
   function swapLogos(theme) {
-    var logos = document.querySelectorAll('img.site-logo, img[data-dark-src]');
+    var logos = document.querySelectorAll('img.header-logo, img.site-logo, img[data-dark-src]');
     for (var i = 0; i < logos.length; i++) {
       var img = logos[i];
       var lightSrc = img.getAttribute('data-light-src') || img.getAttribute('src');

@@ -62,8 +62,8 @@ html.dark-transition *::after {
    For pure black/white logos invert(1) alone is sufficient.
    Logos with strong brand colour should use site_logo_dark_url
    instead of relying on this filter.                               */
-html.dark .site-logo:not([data-dark-src]),
-html.dark .masthead-logo-img:not([data-dark-src]) {
+html.dark .header-logo:not([data-dark-src]),
+html.dark .header-brand img:not([data-dark-src]) {
   filter: invert(1) hue-rotate(180deg);
   opacity: 0.90;
 }

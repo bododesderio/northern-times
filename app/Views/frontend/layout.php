@@ -187,6 +187,9 @@ if ($metaType === 'article') {
     ?>
     <link rel="icon"             type="<?= h($mime) ?>" href="<?= h($faviconUrl) ?>" />
     <link rel="apple-touch-icon"                         href="<?= h($faviconUrl) ?>" />
+  <?php else: ?>
+    <link rel="icon" type="image/svg+xml" href="/assets/icon.svg" />
+    <link rel="apple-touch-icon" href="/assets/icon.svg" />
   <?php endif; ?>
 
   <!-- Open Graph -->
@@ -356,6 +359,8 @@ if ($metaType === 'article') {
     </div>
   </nav>
 </header>
+
+<div id="drawerBackdrop" class="drawer-backdrop"></div>
 
 <!-- Mobile drawer -->
 <aside class="drawer" id="drawer" aria-label="Mobile menu" aria-hidden="true">
