@@ -12,6 +12,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 _BROWSER_TIMEOUT = int(os.getenv("BROWSER_TIMEOUT_MS", "20000"))  # 20s default
+_BOT_NAME = os.getenv("APP_BOT_NAME", "NewsCrawlerBot")
 
 
 def extract_article_browser(
@@ -103,7 +104,7 @@ def _fetch_with_browser(url: str) -> Optional[str]:
                 extra_http_headers={
                     "Accept-Language": "en-US,en;q=0.9",
                     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "X-Crawler-Identity": "NorthernTimesBot/1.0",
+                    "X-Crawler-Identity": f"{_BOT_NAME}/1.0",
                 },
                 ignore_https_errors=True,
             )

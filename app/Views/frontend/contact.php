@@ -3,12 +3,12 @@
  * CONTACT US PAGE — First-class major page (Nocturnal Prestige editorial design)
  * Route: /contact (GET + POST)
  */
-$siteName = function_exists('site_name') ? site_name() : 'Northern Times';
+$siteName = function_exists('site_name') ? site_name() : ($_ENV['APP_NAME'] ?? 'News');
 $csrf = \App\Services\Csrf::token();
 $formError   = $formError   ?? '';
 $formSuccess = $formSuccess ?? false;
 $formData    = $formData    ?? ['name' => '', 'email' => '', 'subject' => '', 'message' => ''];
-$hostDomain  = parse_url(\app_url('/'), PHP_URL_HOST) ?: 'northerntimes.news';
+$hostDomain  = parse_url(\app_url('/'), PHP_URL_HOST) ?: ($_ENV['APP_DOMAIN'] ?? 'localhost');
 ?>
 
 <div class="np-page-wrap">

@@ -981,7 +981,7 @@ final class CrawlerEngine
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_MAXREDIRS      => 5,
                 CURLOPT_USERAGENT      => $ua,
-                CURLOPT_HTTPHEADER     => ['Accept: application/rss+xml, application/xml, text/xml, */*', 'X-Crawler-Identity: ' . RobotsChecker::USER_AGENT_FULL],
+                CURLOPT_HTTPHEADER     => ['Accept: application/rss+xml, application/xml, text/xml, */*', 'X-Crawler-Identity: ' . RobotsChecker::userAgentFull()],
                 CURLOPT_SSL_VERIFYPEER => ($_ENV['VERIFY_SSL'] ?? 'true') !== 'false',
                 CURLOPT_SSL_VERIFYHOST => ($_ENV['VERIFY_SSL'] ?? 'true') !== 'false' ? 2 : 0,
             ]);
@@ -1465,7 +1465,7 @@ final class CrawlerEngine
         $ctx = stream_context_create([
             'http' => [
                 'method'          => 'GET',
-                'header'          => "User-Agent: {$ua}\r\nAccept: application/rss+xml, application/xml, text/xml, */*\r\nX-Crawler-Identity: " . RobotsChecker::USER_AGENT_FULL,
+                'header'          => "User-Agent: {$ua}\r\nAccept: application/rss+xml, application/xml, text/xml, */*\r\nX-Crawler-Identity: " . RobotsChecker::userAgentFull(),
                 'timeout'         => self::FETCH_TIMEOUT,
                 'follow_location' => 1,
                 'max_redirects'   => 5,

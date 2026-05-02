@@ -88,6 +88,9 @@ cat <<'CRONTAB' | crontab -
 # Weekly digest: send top articles email (Sunday 8am)
 0 8 * * 0 cd /var/www/html && php cron/weekly_digest.php >> /var/www/html/storage/logs/digest.log 2>&1
 
+# AI Rewriter: process queued article rewrites (every 10 min)
+*/10 * * * * cd /var/www/html && php cron/rewrite.php >> /var/www/html/storage/logs/rewriter.log 2>&1
+
 # Log rotation: truncate logs > 50MB (daily at 3am)
 0 3 * * * find /var/www/html/storage/logs -name "*.log" -size +50M -exec truncate -s 0 {} \;
 CRONTAB

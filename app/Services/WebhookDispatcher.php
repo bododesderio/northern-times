@@ -80,7 +80,7 @@ final class WebhookDispatcher
 
         $headers = [
             'Content-Type: application/json',
-            'User-Agent: NorthernTimes-Webhook/1.0',
+            'User-Agent: ' . bot_name() . '-Webhook/1.0',
         ];
 
         if (!empty($webhook['secret'])) {

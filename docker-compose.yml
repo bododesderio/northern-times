@@ -124,6 +124,8 @@ services:
       context: ./docker/extractor
       dockerfile: Dockerfile
     container_name: northern_times_extractor
+    environment:
+      APP_BOT_NAME: ${APP_BOT_NAME:-NewsCrawlerBot}
     # ports removed — extractor only accessible via internal network
     tmpfs:
       - /tmp:size=100m
@@ -148,13 +150,13 @@ services:
     image: boky/postfix:v4.3.0
     container_name: northern_times_mail
     environment:
-      ALLOWED_SENDER_DOMAINS: ${APP_DOMAIN:-northerntimes.co.ug}
-      HOSTNAME: mail.${APP_DOMAIN:-northerntimes.co.ug}
+      ALLOWED_SENDER_DOMAINS: ${APP_DOMAIN:-localhost}
+      HOSTNAME: mail.${APP_DOMAIN:-localhost}
       RELAYHOST: ""
       # DKIM — mount key at /etc/opendkim/keys/${APP_DOMAIN}/default.private
       DKIM_SELECTOR: default
-      DKIM_KEY_TABLE: "default._domainkey.${APP_DOMAIN:-northerntimes.co.ug} ${APP_DOMAIN:-northerntimes.co.ug}:default:/etc/opendkim/keys/${APP_DOMAIN:-northerntimes.co.ug}/default.private"
-      DKIM_SIGNING_TABLE: "*@${APP_DOMAIN:-northerntimes.co.ug} default._domainkey.${APP_DOMAIN:-northerntimes.co.ug}"
+      DKIM_KEY_TABLE: "default._domainkey.${APP_DOMAIN:-localhost} ${APP_DOMAIN:-localhost}:default:/etc/opendkim/keys/${APP_DOMAIN:-localhost}/default.private"
+      DKIM_SIGNING_TABLE: "*@${APP_DOMAIN:-localhost} default._domainkey.${APP_DOMAIN:-localhost}"
     volumes:
       - dkim_keys:/etc/opendkim/keys
     networks:
@@ -235,6 +237,7 @@ services:
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3:8b}
       REWRITER_WORD_TOLERANCE: ${REWRITER_WORD_TOLERANCE:-50}
+      APP_NAME: ${APP_NAME:-The Northern Times}
     depends_on:
       ollama:
         condition: service_healthy

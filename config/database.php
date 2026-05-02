@@ -7,5 +7,5 @@ return [
   'port' => (int)($_ENV['DB_PORT'] ?? 5432),
   'database' => $_ENV['DB_NAME'] ?? 'northern_times',
   'username' => $_ENV['DB_USER'] ?? 'northern',
-  'password' => $_ENV['DB_PASS'] ?? 'northern_secret',
+  'password' => $_ENV['DB_PASS'] ?? '',
 ];

@@ -594,17 +594,19 @@ final class AdminSystemController extends Controller
         ];
 
         foreach ($tablesToTruncate as $t) {
+            $quoted = '"' . str_replace('"', '', $t) . '"';
             if ($this->tableExists($pdo, $t)) {
-                $c = (int)$pdo->query("SELECT COUNT(*) FROM {$t}")->fetchColumn();
-                $pdo->exec("TRUNCATE {$t} CASCADE");
+                $c = (int)$pdo->query("SELECT COUNT(*) FROM {$quoted}")->fetchColumn();
+                $pdo->exec("TRUNCATE {$quoted} CASCADE");
                 $details[] = "{$t}: {$c}";
             }
         }
 
         foreach ($optionalTables as $t) {
+            $quoted = '"' . str_replace('"', '', $t) . '"';
             if ($this->tableExists($pdo, $t)) {
-                $c = (int)$pdo->query("SELECT COUNT(*) FROM {$t}")->fetchColumn();
-                $pdo->exec("TRUNCATE {$t} CASCADE");
+                $c = (int)$pdo->query("SELECT COUNT(*) FROM {$quoted}")->fetchColumn();
+                $pdo->exec("TRUNCATE {$quoted} CASCADE");
                 $details[] = "{$t}: {$c}";
             }
         }
@@ -776,8 +778,10 @@ final class AdminSystemController extends Controller
     {
         $pdo = DB::pdo();
 
-        // VACUUM requires being outside a transaction
+        // VACUUM cannot run inside a transaction block — disable autocommit wrapping
+        $pdo->setAttribute(\PDO::ATTR_AUTOCOMMIT, 1);
         $pdo->exec("VACUUM ANALYZE");
+        $pdo->setAttribute(\PDO::ATTR_AUTOCOMMIT, 0);
 
         SystemLog::log('vacuum_database', "Ran VACUUM ANALYZE on database", 0, 'safe');
         Flash::set('success', 'Database vacuumed and analyzed successfully.');

@@ -3,7 +3,7 @@
  * ABOUT US PAGE — First-class major page (Nocturnal Prestige editorial design)
  * Route: /about
  */
-$siteName = function_exists('site_name') ? site_name() : 'Northern Times';
+$siteName = function_exists('site_name') ? site_name() : ($_ENV['APP_NAME'] ?? 'News');
 ?>
 
 <div class="np-page-wrap">

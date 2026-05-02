@@ -1,6 +1,6 @@
 """
 AI article rewriter — calls Ollama to rewrite crawled articles
-in The Northern Times editorial style.
+in the configured publication's editorial style.
 
 Supports:
   - Single-pass rewrite for normal articles
@@ -12,6 +12,8 @@ Supports:
 import logging
 import os
 import re
+
+PUBLICATION_NAME = os.environ.get("APP_NAME", "The Northern Times")
 
 import httpx
 
@@ -114,8 +116,8 @@ def _rewrite_body_single(content: str, model: str, rules: str | None) -> tuple[s
     rules_text = _rules_block(rules)
 
     prompt = (
-        "You are a senior editor at The Northern Times, a professional Ugandan daily newspaper.\n"
-        "Rewrite the following news article body in The Northern Times editorial style:\n"
+        f"You are a senior editor at {PUBLICATION_NAME}, a professional Ugandan daily newspaper.\n"
+        f"Rewrite the following news article body in {PUBLICATION_NAME} editorial style:\n"
         "- Clear, professional East African English\n"
         "- Preserve every fact, name, date, figure and quote exactly\n"
         f"- Target length: approximately {orig_wc} words (acceptable range {lo}–{hi} words)\n"
@@ -133,7 +135,7 @@ def _rewrite_body_single(content: str, model: str, rules: str | None) -> tuple[s
     # Retry once if word count deviates beyond tolerance
     if abs(new_wc - orig_wc) > WORD_TOLERANCE:
         strict_prompt = (
-            "You are a senior editor at The Northern Times, a professional Ugandan daily newspaper.\n"
+            f"You are a senior editor at {PUBLICATION_NAME}, a professional Ugandan daily newspaper.\n"
             f"Rewrite this news article body. It MUST be between {lo} and {hi} words.\n"
             "Keep all facts exactly as given. Professional East African English. Third-person style.\n"
             "Output ONLY the rewritten body.\n"
@@ -187,9 +189,9 @@ def rewrite_article(
             hi = chunk_wc + WORD_TOLERANCE
 
             chunk_prompt = (
-                "You are a senior editor at The Northern Times, a professional Ugandan daily newspaper.\n"
+                f"You are a senior editor at {PUBLICATION_NAME}, a professional Ugandan daily newspaper.\n"
                 f"You are rewriting PART {i} OF {chunks_processed} of a longer article.\n"
-                "Rewrite this section in The Northern Times editorial style:\n"
+                f"Rewrite this section in {PUBLICATION_NAME} editorial style:\n"
                 "- Clear, professional East African English\n"
                 "- Preserve every fact, name, date, figure and quote exactly\n"
                 f"- Target length: approximately {chunk_wc} words\n"
@@ -215,7 +217,7 @@ def rewrite_article(
 
     # ── Rewrite headline ─────────────────────────────────────────
     title_prompt = (
-        "Rewrite this news headline for The Northern Times newspaper.\n"
+        f"Rewrite this news headline for {PUBLICATION_NAME} newspaper.\n"
         "Keep the same meaning and all key facts. Be concise and professional.\n"
         "Output ONLY the rewritten headline — no quotes, no labels.\n"
         f"{rules_text}\n"
@@ -228,7 +230,7 @@ def rewrite_article(
     if excerpt or new_body:
         source = new_body[:600] if new_body else excerpt
         exc_prompt = (
-            "Write a one-sentence summary (max 30 words) of this article for The Northern Times.\n"
+            f"Write a one-sentence summary (max 30 words) of this article for {PUBLICATION_NAME}.\n"
             "Output ONLY the summary sentence — no labels, no quotes.\n"
             f"{rules_text}\n"
             f"ARTICLE: {source}\nSUMMARY:"

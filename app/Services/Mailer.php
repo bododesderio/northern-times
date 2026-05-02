@@ -512,7 +512,7 @@ ARTICLE;
     {
         try {
             $pdo = DB::pdo();
-            $subject = ($article['title'] ?? 'New Article') . ' — ' . ($_ENV['APP_NAME'] ?? 'The Northern Times');
+            $subject = ($article['title'] ?? 'New Article') . ' — ' . (site_name());
 
             $batchSize = 500;
             $offset = 0;

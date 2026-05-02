@@ -9,6 +9,30 @@ function h($string): string
 }
 
 /**
+ * Return the configured bot user-agent name (white-label safe).
+ */
+function bot_name(): string
+{
+    return $_ENV['APP_BOT_NAME'] ?? 'NewsCrawlerBot';
+}
+
+/**
+ * Render a styled error page and return a Response.
+ */
+function abort(int $code = 404): \Symfony\Component\HttpFoundation\Response
+{
+    $errorFile = __DIR__ . '/../Views/errors/' . $code . '.php';
+    if (!file_exists($errorFile)) {
+        $errorFile = __DIR__ . '/../Views/errors/500.php';
+    }
+    $detail = '';
+    ob_start();
+    require $errorFile;
+    $body = ob_get_clean();
+    return new \Symfony\Component\HttpFoundation\Response((string)$body, $code, ['Content-Type' => 'text/html; charset=UTF-8']);
+}
+
+/**
  * Sanitise HTML for safe rendering in article bodies.
  * Uses a DOM-based sanitizer immune to encoding tricks.
  *
@@ -772,8 +796,8 @@ function render_ad(array $ads, string $slotName, string $class = ''): string
     $inner = '';
 
     if ($type === 'html' || $type === 'adsense') {
-        // Raw HTML / AdSense / embed_code
-        $inner = $ad['content'] ?? $ad['embed_code'] ?? '';
+        // Raw HTML / AdSense / embed_code — sanitize to prevent stored XSS
+        $inner = safe_html($ad['content'] ?? $ad['embed_code'] ?? '');
 
     } elseif ($type === 'image') {
         // Support both File 1 ('content' = img src) and File 2 ('image_url')

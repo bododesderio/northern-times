@@ -25,7 +25,7 @@ $activeNav = '';
     </header>
 
     <div class="np-policy-body">
-      <?= $page['content'] /* already HTML from CKEditor — trusted content */ ?>
+      <?= safe_html($page['content'] ?? '') ?>
     </div>
 
   </article>

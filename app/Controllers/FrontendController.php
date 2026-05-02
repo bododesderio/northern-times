@@ -145,7 +145,7 @@ final class FrontendController extends Controller
   public function article(string $slug): Response
   {
     $article = Article::findPublished($slug);
-    if (!$article) return new Response("404 Not Found", 404);
+    if (!$article) return abort(404);
 
     // Debounced view tracking — one view per IP per 30 min
     $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
@@ -231,7 +231,7 @@ final class FrontendController extends Controller
   public function tag(string $slug): Response
   {
     $tag = Tag::findBy('slug', $slug);
-    if (!$tag) return new Response("404 Not Found", 404);
+    if (!$tag) return abort(404);
 
     $page = max(1, (int)(Request::createFromGlobals()->query->get('page', 1)));
     $result = Tag::articles($slug, $page, 20);
@@ -262,7 +262,7 @@ final class FrontendController extends Controller
   public function author(string $username): Response
   {
     $user = User::findByUsername($username);
-    if (!$user) return new Response("404 Not Found", 404);
+    if (!$user) return abort(404);
 
     $page    = max(1, (int)(Request::createFromGlobals()->query->get('page', 1)));
     $perPage = 20;
@@ -344,7 +344,7 @@ final class FrontendController extends Controller
   public function category(string $slug): Response
   {
     $category = Category::findBySlug($slug);
-    if (!$category) return new Response("404 Not Found", 404);
+    if (!$category) return abort(404);
 
     $articles = Article::byCategorySlug($slug, 1, 40)['rows'];
 
@@ -560,7 +560,7 @@ final class FrontendController extends Controller
             $titleEl->appendChild($dom->createTextNode((string)$it['title']));
             $item->appendChild($titleEl);
 
-            $linkUrl = $site . '/' . $it['slug'];
+            $linkUrl = $site . '/article/' . $it['slug'];
             $item->appendChild($dom->createElement('link', $linkUrl));
 
             $guid = $dom->createElement('guid', $linkUrl);
@@ -813,9 +813,14 @@ Disallow: /search?
      ================================================================ */
   public function adClick(string $id): Response
   {
+    // Rate limit: 30 clicks per minute per IP
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (!RateLimiter::allow('ad_click:' . $ip, 30, 60)) {
+      return new Response('', 429);
+    }
+
     // Log click event
     try {
-      $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
       $page = $_SERVER['HTTP_REFERER'] ?? '/';
       \App\Services\DB::pdo()->prepare(
         "INSERT INTO ad_events (ad_slot_id, ip_address, event_type, page_url) VALUES (:id, :ip::inet, 'click', :page)"
@@ -833,13 +838,16 @@ Disallow: /search?
 
   public function adImpression(): Response
   {
+    // Rate limit: 120 impressions per minute per IP
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (!RateLimiter::allow('ad_impression:' . $ip, 120, 60)) {
+      return new Response('', 429);
+    }
+
     try {
       $body = json_decode(file_get_contents('php://input'), true);
       $adId = $body['ad_id'] ?? '';
       $page = $body['page'] ?? '/';
-
-      if ($adId && preg_match('/^[0-9a-f\-]{36}$/i', $adId)) {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
         \App\Services\DB::pdo()->prepare(
           "INSERT INTO ad_events (ad_slot_id, ip_address, event_type, page_url) VALUES (:id, :ip::inet, 'impression', :page)"
         )->execute([':id' => $adId, ':ip' => $ip, ':page' => mb_substr($page, 0, 500)]);
@@ -1014,7 +1022,7 @@ Disallow: /search?
         if ($token) {
           $displayName = $name ?: 'there';
           $html = \App\Services\Mailer::welcomeEmail($displayName, $token);
-          \App\Services\Mailer::send($email, 'Welcome to ' . ($_ENV['APP_NAME'] ?? 'The Northern Times'), $html);
+          \App\Services\Mailer::send($email, 'Welcome to ' . (site_name()), $html);
         }
       } catch (\Throwable $e) {
         error_log('Newsletter welcome email failed: ' . $e->getMessage());
@@ -1128,6 +1136,12 @@ Disallow: /search?
      ================================================================ */
   public function shareTrack(): Response
   {
+    // Rate limit: 20 shares per minute per IP
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (!RateLimiter::allow('share:' . $ip, 20, 60)) {
+      return new Response('', 429);
+    }
+
     try {
       $body = json_decode(file_get_contents('php://input'), true);
       $articleId = $body['article_id'] ?? '';
@@ -1160,6 +1174,12 @@ Disallow: /search?
      ================================================================ */
   public function engagementTrack(): Response
   {
+    // Rate limit: 30 engagement events per minute per IP
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (!RateLimiter::allow('engagement:' . $ip, 30, 60)) {
+      return new Response('', 429);
+    }
+
     try {
       $body = json_decode(file_get_contents('php://input'), true);
       $articleId = $body['article_id'] ?? '';
@@ -1180,21 +1200,22 @@ Disallow: /search?
       $pdo->prepare("INSERT INTO engagement_events (article_id, ip_address, scroll_depth, time_on_page) VALUES (:aid, :ip::inet, :sd, :tp)")
         ->execute([':aid' => $articleId, ':ip' => $ip, ':sd' => $scrollDepth, ':tp' => $timeOnPage]);
 
-      // Update article aggregate every 10th event
+      // Update article aggregate every 10th event (single CTE to avoid 5 subqueries)
       $count = $pdo->prepare("SELECT COUNT(*) FROM engagement_events WHERE article_id = :aid");
       $count->execute([':aid' => $articleId]);
       if ((int)$count->fetchColumn() % 10 === 0) {
         $pdo->prepare("
+          WITH agg AS (
+            SELECT AVG(scroll_depth) AS avg_sd, AVG(time_on_page)::integer AS avg_tp
+            FROM engagement_events WHERE article_id = :aid1
+          )
           UPDATE articles SET
-            avg_scroll_depth = (SELECT AVG(scroll_depth) FROM engagement_events WHERE article_id = :aid1),
-            avg_time_on_page = (SELECT AVG(time_on_page)::integer FROM engagement_events WHERE article_id = :aid2),
-            engagement_score = (
-              (SELECT AVG(scroll_depth) FROM engagement_events WHERE article_id = :aid3) * 0.4 +
-              LEAST((SELECT AVG(time_on_page) FROM engagement_events WHERE article_id = :aid4), 300) / 3 * 0.3 +
-              LEAST(share_count, 100) * 0.3
-            )
-          WHERE id = :aid5
-        ")->execute([':aid1' => $articleId, ':aid2' => $articleId, ':aid3' => $articleId, ':aid4' => $articleId, ':aid5' => $articleId]);
+            avg_scroll_depth = agg.avg_sd,
+            avg_time_on_page = agg.avg_tp,
+            engagement_score = agg.avg_sd * 0.4 + LEAST(agg.avg_tp, 300) / 3.0 * 0.3 + LEAST(share_count, 100) * 0.3
+          FROM agg
+          WHERE id = :aid2
+        ")->execute([':aid1' => $articleId, ':aid2' => $articleId]);
       }
     } catch (\Throwable) {}
 
@@ -1427,18 +1448,6 @@ Disallow: /search?
     // Store in contact_messages table
     try {
       $pdo = \App\Services\DB::pdo();
-
-      // Auto-create table if it doesn't exist
-      $pdo->exec("CREATE TABLE IF NOT EXISTS contact_messages (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(255) NOT NULL,
-        email VARCHAR(255) NOT NULL,
-        subject VARCHAR(500) NOT NULL,
-        message TEXT NOT NULL,
-        ip_address INET,
-        is_read BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      )");
 
       $stmt = $pdo->prepare("INSERT INTO contact_messages (name, email, subject, message, ip_address) VALUES (:name, :email, :subject, :message, :ip::inet)");
       $stmt->execute([

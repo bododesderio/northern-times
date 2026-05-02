@@ -90,16 +90,6 @@ final class AdminController extends Controller
     try {
       $pdo = \App\Services\DB::pdo();
 
-      // Auto-create table
-      $pdo->exec("CREATE TABLE IF NOT EXISTS password_resets (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        email VARCHAR(255) NOT NULL,
-        token VARCHAR(64) NOT NULL UNIQUE,
-        used BOOLEAN DEFAULT FALSE,
-        expires_at TIMESTAMPTZ NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      )");
-
       // Check user exists
       $stmt = $pdo->prepare("SELECT id, name FROM users WHERE email = :email AND is_active = TRUE LIMIT 1");
       $stmt->execute([':email' => $email]);
@@ -121,7 +111,7 @@ final class AdminController extends Controller
         // Send email
         $resetUrl = ($_ENV['APP_URL'] ?? 'http://localhost:8080') . '/admin/reset-password/' . $token;
         $html = \App\Services\Mailer::passwordResetEmail($user['name'] ?? 'User', $resetUrl);
-        \App\Services\Mailer::send($email, 'Password Reset — ' . ($_ENV['APP_NAME'] ?? 'The Northern Times'), $html);
+        \App\Services\Mailer::send($email, 'Password Reset — ' . (site_name()), $html);
       }
     } catch (\Throwable $e) {
       error_log('Password reset error: ' . $e->getMessage());

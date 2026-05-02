@@ -198,7 +198,7 @@ final class ArticleScraper
                 'Sec-Fetch-Mode: navigate',
                 'Sec-Fetch-Site: none',
                 'Upgrade-Insecure-Requests: 1',
-                'X-Crawler-Identity: ' . RobotsChecker::USER_AGENT_FULL,
+                'X-Crawler-Identity: ' . RobotsChecker::userAgentFull(),
             ],
             CURLOPT_ENCODING => '',
         ]);

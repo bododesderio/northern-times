@@ -26,7 +26,7 @@ use App\Models\DbBackup;
 use App\Services\DB;
 
 // Lock file to prevent overlapping runs
-$lockFile = __DIR__ . '/../storage/cache/daily_maintenance.lock';
+$lockFile = sys_get_temp_dir() . '/nt_daily_maintenance.lock';
 $fp = fopen($lockFile, 'w');
 if (!flock($fp, LOCK_EX | LOCK_NB)) {
     echo "[daily] Already running, skipping.\n";

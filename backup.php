@@ -31,7 +31,7 @@ $dbHost = $_ENV['DB_HOST'] ?? 'db';
 $dbPort = $_ENV['DB_PORT'] ?? '5432';
 $dbName = $_ENV['DB_NAME'] ?? 'northern_times';
 $dbUser = $_ENV['DB_USER'] ?? 'northern';
-$dbPass = $_ENV['DB_PASS'] ?? 'northern_secret';
+$dbPass = $_ENV['DB_PASS'] ?? '';
 
 $backupDir   = __DIR__ . '/storage/backups';
 $retainDays  = 7;

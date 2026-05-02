@@ -369,7 +369,7 @@ final class AdminCrawlerController extends Controller
             $ctx = stream_context_create([
                 'http' => [
                     'method'  => 'GET',
-                    'header'  => 'User-Agent: NorthernTimesCrawler/1.0',
+                    'header'  => 'User-Agent: ' . bot_name() . '/1.0',
                     'timeout' => 10,
                 ],
                 'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],

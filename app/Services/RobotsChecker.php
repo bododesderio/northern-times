@@ -13,8 +13,8 @@ namespace App\Services;
  */
 final class RobotsChecker
 {
-    public const USER_AGENT = 'NorthernTimesBot';
-    public const USER_AGENT_FULL = 'NorthernTimesBot/1.0';
+    public static function userAgent(): string { return bot_name(); }
+    public static function userAgentFull(): string { return bot_name() . '/1.0'; }
     private const CACHE_TTL = 86400; // 24 hours
     private const FETCH_TIMEOUT = 5;
 
@@ -119,7 +119,7 @@ final class RobotsChecker
         // Find best matching block: specific agent > wildcard
         $specific = null;
         $wildcard = null;
-        $botName  = strtolower(self::USER_AGENT);
+        $botName  = strtolower(self::userAgent());
 
         foreach ($blocks as $block) {
             foreach ($block['agents'] as $agent) {
@@ -198,7 +198,7 @@ final class RobotsChecker
         $ctx = stream_context_create([
             'http' => [
                 'timeout'          => self::FETCH_TIMEOUT,
-                'user_agent'       => self::USER_AGENT . '/1.0',
+                'user_agent'       => self::userAgent() . '/1.0',
                 'follow_location'  => true,
                 'max_redirects'    => 3,
                 'ignore_errors'    => true,

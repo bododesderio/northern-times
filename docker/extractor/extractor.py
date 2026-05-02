@@ -32,6 +32,8 @@ from content_cleaner import clean_and_normalize
 
 logger = logging.getLogger("extractor")
 
+BOT_NAME = os.environ.get("APP_BOT_NAME", "NewsCrawlerBot")
+
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15",
@@ -197,7 +199,7 @@ def _fetch_robots(robots_url: str) -> urllib.robotparser.RobotFileParser:
     rp.set_url(robots_url)
     try:
         # Use urllib directly with a timeout to prevent hanging
-        req = urllib.request.Request(robots_url, headers={"User-Agent": "NorthernTimesBot/1.0"})
+        req = urllib.request.Request(robots_url, headers={"User-Agent": f"{BOT_NAME}/1.0"})
         with urllib.request.urlopen(req, timeout=5) as resp:
             raw = resp.read(100_000).decode("utf-8", errors="replace")
         rp.parse(raw.splitlines())
@@ -206,7 +208,7 @@ def _fetch_robots(robots_url: str) -> urllib.robotparser.RobotFileParser:
     return rp
 
 def _is_robots_allowed(url: str) -> bool:
-    """Return True if NorthernTimesBot is allowed to crawl this URL.
+    """Return True if our bot is allowed to crawl this URL.
 
     can_fetch already falls back to wildcard rules if no agent-specific rule exists.
     """
@@ -214,7 +216,7 @@ def _is_robots_allowed(url: str) -> bool:
         parsed = urlparse(url)
         robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
         rp = _fetch_robots(robots_url)
-        return rp.can_fetch("NorthernTimesBot", url)
+        return rp.can_fetch(BOT_NAME, url)
     except Exception:
         return True  # fail open
 
@@ -284,7 +286,7 @@ def fetch_page(url: str, retries: int = 2) -> str | None:
         "Sec-Fetch-Mode": "navigate",
         "Sec-Fetch-Site": "same-origin",
         "Upgrade-Insecure-Requests": "1",
-        "X-Crawler-Identity": "NorthernTimesBot/1.0",
+        "X-Crawler-Identity": f"{BOT_NAME}/1.0",
     }
     import time
     for attempt in range(1, retries + 1):

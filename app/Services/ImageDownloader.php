@@ -211,7 +211,7 @@ final class ImageDownloader
 
         $userAgents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (compatible; NorthernTimesBot/1.0)',
+            'Mozilla/5.0 (compatible; ' . bot_name() . '/1.0)',
         ];
 
         for ($attempt = 0; $attempt < self::MAX_RETRIES; $attempt++) {
@@ -231,7 +231,7 @@ final class ImageDownloader
                     'Accept: image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
                     'Referer: ' . parse_url($url, PHP_URL_SCHEME) . '://' . parse_url($url, PHP_URL_HOST) . '/',
                     'Accept-Language: en-US,en;q=0.9',
-                    'X-Crawler-Identity: ' . \App\Services\RobotsChecker::USER_AGENT_FULL,
+                    'X-Crawler-Identity: ' . \App\Services\RobotsChecker::userAgentFull(),
                 ],
             ]);
 

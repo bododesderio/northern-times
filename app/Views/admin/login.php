@@ -63,7 +63,7 @@ ob_start();
 
     </div>
 
-    <div class="lp-left-foot">Powered by Northern Times CMS</div>
+    <div class="lp-left-foot">Powered by <?= h($siteTitle) ?> CMS</div>
   </div>
 
   <!-- ── Right form panel ──────────────────────────────────── -->

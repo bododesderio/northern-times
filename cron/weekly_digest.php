@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 set_time_limit(0);
 
-$lockFile = __DIR__ . '/../storage/cache/weekly_digest.lock';
+$lockFile = sys_get_temp_dir() . '/nt_weekly_digest.lock';
 $fp = fopen($lockFile, 'w');
 if (!flock($fp, LOCK_EX | LOCK_NB)) {
     echo "[digest] Already running.\n";
@@ -24,9 +24,18 @@ require_once __DIR__ . '/../app/Support/helpers.php';
 use App\Services\DB;
 use App\Services\Cache;
 
+// Redis distributed lock for multi-container deployments
+try {
+    $redis = Cache::redis();
+    if ($redis && !$redis->set('lock:weekly_digest', getmypid(), ['NX', 'EX' => 7200])) {
+        echo "[digest] Redis lock held by another instance.\n";
+        exit(0);
+    }
+} catch (\Throwable) {}
+
 echo "[digest] " . date('Y-m-d H:i:s') . " Starting weekly digest...\n";
 
-$siteTitle = function_exists('site_name') ? site_name() : ($_ENV['APP_NAME'] ?? 'Northern Times');
+$siteTitle = function_exists('site_name') ? site_name() : ($_ENV['APP_NAME'] ?? 'News');
 $siteUrl = rtrim($_ENV['APP_URL'] ?? 'http://localhost:8080', '/');
 
 // Get top articles from past 7 days
