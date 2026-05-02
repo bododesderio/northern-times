@@ -76,7 +76,7 @@ final class RobotsChecker
     }
 
     /**
-     * Parse robots.txt content and extract rules for NorthernTimesBot
+     * Parse robots.txt content and extract rules for our crawler bot
      * or the wildcard (*) agent, preferring the specific agent.
      */
     private static function parse(string $content): array

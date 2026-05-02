@@ -291,7 +291,7 @@ final class SocialPoster
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_TIMEOUT        => self::TIMEOUT,
             CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_USERAGENT      => 'NorthernTimesSocialPoster/1.0',
+            CURLOPT_USERAGENT      => bot_name() . '/1.0',
         ]);
         $response = curl_exec($ch);
         $code     = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);

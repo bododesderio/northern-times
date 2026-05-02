@@ -141,7 +141,8 @@ final class WebPush
     {
         $vapidPublic  = \get_site_setting('push_vapid_public');
         $vapidPrivate = \get_site_setting('push_vapid_private');
-        $subject      = \get_site_setting('push_subject', 'mailto:admin@example.com');
+        $domain = $_ENV['APP_DOMAIN'] ?? 'localhost';
+        $subject      = \get_site_setting('push_subject', 'mailto:admin@' . $domain);
 
         if (!$vapidPublic || !$vapidPrivate) return 'error';
 

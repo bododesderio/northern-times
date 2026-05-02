@@ -128,7 +128,7 @@ final class GeoIP
             $ctx = stream_context_create([
                 'http' => [
                     'timeout' => self::TIMEOUT,
-                    'header'  => "Accept: application/json\r\nUser-Agent: NorthernTimesCMS/1.0\r\n",
+                    'header'  => "Accept: application/json\r\nUser-Agent: " . bot_name() . "/1.0\r\n",
                 ],
             ]);
 
@@ -165,7 +165,7 @@ final class GeoIP
             $ctx = stream_context_create([
                 'http' => [
                     'timeout' => 5,
-                    'header'  => "User-Agent: NorthernTimesCMS/1.0 (contact@northerntimes.news)\r\n",
+                    'header'  => "User-Agent: " . bot_name() . "/1.0\r\n",
                 ],
             ]);
 

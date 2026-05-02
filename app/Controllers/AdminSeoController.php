@@ -24,7 +24,7 @@ final class AdminSeoController extends Controller
         try {
             SeoAudit::queryOne("SELECT 1 FROM seo_audits LIMIT 1");
         } catch (\Throwable) {
-            Flash::set('error', 'SEO Audit tables not found. Run migration: docker exec -it northern_times_app php database/migrate.php');
+            Flash::set('error', 'SEO Audit tables not found. Run migration: php database/migrate.php');
             return $this->render('admin/crawler/seo', [
                 'latest' => null, 'recentAudits' => [], 'trend' => [], 'issueSummary' => [],
                 'checkDetails' => [], 'settings' => ['seo_audit_enabled' => 'false', 'seo_audit_schedule' => 'weekly', 'seo_last_run' => ''],

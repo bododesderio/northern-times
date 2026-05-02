@@ -30,7 +30,7 @@ final class AdminCrawlerController extends Controller
                 'crawlerEnabled' => false,
                 'csrf'           => Csrf::token(),
                 'flash_success'  => Flash::get('success'),
-                'flash_error'    => 'Crawler tables not found. Run migration: docker exec -it northern_times_app php database/migrate.php',
+                'flash_error'    => 'Crawler tables not found. Run migration: php database/migrate.php',
             ]);
         }
 

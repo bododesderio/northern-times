@@ -32,10 +32,11 @@ final class Mailer
     private static function boot(): void
     {
         if (self::$fromEmail !== null) return;
+        $domain = $_ENV['APP_DOMAIN'] ?? 'localhost';
         self::$fromEmail = self::setting('mail_from_address', $_ENV['MAIL_FROM_ADDRESS'] ?? null)
             ?? (function_exists('get_site_setting')
-                ? get_site_setting('contact_email', 'noreply@example.com')
-                : 'noreply@example.com');
+                ? get_site_setting('contact_email', 'noreply@' . $domain)
+                : 'noreply@' . $domain);
         self::$fromName = self::setting('mail_from_name', $_ENV['MAIL_FROM_NAME'] ?? null)
             ?? (function_exists('get_site_setting')
                 ? get_site_setting('site_title', 'Newsletter')
@@ -88,7 +89,7 @@ final class Mailer
         $headers .= "Reply-To: " . self::$fromEmail . "\r\n";
         $headers .= "MIME-Version: 1.0\r\n";
         $headers .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
-        $headers .= "X-Mailer: NorthernTimes/1.0\r\n";
+        $headers .= "X-Mailer: " . bot_name() . "/1.0\r\n";
 
         $textPart = $bodyText ?: strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $bodyHtml));
 
@@ -173,7 +174,7 @@ final class Mailer
             $message .= "Subject: {$subject}\r\n";
             $message .= "MIME-Version: 1.0\r\n";
             $message .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
-            $message .= "X-Mailer: NorthernTimes/1.0\r\n";
+            $message .= "X-Mailer: " . bot_name() . "/1.0\r\n";
             $message .= "Date: " . date('r') . "\r\n";
             $domain = $_ENV['APP_DOMAIN'] ?? parse_url($_ENV['APP_URL'] ?? '', PHP_URL_HOST) ?? $host;
             $message .= "Message-ID: <" . bin2hex(random_bytes(16)) . "@" . $domain . ">\r\n";

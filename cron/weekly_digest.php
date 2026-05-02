@@ -59,6 +59,7 @@ if (empty($articles)) {
 }
 
 // Build HTML email
+$accent = function_exists('get_site_setting') ? get_site_setting('theme_accent', '#cc0000') : '#cc0000';
 $html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>';
 $html .= '<body style="margin:0;padding:0;background:#f4f4f4;font-family:Georgia,serif">';
 $html .= '<div style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #e0e0e0">';
@@ -84,17 +85,17 @@ foreach ($articles as $i => $a) {
     if ($img) {
         $html .= '<a href="' . htmlspecialchars($url) . '"><img src="' . $img . '" alt="" style="width:100%;height:auto;border-radius:6px;margin-bottom:10px" /></a>';
     }
-    $html .= '<div style="font-size:11px;color:#cc0000;text-transform:uppercase;font-weight:700;letter-spacing:.05em">' . htmlspecialchars($a['category']) . '</div>';
+    $html .= '<div style="font-size:11px;color:' . $accent . ';text-transform:uppercase;font-weight:700;letter-spacing:.05em">' . htmlspecialchars($a['category']) . '</div>';
     $html .= '<h2 style="margin:4px 0 6px;font-size:18px"><a href="' . htmlspecialchars($url) . '" style="color:#1a1a1a;text-decoration:none">' . htmlspecialchars($a['title']) . '</a></h2>';
     $html .= '<p style="margin:0;font-size:14px;color:#555;line-height:1.5">' . htmlspecialchars(mb_substr($a['excerpt'] ?? '', 0, 150)) . '</p>';
-    $html .= '<a href="' . htmlspecialchars($url) . '" style="display:inline-block;margin-top:8px;color:#cc0000;font-size:13px;font-weight:600;text-decoration:none">Read more &rarr;</a>';
+    $html .= '<a href="' . htmlspecialchars($url) . '" style="display:inline-block;margin-top:8px;color:' . $accent . ';font-size:13px;font-weight:600;text-decoration:none">Read more &rarr;</a>';
     $html .= '</div>';
 }
 
 // Footer
 $html .= '<div style="background:#f8f8f8;padding:16px 24px;font-size:12px;color:#888;text-align:center;border-top:1px solid #eee">';
 $html .= '<p>You are receiving this because you subscribed to ' . htmlspecialchars($siteTitle) . '.</p>';
-$html .= '<p><a href="{{unsubscribe_url}}" style="color:#cc0000">Unsubscribe</a></p>';
+$html .= '<p><a href="{{unsubscribe_url}}" style="color:' . $accent . '">Unsubscribe</a></p>';
 $html .= '</div></div></body></html>';
 
 // Queue emails to active subscribers

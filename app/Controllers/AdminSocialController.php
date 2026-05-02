@@ -21,7 +21,7 @@ final class AdminSocialController extends Controller
         try {
             SocialMention::queryOne("SELECT 1 FROM social_mentions LIMIT 1");
         } catch (\Throwable) {
-            Flash::set('error', 'Social Monitor tables not found. Run migration: docker exec -it northern_times_app php database/migrate.php');
+            Flash::set('error', 'Social Monitor tables not found. Run migration: php database/migrate.php');
             return $this->render('admin/crawler/social', [
                 'mentions' => [], 'stats' => ['total_mentions' => 0, 'today_mentions' => 0, 'unread_mentions' => 0],
                 'sentimentStats' => [], 'platformStats' => [], 'keywords' => [], 'trend' => [],
