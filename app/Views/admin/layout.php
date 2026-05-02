@@ -138,9 +138,7 @@ function sidebarLink(string $key, string $label, string $href, string $active, b
     <link rel="icon" type="<?= h($mime) ?>" href="<?= h($faviconUrl) ?>" />
   <?php endif; ?>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Libre+Franklin:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/assets/fonts/fonts.css"/>
 
   <?= get_theme_css() ?>
 
@@ -310,29 +308,7 @@ function sidebarLink(string $key, string $label, string $href, string $active, b
   .nt-tb-av-circle { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0; }
   .nt-tb-av-name { font-size: 13px; font-weight: 500; }
 
-  /* ── UPGRADE: Admin theme toggle button (topbar) ────────────────
-     Cycles light ↔ dark via cookie. No page reload needed — JS
-     toggles data-adm-theme on <html> immediately, then sets cookie
-     for server to persist on next request.                         */
-  .nt-theme-toggle {
-    background: none;
-    border: 1px solid var(--adm-border);
-    border-radius: 8px;
-    padding: 6px 10px;
-    cursor: pointer;
-    color: var(--adm-muted);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    font-weight: 500;
-    transition: all var(--speed, .18s);
-  }
-  .nt-theme-toggle:hover { color: var(--adm-ink); border-color: var(--adm-muted); background: var(--adm-bg); }
-  .nt-theme-toggle .icon-dark  { display: none; }
-  .nt-theme-toggle .icon-light { display: flex; }
-  html[data-adm-theme="dark"] .nt-theme-toggle .icon-dark  { display: flex; }
-  html[data-adm-theme="dark"] .nt-theme-toggle .icon-light { display: none; }
+  /* Theme is admin-controlled via Settings > Appearance (light/dark/os). No user toggle. */
 
   /* ── CONTENT ─────────────────────────────────────────────────── */
   .nt-content {
@@ -514,35 +490,31 @@ function sidebarLink(string $key, string $label, string $href, string $active, b
   .lp-left-foot { position: relative; z-index: 2; padding: 16px 52px; border-top: 1px solid rgba(255,255,255,.07); font-family: var(--ui, system-ui, sans-serif); font-size: 11px; color: rgba(255,255,255,.2); letter-spacing: .04em; }
 
   /* Right panel */
-  .lp-right { flex: 1; display: flex; align-items: center; justify-content: center; background: var(--adm-bg, #f2f2f3); padding: 40px 24px; }
+  .lp-right { flex: 1; display: flex; align-items: center; justify-content: center; background: #1c1917; padding: 40px 24px; }
   .lp-form-wrap { width: 100%; max-width: 400px; animation: lpFadeUp .4s cubic-bezier(.2,.8,.2,1) both; }
   @keyframes lpFadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-  .lp-mobile-brand { display: none; font-family: 'UnifrakturMaguntia', Georgia, serif; font-size: 28px; color: var(--adm-ink, #1a1a1a); margin-bottom: 28px; }
+  .lp-mobile-brand { display: none; font-family: 'UnifrakturMaguntia', Georgia, serif; font-size: 28px; color: #fafafa; margin-bottom: 28px; }
   .lp-form-header { margin-bottom: 28px; }
-  .lp-form-title { font-family: var(--ui, system-ui, sans-serif); font-size: 26px; font-weight: 800; letter-spacing: -.02em; color: var(--adm-ink, #1a1a1a); margin: 0 0 6px; }
-  .lp-form-sub { font-family: var(--ui, system-ui, sans-serif); font-size: 14px; color: var(--adm-muted, #666); margin: 0; }
-  .lp-error { display: flex; align-items: center; gap: 8px; background: rgba(185,28,28,.08); border: 1px solid rgba(185,28,28,.25); color: #b91c1c; border-radius: 10px; padding: 11px 14px; font-size: 13px; font-weight: 500; font-family: var(--ui, system-ui, sans-serif); margin-bottom: 20px; animation: lpShake .35s cubic-bezier(.36,.07,.19,.97) both; }
-  html[data-adm-theme="dark"] .lp-error { background: rgba(185,28,28,.18); border-color: rgba(252,165,165,.3); color: #fca5a5; }
+  .lp-form-title { font-family: var(--ui, system-ui, sans-serif); font-size: 26px; font-weight: 800; letter-spacing: -.02em; color: #fafafa; margin: 0 0 6px; }
+  .lp-form-sub { font-family: var(--ui, system-ui, sans-serif); font-size: 14px; color: #a8a29e; margin: 0; }
+  .lp-error { display: flex; align-items: center; gap: 8px; background: rgba(211,47,47,.15); border: 1px solid #D32F2F; color: #ffb3ac; border-radius: 10px; padding: 11px 14px; font-size: 13px; font-weight: 500; font-family: var(--ui, system-ui, sans-serif); margin-bottom: 20px; animation: lpShake .35s cubic-bezier(.36,.07,.19,.97) both; }
   @keyframes lpShake { 10%,90%{transform:translateX(-2px)} 20%,80%{transform:translateX(3px)} 30%,50%,70%{transform:translateX(-4px)} 40%,60%{transform:translateX(4px)} }
   .lp-form { display: flex; flex-direction: column; gap: 18px; }
   .lp-field { display: flex; flex-direction: column; gap: 7px; }
-  .lp-label { font-family: var(--ui, system-ui, sans-serif); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--adm-muted, #666); }
+  .lp-label { font-family: var(--ui, system-ui, sans-serif); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #a8a29e; }
   .lp-input-wrap { position: relative; display: flex; align-items: center; }
-  .lp-input-icon { position: absolute; left: 13px; color: var(--adm-muted, #999); pointer-events: none; flex-shrink: 0; }
-  .lp-input { width: 100%; padding: 12px 40px; border: 1.5px solid var(--adm-border, #e2e2e2); border-radius: 10px; background: var(--adm-surface, #fff); color: var(--adm-ink, #1a1a1a); font-family: var(--ui, system-ui, sans-serif); font-size: 15px; transition: border-color .15s, box-shadow .15s; outline: none; }
-  .lp-input::placeholder { color: var(--adm-muted, #bbb); }
-  .lp-input:focus { border-color: var(--adm-ink, #1a1a1a); box-shadow: 0 0 0 3px rgba(26,26,26,.07); }
-  html[data-adm-theme="dark"] .lp-input { background: var(--adm-surface,#1c1c1e); border-color: var(--adm-border,#2c2c2e); color: var(--adm-ink,#e8e8ea); }
-  html[data-adm-theme="dark"] .lp-input:focus { border-color: rgba(255,255,255,.5); box-shadow: 0 0 0 3px rgba(255,255,255,.06); }
-  .lp-pw-toggle { position: absolute; right: 12px; background: none; border: none; cursor: pointer; color: var(--adm-muted, #999); padding: 4px; display: flex; transition: color .15s; }
-  .lp-pw-toggle:hover { color: var(--adm-ink, #1a1a1a); }
-  .lp-submit { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px 20px; background: var(--adm-ink, #1a1a1a); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-family: var(--ui, system-ui, sans-serif); font-size: 15px; font-weight: 700; letter-spacing: .01em; margin-top: 4px; transition: opacity .15s, transform .1s; }
-  .lp-submit:hover { opacity: .88; transform: translateY(-1px); }
+  .lp-input-icon { position: absolute; left: 13px; color: #78716c; pointer-events: none; flex-shrink: 0; }
+  .lp-input { width: 100%; padding: 12px 40px; border: 1.5px solid #292524; border-radius: 10px; background: #0c0a09; color: #fafafa; font-family: var(--ui, system-ui, sans-serif); font-size: 15px; transition: border-color .15s, box-shadow .15s; outline: none; }
+  .lp-input::placeholder { color: #78716c; }
+  .lp-input:focus { border-color: #D32F2F; box-shadow: 0 0 0 3px rgba(211,47,47,.15); }
+  .lp-pw-toggle { position: absolute; right: 12px; background: none; border: none; cursor: pointer; color: #78716c; padding: 4px; display: flex; transition: color .15s; }
+  .lp-pw-toggle:hover { color: #fafafa; }
+  .lp-submit { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px 20px; background: #D32F2F; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-family: var(--ui, system-ui, sans-serif); font-size: 15px; font-weight: 700; letter-spacing: .01em; margin-top: 4px; transition: background .15s, transform .1s; }
+  .lp-submit:hover { background: #b71c1c; transform: translateY(-1px); }
   .lp-submit:active { transform: translateY(0); }
-  html[data-adm-theme="dark"] .lp-submit { background: var(--adm-ink,#e8e8ea); color: #111; }
   .lp-foot { margin-top: 24px; text-align: center; }
-  .lp-back-link { display: inline-flex; align-items: center; gap: 5px; font-family: var(--ui, system-ui, sans-serif); font-size: 13px; color: var(--adm-muted, #999); text-decoration: none; transition: color .15s; }
-  .lp-back-link:hover { color: var(--adm-ink, #1a1a1a); }
+  .lp-back-link { display: inline-flex; align-items: center; gap: 5px; font-family: var(--ui, system-ui, sans-serif); font-size: 13px; color: #78716c; text-decoration: none; transition: color .15s; }
+  .lp-back-link:hover { color: #fafafa; }
   @media (max-width: 780px) {
     .lp-wrap { flex-direction: column; }
     .lp-left { display: none; }
@@ -576,7 +548,7 @@ function sidebarLink(string $key, string $label, string $href, string $active, b
         $contentActive  = in_array($activeNav, ['articles','archive','categories','media']);
         $editorialActive = in_array($activeNav, ['review','comments','notifications']);
         $growthActive   = in_array($activeNav, ['subscribers','newsletter','popups','analytics','ads','social-posts','push-settings','performance','engagement','syndication','followers']);
-        $crawlerActive  = in_array($activeNav, ['crawler','crawler-logs','crawler-seo','crawler-social','crawler-settings']);
+        $crawlerActive  = in_array($activeNav, ['crawler','crawler-logs','crawler-seo','crawler-social','crawler-settings','rewriter','rewriter-settings']);
         $adminActive    = in_array($activeNav, ['settings','users','roles','system','login-quotes']);
         $editorialActive = in_array($activeNav, ['review','comments','notifications','policies']);
 
@@ -685,6 +657,9 @@ function sidebarLink(string $key, string $label, string $href, string $active, b
           <?= sidebarLink('crawler-seo',      'SEO Audit',        '/admin/crawler/seo',      $activeNav) ?>
           <?= sidebarLink('crawler-social',   'Social Monitor',   '/admin/crawler/social',   $activeNav) ?>
           <?= sidebarLink('crawler-settings', 'Crawler Settings', '/admin/crawler/settings', $activeNav) ?>
+          <div class="nt-nav-divider"></div>
+          <?= sidebarLink('rewriter',          'AI Rewriter',      '/admin/rewriter',          $activeNav) ?>
+          <?= sidebarLink('rewriter-settings', 'Rewriter Settings','/admin/rewriter/settings', $activeNav) ?>
         </div>
       </div>
       <?php endif; ?>

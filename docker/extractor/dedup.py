@@ -46,9 +46,11 @@ def normalize_title(title: str) -> str:
     return t
 
 
+_STEM_EXCEPTIONS = frozenset({"news", "this", "analysis", "crisis", "basis", "series", "species", "virus"})
+
 def _simple_stem(word: str) -> str:
     """Very basic suffix stripping for English news headlines."""
-    if len(word) <= 4:
+    if len(word) <= 4 or word in _STEM_EXCEPTIONS:
         return word
     # Common suffixes in news headlines
     for suffix in ("ying", "ting", "ning", "ring", "ling", "sing",
@@ -102,7 +104,7 @@ def title_fingerprint(title: str) -> str:
     """Create a fingerprint hash from normalized title keywords."""
     norm = normalize_title(title)
     keywords = sorted(extract_keywords(norm))
-    return hashlib.md5(" ".join(keywords).encode()).hexdigest()
+    return hashlib.sha256(" ".join(keywords).encode()).hexdigest()
 
 
 def titles_are_similar(title1: str, title2: str, threshold: float = 0.55) -> bool:

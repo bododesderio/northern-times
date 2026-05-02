@@ -33,8 +33,11 @@ def score_quality(
     # Text length (max 25 pts): 500+ words = full marks
     score += min(25, words // 20)
 
-    # Paragraph count (max 15 pts)
-    paragraphs = text.count("\n\n") + 1
+    # Paragraph count (max 15 pts) — count <p> tags from HTML if available, else newlines
+    if html:
+        paragraphs = max(1, len(re.findall(r"<p[\s>]", html, re.IGNORECASE)))
+    else:
+        paragraphs = text.count("\n\n") + text.count("\n") // 2 + 1
     score += min(15, paragraphs * 2)
 
     # Quote presence (10 pts)

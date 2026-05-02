@@ -4,7 +4,9 @@ require __DIR__ . '/../vendor/autoload.php';
 use App\Services\DB;
 $pdo = DB::pdo();
 
-$adminId = '881ac471-e40e-4096-9907-3630b291e19b';
+// Fetch actual admin user ID from DB
+$adminId = $pdo->query("SELECT id FROM users WHERE role IN ('super_admin','admin') ORDER BY created_at ASC LIMIT 1")->fetchColumn();
+if (!$adminId) { die("ERROR: No admin user found in database.\n"); }
 
 echo "=== SEEDING ARTICLES WITH IMAGES FOR ALL 19 CATEGORIES ===\n\n";
 

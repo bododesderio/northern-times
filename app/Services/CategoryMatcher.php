@@ -442,31 +442,7 @@ final class CategoryMatcher
             }
         }
 
-        // Auto-create category from RSS tags if meaningful
-        foreach ($rssCategories as $rssCat) {
-            $rssCat = trim($rssCat);
-            if ($rssCat === '' || strlen($rssCat) < 3 || strlen($rssCat) > 25) continue;
-            // Must be 1-3 words (real categories, not article titles)
-            if (str_word_count($rssCat) > 3) continue;
-            // Skip generic/useless tags
-            $skip = ['uncategorized', 'featured', 'latest', 'breaking', 'top stories',
-                     'news', 'general', 'home', 'headline', 'headlines', 'all', 'misc',
-                     'front page', 'slider', 'main', 'post', 'blog', 'top', 'article',
-                     'national', 'local', 'international', 'opinion', 'editorial',
-                     'world news', 'africa news', 'east africa news'];
-            if (in_array($rssCat, $skip)) continue;
-
-            $newCatId = Category::findOrCreate($rssCat);
-            if ($newCatId !== '') {
-                return [
-                    'category_id'  => $newCatId,
-                    'confidence'   => 70,
-                    'matched_slug' => strtolower($rssCat) . ' (auto-created)',
-                ];
-            }
-        }
-
-        // Final fallback — source default category
+        // Final fallback — source default category (never auto-create categories)
         return [
             'category_id'  => $defaultId,
             'confidence'   => $best['confidence'] ?? 0,

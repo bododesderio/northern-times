@@ -20,11 +20,13 @@ final class WebhookDispatcher
                        OR events LIKE :ends_with
                        OR events LIKE :middle)
             ");
+            // Escape LIKE wildcards in event name to prevent unintended matches
+            $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $event);
             $stmt->execute([
                 ':event' => $event,
-                ':starts_with' => $event . ',%',
-                ':ends_with' => '%,' . $event,
-                ':middle' => '%,' . $event . ',%',
+                ':starts_with' => $escaped . ',%',
+                ':ends_with' => '%,' . $escaped,
+                ':middle' => '%,' . $escaped . ',%',
             ]);
             $webhooks = $stmt->fetchAll();
 
@@ -36,6 +38,10 @@ final class WebhookDispatcher
 
             foreach ($webhooks as $wh) {
                 $ch = self::buildCurlHandle($wh, $event, $payload);
+                if ($ch === null) {
+                    self::logResult($wh, $event, $payload, 0, 'Blocked: internal/private URL');
+                    continue;
+                }
                 curl_multi_add_handle($mh, $ch);
                 $handles[] = ['ch' => $ch, 'webhook' => $wh];
             }
@@ -82,6 +88,29 @@ final class WebhookDispatcher
             $headers[] = 'X-Webhook-Signature: sha256=' . $sig;
         }
 
+        // SSRF protection: block internal/private URLs
+        $parsedUrl = parse_url($webhook['url']);
+        $host = $parsedUrl['host'] ?? '';
+        $blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1', 'extractor', 'postgres', 'redis', 'mail', 'pgadmin', 'ollama'];
+        if (in_array(strtolower($host), $blockedHosts, true)) {
+            error_log("WebhookDispatcher: blocked internal URL {$webhook['url']}");
+            return null;
+        }
+        $ip = gethostbyname($host);
+        if ($ip !== $host) {
+            $longIp = ip2long($ip);
+            if ($longIp !== false && (
+                ($longIp >> 24) === 127 ||           // 127.0.0.0/8
+                ($longIp >> 24) === 10 ||            // 10.0.0.0/8
+                ($longIp >> 20) === (172 << 4 | 1) ||// 172.16.0.0/12
+                ($longIp >> 16) === (192 << 8 | 168)||// 192.168.0.0/16
+                ($longIp >> 16) === (169 << 8 | 254) // 169.254.0.0/16
+            )) {
+                error_log("WebhookDispatcher: blocked private IP {$ip} for {$webhook['url']}");
+                return null;
+            }
+        }
+
         $ch = curl_init($webhook['url']);
         curl_setopt_array($ch, [
             CURLOPT_POST => true,
@@ -90,6 +119,8 @@ final class WebhookDispatcher
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => 5,
             CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
         ]);
 
         return $ch;

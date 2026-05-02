@@ -7,7 +7,9 @@ use App\Models\Article;
 use App\Models\Category;
 use App\Models\CrawlLog;
 use App\Models\CrawlSource;
+use App\Models\Notification;
 use App\Models\Setting;
+use App\Services\RobotsChecker;
 use App\Services\StoryThreadDetector;
 use App\Services\ImageDownloader;
 use App\Services\ArticleScraper;
@@ -46,6 +48,12 @@ final class CrawlerEngine
         $logId = CrawlLog::start($source['id']);
 
         try {
+            // robots.txt compliance check before fetching feed (admin-toggleable)
+            if (Setting::get('crawler_robots_check', 'false') === 'true' && !RobotsChecker::isAllowed($source['feed_url'])) {
+                CrawlLog::finish($logId, 0, 0, 0, 0, [['status' => 'robots-blocked', 'reason' => 'robots.txt disallows feed URL']]);
+                return [0, 0, 0];
+            }
+
             $xml = self::fetchFeed($source['feed_url']);
             if (!$xml) {
                 throw new \RuntimeException('Failed to fetch or parse feed');
@@ -66,7 +74,10 @@ final class CrawlerEngine
             $catMap     = json_decode($source['category_map'] ?? '{}', true) ?: [];
 
             // Get global settings
-            $autoPublish   = Setting::get('crawler_auto_publish', 'true') === 'true';
+            $publishMode   = Setting::get('crawler_auto_publish', 'pending_review');
+            if ($publishMode === 'true') $publishMode = 'published';
+            if ($publishMode === 'false') $publishMode = 'draft';
+            if (!empty($source['require_review'])) $publishMode = 'pending_review';
             $maxAgeHours   = (int)Setting::get('crawler_max_age_hours', '72');
             $defaultAuthor = Setting::get('crawler_default_author', '');
 
@@ -89,10 +100,12 @@ final class CrawlerEngine
             $eligibleHashes = []; // parallel array of hashes
 
             foreach ($items as $item) {
-                // Skip if too old
-                if ($item['published_at'] && $maxAgeHours > 0) {
+                // Skip if too old (missing dates default to now)
+                if ($maxAgeHours > 0 && !empty($item['published_at'])) {
                     $ts = strtotime($item['published_at']);
                     if ($ts !== false && (time() - $ts) / 3600 > $maxAgeHours) continue;
+                    // Reject articles with unparseable dates that aren't empty
+                    if ($ts === false && $item['published_at'] !== '') continue;
                 }
 
                 // Keyword filtering
@@ -122,7 +135,7 @@ final class CrawlerEngine
                     ];
                 }
 
-                $batchResponse = ExtractorClient::enrichBatch($batchArticles, [
+                $batchOpts = [
                     'source_selectors'  => $source['content_selector'] ?? null,
                     'strip_selectors'   => $source['strip_selectors'] ?? null,
                     'system_categories' => $systemSlugs,
@@ -139,7 +152,18 @@ final class CrawlerEngine
                         'sentiment'         => true,
                         'quality'           => true,
                     ],
-                ]);
+                ];
+                $batchResponse = ExtractorClient::enrichBatch($batchArticles, $batchOpts);
+
+                // Retry once on failure (extractor may have been cold-starting)
+                if ($batchResponse === null) {
+                    error_log("CrawlerEngine: batch enrichment failed for {$source['name']}, retrying in 5s...");
+                    sleep(5);
+                    $batchResponse = ExtractorClient::enrichBatch($batchArticles, $batchOpts);
+                    if ($batchResponse === null) {
+                        error_log("CrawlerEngine: batch enrichment retry failed for {$source['name']} — falling back to individual enrichment");
+                    }
+                }
 
                 if ($batchResponse !== null) {
                     $enrichResults = $batchResponse;
@@ -147,8 +171,11 @@ final class CrawlerEngine
             }
 
             // ── Phase 3: Process enrichment results + insert articles ──
+            $pdo = \App\Models\BaseModel::pdo();
+            $pdo->beginTransaction();
             foreach ($eligible as $idx => $item) {
                 try {
+                    $pdo->exec("SAVEPOINT article_{$idx}");
                     // Memory safety
                     $memUsed = memory_get_usage(true);
                     $memLimit = self::getMemoryLimitBytes();
@@ -279,6 +306,13 @@ final class CrawlerEngine
                     }
 
                     // Add attribution — tiny ⓘ icon, tooltip only on hover
+                    // Quality gate: reject articles with insufficient content
+                    $plainText = strip_tags($content);
+                    if (mb_strlen($plainText) < 800) {
+                        $details[] = ['title' => $item['title'], 'status' => 'too-short'];
+                        continue;
+                    }
+
                     $attribution = $source['attribution_text'] ?: ('Source: ' . $source['name']);
                     $nofollow    = $source['nofollow'] ? ' rel="nofollow noopener"' : ' rel="noopener"';
                     $attrHtml    = '<p class="crawled-attribution" style="text-align:right;margin-top:16px">'
@@ -348,7 +382,7 @@ final class CrawlerEngine
 
                     // ── Insert article (ON CONFLICT avoids slug race) ──
                     $slug = self::resolveUniqueSlug($pdo, $slug);
-                    $status = $autoPublish ? 'published' : 'draft';
+                    $status = $publishMode;
                     $stmt = $pdo->prepare(
                         "INSERT INTO articles
                             (title, slug, content, excerpt, author_id, category_id,
@@ -376,7 +410,7 @@ final class CrawlerEngine
                         ':status'         => $status,
                         ':published_at'   => $status === 'published'
                             ? ($extractorDate ? date('Y-m-d H:i:s', strtotime($extractorDate)) ?: gmdate('Y-m-d H:i:s') : gmdate('Y-m-d H:i:s'))
-                            : null,
+                            : null, // pending_review and draft get published_at set on approval
                         ':created_by'     => $authorId,
                         ':display_author' => self::cleanAuthorName(
                             $extractorAuthors,
@@ -399,14 +433,26 @@ final class CrawlerEngine
                     $newId = $stmt->fetchColumn();
                     if (!$newId) {
                         $dupes++;
+                        error_log("CrawlerEngine: slug conflict for '{$item['title']}' (slug: {$slug})");
                         $details[] = ['title' => $item['title'], 'status' => 'slug-conflict'];
                         continue;
                     }
                     $new++;
-                    $details[] = ['title' => $item['title'], 'status' => 'published'];
+                    $details[] = ['title' => $item['title'], 'status' => $status];
 
                     // ── Post-insert enrichment storage ───────────────
                     if ($newId) {
+                        // Notify editors if article needs review
+                        if ($status === 'pending_review') {
+                            try {
+                                Notification::notifyEditors(
+                                    Notification::TYPE_ARTICLE_SUBMITTED,
+                                    'Crawled article needs review',
+                                    mb_substr($item['title'], 0, 255) . ' (from ' . $source['name'] . ')',
+                                    '/admin/review'
+                                );
+                            } catch (\Throwable) {}
+                        }
                         // Store embedding
                         if ($embedding) {
                             self::storeEmbedding($pdo, $newId, $embedding);
@@ -425,16 +471,49 @@ final class CrawlerEngine
 
                         // Score for breaking news detection
                         try { BreakingNewsEngine::scoreAndUpdate($newId); } catch (\Throwable $e) {}
+
+                        // Fire webhook for new article
+                        try {
+                            WebhookDispatcher::dispatch('article.published', [
+                                'id' => $newId,
+                                'title' => $item['title'] ?? '',
+                                'slug' => $slug,
+                                'source' => 'crawler',
+                                'url' => ($_ENV['APP_URL'] ?? '') . '/article/' . $slug,
+                            ]);
+                        } catch (\Throwable) {}
+
+                        // Queue for AI rewriting if enabled for this source
+                        if (($_ENV['REWRITER_ENABLED'] ?? 'false') === 'true' && !empty($source['auto_rewrite'])) {
+                            try {
+                                $pdo->prepare("UPDATE articles SET rewrite_status = 'queued' WHERE id = :id")
+                                    ->execute([':id' => $newId]);
+                            } catch (\Throwable) {}
+                        }
+
+                        // Queue email notification to all subscribers (if enabled)
+                        if (function_exists('get_site_setting') && get_site_setting('notify_subscribers_on_crawl', '0') === '1') {
+                            try {
+                                \App\Services\Mailer::notifySubscribersOfArticle([
+                                    'title'          => $item['title'] ?? '',
+                                    'slug'           => $slug,
+                                    'excerpt'        => $excerpt ?? '',
+                                    'featured_image' => $featuredImage ?? '',
+                                ]);
+                            } catch (\Throwable) {}
+                        }
                     }
 
                     // Add new title to existing titles for subsequent dedup in this batch
                     $existingTitles[] = $item['title'];
 
                 } catch (\Throwable $e) {
+                    try { $pdo->exec("ROLLBACK TO SAVEPOINT article_{$idx}"); } catch (\Throwable) {}
                     $errors++;
                     $details[] = ['title' => $item['title'] ?? '?', 'status' => 'error', 'error' => $e->getMessage()];
                 }
             }
+            try { $pdo->commit(); } catch (\Throwable) { try { $pdo->rollBack(); } catch (\Throwable) {} }
 
             $logStatus = $errors > 0 ? ($new > 0 ? 'partial' : 'failed') : 'success';
             CrawlLog::finish($logId, $logStatus, $found, $new, $dupes, null, $details);
@@ -447,9 +526,11 @@ final class CrawlerEngine
             return [$found, $new, $dupes];
 
         } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) { try { $pdo->rollBack(); } catch (\Throwable) {} }
             CrawlLog::finish($logId, 'failed', 0, 0, 0, $e->getMessage());
             CrawlSource::markCrawled($source['id'], false, $e->getMessage());
             CrawlSource::incrementStats($source['id'], 0, 0, 1);
+            self::incrementFailures($source['id']);
             throw $e;
         }
     }
@@ -516,6 +597,11 @@ final class CrawlerEngine
 
             // Process each source sequentially (article inserts must be sequential)
             foreach ($batch as $i => $source) {
+                // robots.txt compliance check before processing (admin-toggleable)
+                if (Setting::get('crawler_robots_check', 'false') === 'true' && !RobotsChecker::isAllowed($source['feed_url'])) {
+                    $results[$source['id']] = ['found' => 0, 'new' => 0, 'dupes' => 0, 'status' => 'robots-blocked'];
+                    continue;
+                }
                 try {
                     $xml = $feedData[$i] ?? null;
                     if ($xml === null) {
@@ -615,25 +701,25 @@ final class CrawlerEngine
     }
 
     /**
-     * Resolve a unique slug by appending a suffix if the base slug already exists.
-     * Uses a single query to find the next available suffix atomically.
+     * Resolve a unique slug. Tries the base slug first, then appends random
+     * suffixes. The actual INSERT uses ON CONFLICT DO NOTHING so even if two
+     * processes pick the same slug, one silently wins and the other retries.
      */
     private static function resolveUniqueSlug(\PDO $pdo, string $baseSlug): string
     {
-        $stmt = $pdo->prepare(
-            "SELECT slug FROM articles WHERE slug = :slug OR slug LIKE :pattern ORDER BY slug DESC LIMIT 1"
-        );
-        $stmt->execute([':slug' => $baseSlug, ':pattern' => $baseSlug . '-%']);
-        $existing = $stmt->fetchColumn();
+        $stmt = $pdo->prepare("SELECT 1 FROM articles WHERE slug = :slug LIMIT 1");
+        $stmt->execute([':slug' => $baseSlug]);
+        if (!$stmt->fetchColumn()) return $baseSlug;
 
-        if (!$existing) return $baseSlug;
-
-        // Extract the highest suffix number
-        if ($existing === $baseSlug) {
-            return $baseSlug . '-1';
+        // Retry with random suffixes (up to 5 attempts)
+        for ($i = 0; $i < 5; $i++) {
+            $candidate = $baseSlug . '-' . bin2hex(random_bytes(3));
+            $stmt->execute([':slug' => $candidate]);
+            if (!$stmt->fetchColumn()) return $candidate;
         }
-        $suffix = (int)substr($existing, strlen($baseSlug) + 1);
-        return $baseSlug . '-' . ($suffix + 1);
+
+        // Final fallback: timestamp + random for guaranteed uniqueness
+        return $baseSlug . '-' . time() . '-' . bin2hex(random_bytes(4));
     }
 
     // ── Semantic dedup & story clustering ─────────────────────
@@ -644,7 +730,11 @@ final class CrawlerEngine
     private static function findSemanticMatch(\PDO $pdo, array $embedding): ?array
     {
         try {
-            $embStr = '[' . implode(',', $embedding) . ']';
+            // Validate embedding values are finite
+            foreach ($embedding as $v) {
+                if (!is_finite((float)$v)) return null;
+            }
+            $embStr = '[' . implode(',', array_map('floatval', $embedding)) . ']';
             $stmt = $pdo->prepare(
                 "SELECT id, title, story_cluster_id,
                         1 - (embedding <=> :emb::vector) AS similarity
@@ -671,7 +761,17 @@ final class CrawlerEngine
     private static function storeEmbedding(\PDO $pdo, string $articleId, array $embedding): void
     {
         try {
-            $embStr = '[' . implode(',', $embedding) . ']';
+            // Validate all values are finite floats before building pgvector string
+            $validated = [];
+            foreach ($embedding as $v) {
+                $f = (float)$v;
+                if (!is_finite($f)) {
+                    error_log("CrawlerEngine::storeEmbedding: non-finite value in embedding for article {$articleId}, skipping");
+                    return;
+                }
+                $validated[] = $f;
+            }
+            $embStr = '[' . implode(',', $validated) . ']';
             $stmt = $pdo->prepare("UPDATE articles SET embedding = :emb::vector WHERE id = :id");
             $stmt->execute([':emb' => $embStr, ':id' => $articleId]);
         } catch (\Throwable $e) {
@@ -693,8 +793,15 @@ final class CrawlerEngine
             return $existingClusterId;
         }
 
-        // Create new cluster with matched article as canonical
+        // Create new cluster atomically — if matched article got a cluster
+        // between our check and now, use that instead of creating a duplicate.
         try {
+            // Re-check: another process may have created a cluster for this article
+            $checkStmt = $pdo->prepare("SELECT story_cluster_id FROM articles WHERE id = :aid");
+            $checkStmt->execute([':aid' => $matchedArticleId]);
+            $currentCluster = $checkStmt->fetchColumn();
+            if ($currentCluster) return $currentCluster;
+
             $stmt = $pdo->prepare(
                 "INSERT INTO story_clusters (canonical_article_id, title) VALUES (:aid, :title) RETURNING id"
             );
@@ -702,7 +809,7 @@ final class CrawlerEngine
             $clusterId = $stmt->fetchColumn();
 
             // Update the matched article to belong to this cluster
-            $pdo->prepare("UPDATE articles SET story_cluster_id = :cid WHERE id = :aid")
+            $pdo->prepare("UPDATE articles SET story_cluster_id = :cid WHERE id = :aid AND story_cluster_id IS NULL")
                 ->execute([':cid' => $clusterId, ':aid' => $matchedArticleId]);
 
             return $clusterId;
@@ -786,18 +893,35 @@ final class CrawlerEngine
                 $pdo->prepare(
                     "UPDATE crawl_sources SET
                         consecutive_empty = 0,
+                        consecutive_failures = 0,
                         last_new_content_at = NOW(),
                         avg_articles_per_day = COALESCE(avg_articles_per_day * 0.7 + :rate * 0.3, :rate)
                      WHERE id = :id"
                 )->execute([':rate' => $rate, ':id' => $source['id']]);
             } else {
                 $pdo->prepare(
-                    "UPDATE crawl_sources SET consecutive_empty = COALESCE(consecutive_empty, 0) + 1 WHERE id = :id"
+                    "UPDATE crawl_sources SET
+                        consecutive_empty = COALESCE(consecutive_empty, 0) + 1,
+                        consecutive_failures = 0
+                     WHERE id = :id"
                 )->execute([':id' => $source['id']]);
             }
         } catch (\Throwable $e) {
             error_log("CrawlerEngine::updateAdaptiveSchedule: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Increment consecutive_failures counter for a source after a crawl error.
+     */
+    private static function incrementFailures(int $sourceId): void
+    {
+        try {
+            $pdo = \App\Models\BaseModel::pdo();
+            $pdo->prepare(
+                "UPDATE crawl_sources SET consecutive_failures = COALESCE(consecutive_failures, 0) + 1 WHERE id = :id"
+            )->execute([':id' => $sourceId]);
+        } catch (\Throwable) {}
     }
 
     /**
@@ -807,8 +931,9 @@ final class CrawlerEngine
      */
     public static function effectiveInterval(array $source): int
     {
-        $avg   = (float)($source['avg_articles_per_day'] ?? 0);
-        $empty = (int)($source['consecutive_empty'] ?? 0);
+        $avg      = (float)($source['avg_articles_per_day'] ?? 0);
+        $empty    = (int)($source['consecutive_empty'] ?? 0);
+        $failures = (int)($source['consecutive_failures'] ?? 0);
 
         // Base interval from activity level
         if ($avg > 5) {
@@ -824,6 +949,11 @@ final class CrawlerEngine
         // Backoff for consecutive empty crawls
         if ($empty >= 5) {
             $interval = min(120, $interval * 2);
+        }
+
+        // Exponential backoff for consecutive failures (max 480min = 8h)
+        if ($failures >= 3) {
+            $interval = min(480, $interval * (int)pow(2, min($failures - 2, 4)));
         }
 
         return $interval;
@@ -851,20 +981,26 @@ final class CrawlerEngine
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_MAXREDIRS      => 5,
                 CURLOPT_USERAGENT      => $ua,
-                CURLOPT_HTTPHEADER     => ['Accept: application/rss+xml, application/xml, text/xml, */*'],
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_SSL_VERIFYHOST => 0,
+                CURLOPT_HTTPHEADER     => ['Accept: application/rss+xml, application/xml, text/xml, */*', 'X-Crawler-Identity: ' . RobotsChecker::USER_AGENT_FULL],
+                CURLOPT_SSL_VERIFYPEER => ($_ENV['VERIFY_SSL'] ?? 'true') !== 'false',
+                CURLOPT_SSL_VERIFYHOST => ($_ENV['VERIFY_SSL'] ?? 'true') !== 'false' ? 2 : 0,
             ]);
             curl_multi_add_handle($mh, $ch);
             $handles[$i] = $ch;
         }
 
-        // Execute all requests
+        // Execute all requests (configurable total timeout to prevent indefinite blocking)
         $running = null;
+        $totalTimeout = (int)(Setting::get('crawler_parallel_timeout', '120') ?: 120);
+        $deadline = microtime(true) + $totalTimeout;
         do {
             curl_multi_exec($mh, $running);
             if ($running > 0) {
                 curl_multi_select($mh, 1);
+                if (microtime(true) > $deadline) {
+                    error_log("CrawlerEngine::fetchFeedsParallel: total timeout (120s) exceeded, aborting remaining feeds");
+                    break;
+                }
             }
         } while ($running > 0);
 
@@ -914,7 +1050,10 @@ final class CrawlerEngine
             $items = array_slice($items, 0, (int)($source['max_articles'] ?? 20));
 
             $categories = Category::nameSlugList();
-            $autoPublish   = Setting::get('crawler_auto_publish', 'true') === 'true';
+            $publishMode   = Setting::get('crawler_auto_publish', 'pending_review');
+            if ($publishMode === 'true') $publishMode = 'published';
+            if ($publishMode === 'false') $publishMode = 'draft';
+            if (!empty($source['require_review'])) $publishMode = 'pending_review';
             $maxAgeHours   = (int)Setting::get('crawler_max_age_hours', '72');
             $defaultAuthor = Setting::get('crawler_default_author', '');
             $authorId = $defaultAuthor ?: self::getDefaultAuthorId();
@@ -988,8 +1127,11 @@ final class CrawlerEngine
             }
 
             // ── Phase 3: Process enrichment results + insert articles ──
+            $pdo = \App\Models\BaseModel::pdo();
+            $pdo->beginTransaction();
             foreach ($eligible as $idx => $item) {
                 try {
+                    $pdo->exec("SAVEPOINT article_{$idx}");
                     $memUsed = memory_get_usage(true);
                     $memLimit = self::getMemoryLimitBytes();
                     if ($memLimit > 0 && ($memLimit - $memUsed) < 10 * 1024 * 1024) {
@@ -1117,7 +1259,7 @@ final class CrawlerEngine
 
                     // Quality gate: reject articles with insufficient content
                     $plainText = strip_tags($content);
-                    if (mb_strlen($plainText) < 200) {
+                    if (mb_strlen($plainText) < 800) {
                         $details[] = ['title' => $item['title'], 'status' => 'too-short'];
                         continue;
                     }
@@ -1157,7 +1299,7 @@ final class CrawlerEngine
 
                     // Resolve unique slug atomically
                     $slug = self::resolveUniqueSlug($pdo, $slug);
-                    $status = $autoPublish ? 'published' : 'draft';
+                    $status = $publishMode;
                     $stmt = $pdo->prepare(
                         "INSERT INTO articles
                             (title, slug, content, excerpt, author_id, category_id,
@@ -1185,7 +1327,7 @@ final class CrawlerEngine
                         ':status'         => $status,
                         ':published_at'   => $status === 'published'
                             ? ($extractorDate ? date('Y-m-d H:i:s', strtotime($extractorDate)) ?: gmdate('Y-m-d H:i:s') : gmdate('Y-m-d H:i:s'))
-                            : null,
+                            : null, // pending_review and draft get published_at set on approval
                         ':created_by'     => $authorId,
                         ':display_author' => self::cleanAuthorName(
                             $extractorAuthors,
@@ -1208,13 +1350,24 @@ final class CrawlerEngine
                     $newId = $stmt->fetchColumn();
                     if (!$newId) {
                         $dupes++;
+                        error_log("CrawlerEngine: slug conflict for '{$item['title']}' (slug: {$slug})");
                         $details[] = ['title' => $item['title'], 'status' => 'slug-conflict'];
                         continue;
                     }
                     $new++;
-                    $details[] = ['title' => $item['title'], 'status' => 'published'];
+                    $details[] = ['title' => $item['title'], 'status' => $status];
 
                     if ($newId) {
+                        if ($status === 'pending_review') {
+                            try {
+                                Notification::notifyEditors(
+                                    Notification::TYPE_ARTICLE_SUBMITTED,
+                                    'Crawled article needs review',
+                                    mb_substr($item['title'], 0, 255) . ' (from ' . $source['name'] . ')',
+                                    '/admin/review'
+                                );
+                            } catch (\Throwable) {}
+                        }
                         if ($embedding) self::storeEmbedding($pdo, $newId, $embedding);
                         $entities = $enrichResult['entities'] ?? null;
                         if ($entities) {
@@ -1233,15 +1386,37 @@ final class CrawlerEngine
                                 'url' => ($_ENV['APP_URL'] ?? '') . '/article/' . $slug,
                             ]);
                         } catch (\Throwable) {}
+
+                        // Queue for AI rewriting if enabled for this source
+                        if (($_ENV['REWRITER_ENABLED'] ?? 'false') === 'true' && !empty($source['auto_rewrite'])) {
+                            try {
+                                $pdo->prepare("UPDATE articles SET rewrite_status = 'queued' WHERE id = :id")
+                                    ->execute([':id' => $newId]);
+                            } catch (\Throwable) {}
+                        }
+
+                        // Queue email notification to subscribers
+                        if (function_exists('get_site_setting') && get_site_setting('notify_subscribers_on_crawl', '0') === '1') {
+                            try {
+                                \App\Services\Mailer::notifySubscribersOfArticle([
+                                    'title'          => $item['title'] ?? '',
+                                    'slug'           => $slug,
+                                    'excerpt'        => $excerpt ?? '',
+                                    'featured_image' => $featuredImage ?? '',
+                                ]);
+                            } catch (\Throwable) {}
+                        }
                     }
 
                     $existingTitles[] = $item['title'];
 
                 } catch (\Throwable $e) {
+                    try { $pdo->exec("ROLLBACK TO SAVEPOINT article_{$idx}"); } catch (\Throwable) {}
                     $errors++;
                     $details[] = ['title' => $item['title'] ?? '?', 'status' => 'error', 'error' => $e->getMessage()];
                 }
             }
+            try { $pdo->commit(); } catch (\Throwable) { try { $pdo->rollBack(); } catch (\Throwable) {} }
 
             $logStatus = $errors > 0 ? ($new > 0 ? 'partial' : 'failed') : 'success';
             CrawlLog::finish($logId, $logStatus, $found, $new, $dupes, null, $details);
@@ -1252,9 +1427,11 @@ final class CrawlerEngine
             return [$found, $new, $dupes];
 
         } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) { try { $pdo->rollBack(); } catch (\Throwable) {} }
             CrawlLog::finish($logId, 'failed', 0, 0, 0, $e->getMessage());
             CrawlSource::markCrawled($source['id'], false, $e->getMessage());
             CrawlSource::incrementStats($source['id'], 0, 0, 1);
+            self::incrementFailures($source['id']);
             throw $e;
         }
     }
@@ -1288,15 +1465,15 @@ final class CrawlerEngine
         $ctx = stream_context_create([
             'http' => [
                 'method'          => 'GET',
-                'header'          => "User-Agent: {$ua}\r\nAccept: application/rss+xml, application/xml, text/xml, */*",
+                'header'          => "User-Agent: {$ua}\r\nAccept: application/rss+xml, application/xml, text/xml, */*\r\nX-Crawler-Identity: " . RobotsChecker::USER_AGENT_FULL,
                 'timeout'         => self::FETCH_TIMEOUT,
                 'follow_location' => 1,
                 'max_redirects'   => 5,
             ],
             'ssl' => [
-                'verify_peer'      => false,
-                'verify_peer_name' => false,
-                'allow_self_signed' => true,
+                'verify_peer'      => ($_ENV['VERIFY_SSL'] ?? 'true') !== 'false',
+                'verify_peer_name' => ($_ENV['VERIFY_SSL'] ?? 'true') !== 'false',
+                'allow_self_signed' => ($_ENV['VERIFY_SSL'] ?? 'true') === 'false',
             ],
         ]);
 
@@ -1506,7 +1683,7 @@ final class CrawlerEngine
     private static function processImages(string $html): string
     {
         // Add lazy loading and referrerpolicy to all images
-        return preg_replace_callback('#<img([^>]*)>#i', function ($m) {
+        $result = preg_replace_callback('#<img([^>]*)>#i', function ($m) {
             $attrs = $m[1];
             // Add loading="lazy" if not present
             if (!str_contains($attrs, 'loading=')) {
@@ -1518,6 +1695,7 @@ final class CrawlerEngine
             }
             return '<img' . $attrs . '>';
         }, $html);
+        return $result ?? $html; // preg_replace_callback returns null on error
     }
 
     /** Remove the hero/featured image from content to prevent duplication. */

@@ -64,23 +64,37 @@ session_name($_sessionName);
 ini_set('session.cookie_httponly', '1');
 ini_set('session.use_strict_mode', '1');
 ini_set('session.cookie_samesite', 'Lax');
+ini_set('session.cookie_secure',
+    filter_var($_ENV['SESSION_SECURE'] ?? false, FILTER_VALIDATE_BOOLEAN) ? '1' : '0'
+);
 
-$isSecure = filter_var($_ENV['SESSION_SECURE'] ?? false, FILTER_VALIDATE_BOOLEAN);
-if ($isSecure) {
-    ini_set('session.cookie_secure', '1');
+// Build Redis session save_path with optional auth
+$redisHost = $_ENV['REDIS_HOST'] ?? 'redis';
+$redisPort = $_ENV['REDIS_PORT'] ?? '6379';
+$redisSavePath = "tcp://{$redisHost}:{$redisPort}?database=0&prefix=ntsess:";
+if (!empty($_ENV['REDIS_PASSWORD'])) {
+    $redisSavePath .= '&auth=' . $_ENV['REDIS_PASSWORD'];
 }
 
-$sessionOk = @session_start();
-if (!$sessionOk) {
-    error_log('[bootstrap] session_start() failed with redis handler — falling back to files');
+// Check Redis connectivity before starting session, fall back to files if down
+$redisOk = false;
+try {
+    $rTest = @fsockopen($redisHost, (int)$redisPort, $errno, $errstr, 2);
+    if ($rTest) { fclose($rTest); $redisOk = true; }
+} catch (\Throwable) {}
+
+if ($redisOk) {
+    ini_set('session.save_handler', 'redis');
+    ini_set('session.save_path', $redisSavePath);
+} else {
+    error_log('[bootstrap] Redis unreachable — using file sessions');
     ini_set('session.save_handler', 'files');
     $sessDir = __DIR__ . '/../storage/cache/sessions';
-    if (!is_dir($sessDir)) {
-        @mkdir($sessDir, 0775, true);
-    }
+    if (!is_dir($sessDir)) { @mkdir($sessDir, 0775, true); }
     ini_set('session.save_path', $sessDir);
-    @session_start();
 }
+
+session_start();
 
 // ── Helper: render a styled error page ───────────────────────────
 function renderErrorPage(int $statusCode, string $debugDetail = ''): Response

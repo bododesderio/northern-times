@@ -1,7 +1,6 @@
--- Default admin (password will be replaced later via a CLI utility)
--- For now, set password_hash to a placeholder. We'll update it in the next step with PHP's password_hash().
+-- Default admin: admin@northerntimes.local / admin123 (change on first login)
 INSERT INTO users (username, email, password_hash, role)
-VALUES ('admin', 'admin@northerntimes.local', 'REPLACE_ME', 'super_admin')
+VALUES ('admin', 'admin@northerntimes.local', '$2y$10$wI1DVdVgYS3pSyFmxkzxuOCtfDI7Mhani8CyAU7XZV9TdO32hI36i', 'super_admin')
 ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO categories (name, slug, description, sort_order)

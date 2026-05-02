@@ -24,7 +24,13 @@ final class FrontendPolicyController extends Controller
         ];
 
         ob_start();
-        require __DIR__ . '/../Views/frontend/policy.php';
+        if ($slug === 'about') {
+            require __DIR__ . '/../Views/frontend/about.php';
+        } elseif ($slug === 'contact') {
+            require __DIR__ . '/../Views/frontend/contact.php';
+        } else {
+            require __DIR__ . '/../Views/frontend/policy.php';
+        }
         $content = ob_get_clean();
 
         ob_start();

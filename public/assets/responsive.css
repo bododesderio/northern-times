@@ -28,9 +28,9 @@ html, body { overflow-x: hidden; max-width: 100vw; }
 .article-body img {
   max-width: 100% !important;
   height: auto !important;
-  border-radius: 8px;
+  border-radius: 0;
   margin: 1.2em 0;
-  background: var(--surface-alt, #f5f5f5);
+  background: var(--np-surface-1);
   transition: opacity .3s ease;
 }
 
@@ -57,8 +57,8 @@ html, body { overflow-x: hidden; max-width: 100vw; }
 /* Blockquotes */
 .article-body blockquote {
   margin: 1.5em 0; padding: 16px 24px;
-  border-left: 4px solid var(--accent, #cc0000);
-  background: var(--surface-alt, #f9f9f9); border-radius: 0 8px 8px 0; font-style: italic;
+  border-left: 4px solid var(--np-accent, #D32F2F);
+  background: var(--np-surface-1, #1c1917); border-radius: 0; font-style: italic;
 }
 .article-body blockquote p:last-child { margin-bottom: 0; }
 
@@ -169,7 +169,7 @@ html, body { overflow-x: hidden; max-width: 100vw; }
 }
 
 /* ── Dark mode crawled content ─────────────────────────────────── */
-[data-theme="dark"] .article-body table { border-color: var(--border, #333); }
-[data-theme="dark"] .article-body th { background: var(--surface, #1a1a1a); }
-[data-theme="dark"] .article-body blockquote { background: var(--surface, #1a1a1a); border-left-color: var(--accent, #ff4444); }
-[data-theme="dark"] .article-body img { opacity: 0.92; }
+html.dark .article-body table { border-color: var(--np-border, #333); }
+html.dark .article-body th { background: var(--np-surface-1, #1a1a1a); }
+html.dark .article-body blockquote { background: var(--np-surface-1, #1a1a1a); border-left-color: var(--np-accent, #e67e22); }
+html.dark .article-body img { opacity: 0.92; }

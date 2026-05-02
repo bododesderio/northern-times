@@ -75,7 +75,7 @@ The platform is designed for:
 * **Routing:** Symfony Routing component
 * **Authentication:** Secure session-based with Redis storage (file-based fallback)
 * **Security:** CSRF protection, RBAC permissions, rate limiting, input sanitization, security headers middleware
-* **Email:** Direct SMTP client with TLS/SSL, supports Gmail/Outlook/SendGrid/Mailgun/SES
+* **Email:** Self-hosted Postfix with DKIM signing (also supports external SMTP: Gmail/Outlook/SendGrid/Mailgun/SES)
 * **Services (26):** Auth, ArticleScraper, BreakingNewsEngine, Cache, CategoryMatcher, ContentNormalizer, CrawlerEngine, Csrf, DB, Flash, GeoIP, Image, ImageDownloader, ImageHealthChecker, Mailer, Media, RBAC, RateLimiter, Sanitizer, SeoAuditEngine, SeoReportPdf, Slug, SocialMonitorService, SocialPoster, StoryThreadDetector, WebPush
 * **Middleware (8):** AuthMiddleware, CsrfMiddleware, MiddlewareInterface, PermissionMiddleware, Pipeline, RoleMiddleware, SecurityHeadersMiddleware, VisitorMiddleware
 
@@ -93,17 +93,21 @@ The platform is designed for:
 
 ## 3.3 Infrastructure
 
-* **Docker Compose** containerization (5 services)
-  * `northern_times_web` — Nginx reverse proxy with gzip, static asset caching (30d), real-IP forwarding
+* **Docker Compose** containerization (7 services)
+  * `northern_times_web` — Nginx reverse proxy with gzip, static asset caching (30d), SSL termination, real-IP forwarding
   * `northern_times_app` — PHP-FPM with custom php.ini
-  * `northern_times_db` — PostgreSQL 15 Alpine
-  * `northern_times_redis` — Redis 7 Alpine (session storage + caching)
-  * `northern_times_pgadmin` — pgAdmin 4 (optional, tools profile)
-* **Nginx** configs for development (`default.conf`) and production SSL (`production-ssl.conf`)
+  * `northern_times_db` — PostgreSQL 15 with pgvector (vector similarity search)
+  * `northern_times_redis` — Redis 7 Alpine (session storage + caching, password-protected)
+  * `northern_times_extractor` — Python FastAPI microservice (AI enrichment: NER, classification, embeddings, summarization)
+  * `northern_times_mail` — Postfix SMTP (self-hosted transactional + newsletter email with DKIM)
+  * `northern_times_pgadmin` — pgAdmin 4 (optional, disabled in production)
+  * `northern_times_certbot` — Let's Encrypt SSL auto-renewal (production only)
+* **Nginx** configs for development (`default.conf`) and production SSL (`production-ssl.conf` with `envsubst` domain templating)
+* **SSL/TLS** via Let's Encrypt with automatic 12-hour renewal
 * Controlled upload directories with public serving via Nginx alias
 * Image resizing pipeline with WebP conversion and thumbnail generation
-* Secure environment configuration via `.env`
-* Cron jobs: `schedule.php` (article scheduling), `backup.php` (database backups), `cron/crawl.php` (news crawling)
+* Secure environment configuration via `.env` with credential rotation support
+* Cron jobs: crawler (5min), scheduler (1min), email queue (2min), daily maintenance (2am), log rotation (3am)
 
 ---
 
@@ -1539,4 +1543,234 @@ docker compose exec app php vendor/bin/phpunit
 
 ---
 
-*End of documentation. Last updated: March 7, 2026 (v6.0 -- All phases 1-12 complete, satellite heatmap + popup A/B testing).*
+# 36. Production Deployment
+
+## 36.1 Prerequisites
+
+- A VPS or dedicated server with Docker and Docker Compose installed
+- A registered domain name with DNS control
+- Ports 80, 443, and 587 (outgoing SMTP) open on the firewall
+
+## 36.2 Environment Setup
+
+1. **Copy and configure `.env`:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Set your domain** (used for SSL certs, nginx, and mail):
+   ```env
+   APP_URL=https://your-domain.com
+   APP_DOMAIN=your-domain.com
+   ```
+
+3. **Generate strong credentials** (replace all `CHANGE_ME` values):
+   ```bash
+   # Database password (40 chars)
+   openssl rand -base64 32 | tr -d '/+=' | head -c 40
+
+   # CSRF key (64 chars)
+   php -r "echo bin2hex(random_bytes(32));"
+
+   # Redis password (32 chars)
+   openssl rand -base64 24 | tr -d '/+=' | head -c 32
+
+   # pgAdmin password (24 chars)
+   openssl rand -base64 24 | tr -d '/+=' | head -c 24
+   ```
+
+4. **Set these in `.env`:**
+   ```env
+   DB_PASS=<generated>
+   CSRF_KEY=<generated>
+   REDIS_PASSWORD=<generated>
+   PGADMIN_PASS=<generated>
+   SESSION_SECURE=true
+   APP_ENV=production
+   ```
+
+## 36.3 Changing the Domain
+
+The domain is configured in a single place — `.env`. To change it:
+
+1. **Update `.env`:**
+   ```env
+   APP_URL=https://new-domain.com
+   APP_DOMAIN=new-domain.com
+   MAIL_FROM_ADDRESS=noreply@new-domain.com
+   ```
+
+2. **Obtain a new SSL certificate:**
+   ```bash
+   dc run --rm certbot certonly --webroot -w /var/www/certbot \
+     -d new-domain.com -d www.new-domain.com \
+     --email admin@new-domain.com --agree-tos
+   ```
+
+3. **Update DNS records** (SPF, DKIM, DMARC — see section 36.6)
+
+4. **Restart services:**
+   ```bash
+   dc restart web mail
+   ```
+
+The nginx config uses `envsubst` at container startup — no file editing required when changing domains.
+
+## 36.4 SSL Setup (Let's Encrypt)
+
+```bash
+# Shorthand alias (add to ~/.bashrc for convenience)
+alias dc="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+
+# 1. Start all services
+dc up -d
+
+# 2. Obtain SSL certificate
+dc run --rm certbot certonly --webroot -w /var/www/certbot \
+  -d your-domain.com -d www.your-domain.com \
+  --email admin@your-domain.com --agree-tos
+
+# 3. Restart nginx to load the certificate
+dc restart web
+
+# 4. Verify HTTPS
+curl -I https://your-domain.com
+```
+
+**Auto-renewal:** The certbot container automatically renews certificates every 12 hours. No cron job needed.
+
+**Certificate paths:** Certs are stored in the `certbot_certs` Docker volume, mounted at `/etc/nginx/ssl/` in the nginx container. The nginx config references:
+- `/etc/nginx/ssl/live/<domain>/fullchain.pem`
+- `/etc/nginx/ssl/live/<domain>/privkey.pem`
+
+## 36.5 Self-Hosted Mail (Postfix)
+
+The `mail` container (`boky/postfix`) handles all outgoing email — newsletters, password resets, contact form notifications, and transactional messages.
+
+**Mail settings in `.env`:**
+```env
+MAIL_DRIVER=smtp
+MAIL_HOST=mail
+MAIL_PORT=587
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_ENCRYPTION=none
+MAIL_FROM_ADDRESS=noreply@your-domain.com
+MAIL_FROM_NAME="Your Publication Name"
+```
+
+No authentication is needed between the PHP app and the Postfix container — they communicate over the internal Docker network.
+
+## 36.6 DNS Records for Mail Delivery
+
+Without these records, emails will land in spam. Add all four to your DNS provider:
+
+### SPF (TXT record on root domain)
+```
+your-domain.com  TXT  "v=spf1 ip4:YOUR_SERVER_IP -all"
+```
+
+### DKIM (TXT record — extract key after first container start)
+```bash
+# Get the DKIM public key:
+docker exec northern_times_mail cat /etc/opendkim/keys/your-domain.com/default.txt
+```
+```
+default._domainkey.your-domain.com  TXT  <paste the key from above>
+```
+
+### DMARC (TXT record)
+```
+_dmarc.your-domain.com  TXT  "v=DMARC1; p=quarantine; rua=mailto:admin@your-domain.com"
+```
+
+### PTR / Reverse DNS (set via your VPS provider's panel)
+```
+YOUR_SERVER_IP  PTR  mail.your-domain.com
+```
+
+**Verify mail delivery:**
+```bash
+# Send a test email from inside the container
+docker exec northern_times_app php -r "
+  require '/var/www/html/vendor/autoload.php';
+  require '/var/www/html/public/index.php';
+  echo App\Services\Mailer::send('your-email@gmail.com', 'Test', '<h1>Hello</h1>') ? 'Sent' : 'Failed';
+"
+```
+
+## 36.7 Redis Authentication
+
+Redis requires a password in production. The password is set in `.env` as `REDIS_PASSWORD` and is used by:
+- Redis container (`--requirepass` flag)
+- PHP sessions (via `session.save_path` auth parameter, set dynamically in `index.php`)
+- Cache service (`app/Services/Cache.php` calls `$redis->auth()`)
+- Admin system info page
+
+## 36.8 Docker Services (Production)
+
+| Service | Container | Image | Purpose |
+|---------|-----------|-------|---------|
+| `web` | `northern_times_web` | `nginx:1.27-alpine` | Reverse proxy, SSL termination, static assets |
+| `app` | `northern_times_app` | Custom PHP-FPM | Application server |
+| `db` | `northern_times_db` | `pgvector/pgvector:pg15` | PostgreSQL + pgvector |
+| `redis` | `northern_times_redis` | `redis:7-alpine` | Sessions, caching, rate limiting |
+| `extractor` | `northern_times_extractor` | Custom Python | AI enrichment (NER, classification, embeddings) |
+| `mail` | `northern_times_mail` | `boky/postfix:v4.3.0` | Outgoing email with DKIM signing |
+| `certbot` | `northern_times_certbot` | `certbot/certbot` | SSL certificate management (prod only) |
+| `pgadmin` | `northern_times_pgadmin` | `dpage/pgadmin4` | DB admin UI (disabled in prod via profiles) |
+
+## 36.9 Cron Jobs (Production)
+
+```bash
+# News crawler (every 5 minutes)
+*/5 * * * * docker exec northern_times_app php /var/www/html/cron/crawl.php
+
+# Article scheduling (every minute)
+* * * * * docker exec northern_times_app php /var/www/html/schedule.php
+
+# Email queue processing (every 2 minutes)
+*/2 * * * * docker exec northern_times_app php /var/www/html/cron/process_email_queue.php
+
+# Daily maintenance — backup, log rotation, webhook cleanup (2 AM)
+0 2 * * * docker exec northern_times_app php /var/www/html/cron/daily_maintenance.php
+
+# Log rotation (3 AM)
+0 3 * * * docker exec northern_times_app php /var/www/html/cron/rotate_logs.php
+```
+
+## 36.10 Database Password Rotation
+
+If rotating the database password on a running system:
+
+```bash
+# 1. Update the password in PostgreSQL
+docker exec northern_times_db psql -U northern -d northern_times \
+  -c "ALTER USER northern WITH PASSWORD 'NEW_PASSWORD_HERE';"
+
+# 2. Update DB_PASS in .env
+# 3. Restart the app container
+dc restart app
+```
+
+## 36.11 Quick Start Checklist
+
+```
+[ ] 1. Copy .env.example → .env
+[ ] 2. Set APP_DOMAIN and APP_URL
+[ ] 3. Generate and set all credentials (DB_PASS, CSRF_KEY, REDIS_PASSWORD, PGADMIN_PASS)
+[ ] 4. Set SESSION_SECURE=true and APP_ENV=production
+[ ] 5. Set MAIL_FROM_ADDRESS to noreply@your-domain.com
+[ ] 6. Deploy: dc up -d --build
+[ ] 7. Run migrations: dc exec app php migrate.php
+[ ] 8. Obtain SSL cert (see 36.4)
+[ ] 9. Restart nginx: dc restart web
+[ ] 10. Add DNS records: SPF, DKIM, DMARC, PTR (see 36.6)
+[ ] 11. Send test email to verify mail delivery
+[ ] 12. Set up cron jobs on host (see 36.9)
+[ ] 13. Access admin at https://your-domain.com/admin
+```
+
+---
+
+*End of documentation. Last updated: April 29, 2026 (v7.0 -- Production deployment, SSL, self-hosted mail, Redis auth, credential rotation).*

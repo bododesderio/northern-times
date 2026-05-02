@@ -327,6 +327,18 @@ def classify_category(
     best_slug = max(final_scores, key=final_scores.get)
     best_score = final_scores[best_slug]
 
+    # Validate that the winning slug is in the system categories
+    if system_categories and best_slug not in system_categories:
+        # Filter to only system categories, pick the best among those
+        valid_scores = {s: sc for s, sc in final_scores.items() if s in system_categories}
+        if valid_scores:
+            best_slug = max(valid_scores, key=valid_scores.get)
+            best_score = valid_scores[best_slug]
+        else:
+            best_slug = system_categories[0]
+            best_score = 0.0
+        logger.debug("Category slug validated: original winner not in system_categories, remapped to '%s'", best_slug)
+
     # Convert to 0-100 confidence
     confidence = int(min(100, best_score * 100))
 

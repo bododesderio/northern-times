@@ -223,9 +223,15 @@ function detectRegion(string $ws): array {
             <?php else: ?>
               <span style="padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;background:#f5f5f5;color:#888">Paused</span>
             <?php endif; ?>
+            <?php if (!empty($s['require_review'])): ?>
+              <div style="margin-top:4px"><span style="padding:2px 7px;border-radius:20px;font-size:11px;font-weight:600;background:#fff3cd;color:#856404">Review</span></div>
+            <?php endif; ?>
             <?php if (!empty($s['last_error'])): ?>
               <div style="font-size:11px;color:#dc3545;margin-top:4px" title="<?= h($s['last_error']) ?>">⚠ Error</div>
             <?php endif; ?>
+            <div style="margin-top:4px">
+              <span class="robots-badge" data-url="<?= h($s['feed_url']) ?>" style="font-size:11px;color:var(--muted,#888);cursor:pointer" title="Click to check robots.txt" onclick="checkRobots(this)">🤖 ?</span>
+            </div>
           </td>
           <td style="padding:14px 12px;text-align:center;font-size:13px"><?= (int)$s['crawl_interval'] ?>m</td>
           <td style="padding:14px 12px;text-align:center"><span style="font-weight:700"><?= (int)($s['article_count'] ?? 0) ?></span></td>
@@ -381,6 +387,30 @@ function crDn(){
   cL('🏁 <strong>Complete!</strong> '+tN+' new articles from '+I+' sources in '+sc+'s','cok');
   const top=res.filter(r=>r.v>0).sort((a,b)=>b.v-a.v).slice(0,8);
   if(top.length){const mx=top[0].v;document.getElementById('crRL').innerHTML=top.map((r,i)=>'<div class="rr"><div class="rp">#'+(i+1)+'</div><div class="rn">'+r.n+'</div><div class="rt"><div class="rf" style="width:'+(r.v/mx*100).toFixed(0)+'%"></div></div><div class="rv">'+r.v+'</div></div>').join('');document.getElementById('crRk').style.display=''}
+}
+
+async function checkRobots(el) {
+  const url = el.dataset.url;
+  if (!url) return;
+  el.textContent = '🤖 …';
+  try {
+    const r = await fetch('/admin/crawler/robots-check?url=' + encodeURIComponent(url));
+    const d = await r.json();
+    if (d.allowed) {
+      el.textContent = '🤖 ✓';
+      el.style.color = '#28a745';
+      el.title = 'robots.txt allows crawling';
+    } else {
+      el.textContent = '🤖 ✗';
+      el.style.color = '#dc3545';
+      el.title = 'robots.txt BLOCKS crawling';
+    }
+  } catch(e) {
+    el.textContent = '🤖 ?';
+    el.style.color = '#888';
+    el.title = 'Could not check robots.txt';
+  }
+  el.onclick = null;
 }
 </script>
 

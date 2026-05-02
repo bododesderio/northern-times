@@ -23,6 +23,7 @@ $totalArticles = (int)$pdo->query("SELECT COUNT(*) FROM articles")->fetchColumn(
 $published     = (int)$pdo->query("SELECT COUNT(*) FROM articles WHERE status='published'")->fetchColumn();
 $drafts        = (int)$pdo->query("SELECT COUNT(*) FROM articles WHERE status='draft'")->fetchColumn();
 $pendingReview = (int)$pdo->query("SELECT COUNT(*) FROM articles WHERE status='pending_review'")->fetchColumn();
+$pendingReviewItems = $pdo->query("SELECT id, title, source_name, created_at FROM articles WHERE status='pending_review' ORDER BY created_at DESC LIMIT 5")->fetchAll(\PDO::FETCH_ASSOC);
 $archived      = (int)$pdo->query("SELECT COUNT(*) FROM articles WHERE status='archived'")->fetchColumn();
 $categoryCount = (int)$pdo->query("SELECT COUNT(*) FROM categories")->fetchColumn();
 $mediaCount    = (int)$pdo->query("SELECT COUNT(*) FROM media_library")->fetchColumn();
@@ -416,6 +417,38 @@ ob_start();
     <a href="/admin/settings" class="qa-card"><div class="qa-icon qa-settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><span class="qa-title">Settings</span><span class="qa-desc">Theme & config</span></a>
   </div>
 </div>
+
+<?php if ($pendingReview > 0): ?>
+<!-- ─── REVIEW QUEUE WIDGET ───────────────────────────────── -->
+<div class="dcard span-12 anim-item" style="border-left:3px solid #f59e0b">
+  <div class="card-head">
+    <h3 style="display:flex;align-items:center;gap:8px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><path d="M9 15l2 2 4-4"/></svg>
+      Review Queue
+      <span style="background:#f59e0b;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px"><?= $pendingReview ?></span>
+    </h3>
+    <a href="/admin/review" class="card-head-link">View all →</a>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:2px">
+    <?php foreach ($pendingReviewItems as $pr): ?>
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border,#f0f0f0)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><?= h($pr['title']) ?></div>
+        <div style="font-size:12px;color:var(--muted,#888);margin-top:2px">
+          <?= h($pr['source_name'] ?? 'Crawled') ?> · <?= date('M j, g:ia', strtotime($pr['created_at'])) ?>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <a href="/admin/review/<?= h($pr['id']) ?>" style="padding:5px 12px;background:#3b82f6;color:#fff;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none">Review</a>
+      </div>
+    </div>
+    <?php endforeach; ?>
+    <?php if ($pendingReview > 5): ?>
+    <div style="padding:10px 0;font-size:13px;color:var(--muted,#888)">+ <?= $pendingReview - 5 ?> more in queue</div>
+    <?php endif; ?>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- ─── FOCAL POINT #2: ACTIVITY (8) + TEAM (4) ──────────── -->
 <div class="dcard span-8 anim-item">

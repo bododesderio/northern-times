@@ -212,7 +212,8 @@ if (empty($articles)) {
         $earliest   = max($pubDate, strtotime('-30 days'));
 
         for ($v = 0; $v < $sampleSize; $v++) {
-            $viewTime = date('Y-m-d H:i:s', mt_rand((int)$earliest, time()));
+            $rangeEnd = max((int)$earliest, time());
+            $viewTime = date('Y-m-d H:i:s', mt_rand((int)$earliest, $rangeEnd));
             $viewIp = '198.51.' . (($viewIpCounter >> 8) & 0xFF) . '.' . ($viewIpCounter & 0xFF);
             $viewIpCounter++;
             if ($viewIpCounter > 65535) $viewIpCounter = 1;

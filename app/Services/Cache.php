@@ -27,6 +27,9 @@ final class Cache
             $host = $_ENV['REDIS_HOST'] ?? 'redis';
             $port = (int)($_ENV['REDIS_PORT'] ?? 6379);
             $r->connect($host, $port, 2.0);
+            if (!empty($_ENV['REDIS_PASSWORD'])) {
+                $r->auth($_ENV['REDIS_PASSWORD']);
+            }
             $r->setOption(\Redis::OPT_PREFIX, self::PREFIX);
             $r->setOption(\Redis::OPT_SERIALIZER, \Redis::SERIALIZER_JSON);
             self::$conn = $r;
@@ -86,16 +89,25 @@ final class Cache
         try { $r->del($key); } catch (\Throwable) {}
     }
 
-    /** Flush keys matching a pattern (e.g. 'home:*'). */
+    /** Flush keys matching a pattern (e.g. 'home:*') using SCAN (non-blocking). */
     public static function flush(string $pattern = '*'): int
     {
         $r = self::redis();
         if (!$r) return 0;
         try {
-            $keys = $r->keys($pattern);
-            if (empty($keys)) return 0;
-            $stripped = array_map(fn($k) => str_replace(self::PREFIX, '', $k), $keys);
-            return $r->del(...$stripped);
+            $deleted = 0;
+            $iterator = null;
+            // OPT_PREFIX is set, so SCAN already scopes to our prefix.
+            // Keys returned include the prefix, but del() auto-prepends it via OPT_PREFIX,
+            // so we must strip it before calling del().
+            $prefix = self::PREFIX;
+            do {
+                $keys = $r->scan($iterator, $pattern, 100);
+                if ($keys === false || empty($keys)) continue;
+                $stripped = array_map(fn($k) => str_starts_with($k, $prefix) ? substr($k, strlen($prefix)) : $k, $keys);
+                $deleted += $r->del(...$stripped);
+            } while ($iterator > 0);
+            return $deleted;
         } catch (\Throwable) { return 0; }
     }
 

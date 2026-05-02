@@ -17,6 +17,7 @@ use App\Controllers\AdminCrawlerController;
 use App\Controllers\AdminSeoController;
 use App\Controllers\AdminSocialController;
 use App\Controllers\AdminSystemController;
+use App\Controllers\AdminRewriterController;
 
 $admin       = new AdminController();
 $media       = new AdminMediaController();
@@ -33,11 +34,16 @@ $crawler     = new AdminCrawlerController();
 $seo         = new AdminSeoController();
 $social      = new AdminSocialController();
 $system      = new AdminSystemController();
+$rewriter    = new AdminRewriterController();
 
 // --- Auth ---
 $routes->add('admin_login',      new Route('/admin/login',  ['_controller' => [$admin, 'login']],     [], [], '', [], ['GET']));
 $routes->add('admin_login_post', new Route('/admin/login',  ['_controller' => [$admin, 'loginPost'], '_middleware' => ['csrf']], [], [], '', [], ['POST']));
 $routes->add('admin_logout',     new Route('/admin/logout', ['_controller' => [$admin, 'logout']],    [], [], '', [], ['GET']));
+$routes->add('admin_forgot_password',      new Route('/admin/forgot-password',       ['_controller' => [$admin, 'forgotPassword']],     [], [], '', [], ['GET']));
+$routes->add('admin_forgot_password_post', new Route('/admin/forgot-password',       ['_controller' => [$admin, 'forgotPasswordPost'], '_middleware' => ['csrf']], [], [], '', [], ['POST']));
+$routes->add('admin_reset_password',       new Route('/admin/reset-password/{token}', ['_controller' => [$admin, 'resetPassword']],     [], [], '', [], ['GET']));
+$routes->add('admin_reset_password_post',  new Route('/admin/reset-password/{token}', ['_controller' => [$admin, 'resetPasswordPost'], '_middleware' => ['csrf']], [], [], '', [], ['POST']));
 
 // ── Middleware stacks ──────────────────────────────────────────
 $auth       = ['auth'];
@@ -222,11 +228,13 @@ $routes->add('admin_crawler_store',          new Route('/admin/crawler/store',  
 $routes->add('admin_crawler_logs',           new Route('/admin/crawler/logs',                     ['_controller' => [$crawler, 'logs'],            '_middleware' => $editor],     [], [], '', [], ['GET']));
 $routes->add('admin_crawler_settings',       new Route('/admin/crawler/settings',                 ['_controller' => [$crawler, 'settings'],        '_middleware' => $editor],     [], [], '', [], ['GET']));
 $routes->add('admin_crawler_settings_save',  new Route('/admin/crawler/settings/save',            ['_controller' => [$crawler, 'saveSettings'],    '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
+$routes->add('admin_crawler_test_storage',  new Route('/admin/crawler/settings/test-storage',    ['_controller' => [$crawler, 'testStorage'],     '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
 $routes->add('admin_crawler_crawl_all',      new Route('/admin/crawler/crawl-all',                ['_controller' => [$crawler, 'crawlAll'],        '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
 $routes->add('admin_crawler_visual',         new Route('/admin/crawler/visual',                   ['_controller' => [$crawler, 'visualRunner'],    '_middleware' => $editor],     [], [], '', [], ['GET']));
 $routes->add('admin_crawler_crawl_api',      new Route('/admin/crawler/crawl-source/{id}',        ['_controller' => [$crawler, 'crawlSourceApi'],  '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
 $routes->add('admin_crawler_stats_api',      new Route('/admin/crawler/stats-api',                ['_controller' => [$crawler, 'crawlStatsApi'],   '_middleware' => $editor],     [], [], '', [], ['GET']));
 $routes->add('admin_crawler_test_feed',      new Route('/admin/crawler/test-feed',                ['_controller' => [$crawler, 'testFeed'],        '_middleware' => $editor],     [], [], '', [], ['GET']));
+$routes->add('admin_crawler_robots_check',   new Route('/admin/crawler/robots-check',             ['_controller' => [$crawler, 'robotsCheck'],     '_middleware' => $editor],     [], [], '', [], ['GET']));
 $routes->add('admin_crawler_edit',           new Route('/admin/crawler/{id}/edit',                ['_controller' => [$crawler, 'edit'],            '_middleware' => $editor],     [], [], '', [], ['GET']));
 $routes->add('admin_crawler_update',         new Route('/admin/crawler/{id}/update',              ['_controller' => [$crawler, 'update'],          '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
 $routes->add('admin_crawler_delete',         new Route('/admin/crawler/{id}/delete',              ['_controller' => [$crawler, 'delete'],          '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
@@ -251,6 +259,20 @@ $routes->add('admin_social_keyword_toggle', new Route('/admin/crawler/social/key
 $routes->add('admin_social_read_all',       new Route('/admin/crawler/social/read-all',          ['_controller' => [$social, 'markAllRead'],    '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
 $routes->add('admin_social_settings_save',  new Route('/admin/crawler/social/settings',          ['_controller' => [$social, 'saveSettings'],   '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
 $routes->add('admin_social_competitors',    new Route('/admin/crawler/social/competitors',       ['_controller' => [$social, 'competitors'],    '_middleware' => $editor],     [], [], '', [], ['GET']));
+
+// --- AI Rewriter ---
+$routes->add('admin_rewriter',                new Route('/admin/rewriter',                          ['_controller' => [$rewriter, 'index'],           '_middleware' => $editor],     [], [], '', [], ['GET']));
+$routes->add('admin_rewriter_queue_bulk',     new Route('/admin/rewriter/queue-bulk',               ['_controller' => [$rewriter, 'queueBulk'],      '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
+$routes->add('admin_rewriter_settings',       new Route('/admin/rewriter/settings',                 ['_controller' => [$rewriter, 'settings'],       '_middleware' => $editor],     [], [], '', [], ['GET']));
+$routes->add('admin_rewriter_settings_save',  new Route('/admin/rewriter/settings',                 ['_controller' => [$rewriter, 'saveSettings'],   '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
+$routes->add('admin_rewriter_status_api',     new Route('/admin/rewriter/status-api',               ['_controller' => [$rewriter, 'statusApi'],      '_middleware' => $editor],     [], [], '', [], ['GET']));
+$routes->add('admin_rewriter_save_rules',     new Route('/admin/rewriter/rules',                    ['_controller' => [$rewriter, 'saveRules'],      '_middleware' => $editorCsrf], [], [], '', [], ['POST']));
+$routes->add('admin_rewriter_review',         new Route('/admin/rewriter/{id}/review',              ['_controller' => [$rewriter, 'review'],         '_middleware' => $editor],     ['id' => '[0-9a-f-]+'], [], '', [], ['GET']));
+$routes->add('admin_rewriter_approve',        new Route('/admin/rewriter/{id}/approve',             ['_controller' => [$rewriter, 'approve'],        '_middleware' => $editorCsrf], ['id' => '[0-9a-f-]+'], [], '', [], ['POST']));
+$routes->add('admin_rewriter_reject',         new Route('/admin/rewriter/{id}/reject',              ['_controller' => [$rewriter, 'reject'],         '_middleware' => $editorCsrf], ['id' => '[0-9a-f-]+'], [], '', [], ['POST']));
+$routes->add('admin_rewriter_queue',          new Route('/admin/rewriter/{id}/queue',               ['_controller' => [$rewriter, 'queueArticle'],   '_middleware' => $editorCsrf], ['id' => '[0-9a-f-]+'], [], '', [], ['POST']));
+$routes->add('admin_rewriter_retry',          new Route('/admin/rewriter/{id}/retry',               ['_controller' => [$rewriter, 'retry'],          '_middleware' => $editorCsrf], ['id' => '[0-9a-f-]+'], [], '', [], ['POST']));
+$routes->add('admin_rewriter_revert',         new Route('/admin/rewriter/{id}/revert',              ['_controller' => [$rewriter, 'revert'],         '_middleware' => $editorCsrf], ['id' => '[0-9a-f-]+'], [], '', [], ['POST']));
 
 // --- System Administration (Phase 8 — super_admin only) ---
 $routes->add('admin_system',                   new Route('/admin/system',                           ['_controller' => [$system, 'index'],               '_middleware' => $super],     [], [], '', [], ['GET']));

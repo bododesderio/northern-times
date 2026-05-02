@@ -39,7 +39,8 @@ USER_AGENTS = [
 ]
 
 FETCH_TIMEOUT = int(os.getenv("EXTRACTOR_FETCH_TIMEOUT", "15"))
-MIN_CONTENT_LENGTH = int(os.getenv("EXTRACTOR_MIN_CONTENT_LENGTH", "200"))
+MIN_CONTENT_LENGTH = int(os.getenv("EXTRACTOR_MIN_CONTENT_LENGTH", "400"))
+MIN_ARTICLE_CHARS = 400  # Minimum plain-text chars to consider a candidate valid
 
 # ── Site-specific CSS selectors (ported from ArticleScraper.php) ────
 
@@ -126,16 +127,32 @@ TRUNCATION_PATTERNS = [
     re.compile(r"…\s*$"),
 ]
 
-# ── Persistent HTTP client ──────────────────────────────────────
+# ── Lazy-initialized HTTP client (fork-safe for multi-worker uvicorn) ──
 
-_http_client = httpx.Client(
-    follow_redirects=True,
-    timeout=FETCH_TIMEOUT,
-    verify=True,
-    limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
-)
+_http_client = None
+_executor = None
+_client_lock = __import__("threading").Lock()
 
-_executor = ThreadPoolExecutor(max_workers=4)
+def _get_http_client() -> httpx.Client:
+    global _http_client
+    if _http_client is None:
+        with _client_lock:
+            if _http_client is None:
+                _http_client = httpx.Client(
+                    follow_redirects=True,
+                    timeout=FETCH_TIMEOUT,
+                    verify=True,
+                    limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+                )
+    return _http_client
+
+def _get_executor() -> ThreadPoolExecutor:
+    global _executor
+    if _executor is None:
+        with _client_lock:
+            if _executor is None:
+                _executor = ThreadPoolExecutor(max_workers=int(os.getenv("EXTRACTOR_STRATEGY_WORKERS", "4")))
+    return _executor
 
 
 # ── SSRF Protection ────────────────────────────────────────────
@@ -165,6 +182,41 @@ def _is_safe_url(url: str) -> bool:
         return True
     except Exception:
         return False
+
+
+# ── robots.txt compliance ───────────────────────────────────────
+
+import urllib.robotparser
+import functools
+
+@functools.lru_cache(maxsize=256)
+def _fetch_robots(robots_url: str) -> urllib.robotparser.RobotFileParser:
+    """Fetch and parse robots.txt for a host. Cached per process (LRU 256 hosts)."""
+    import urllib.request
+    rp = urllib.robotparser.RobotFileParser()
+    rp.set_url(robots_url)
+    try:
+        # Use urllib directly with a timeout to prevent hanging
+        req = urllib.request.Request(robots_url, headers={"User-Agent": "NorthernTimesBot/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            raw = resp.read(100_000).decode("utf-8", errors="replace")
+        rp.parse(raw.splitlines())
+    except Exception:
+        pass  # fail open — return empty parser (allows everything)
+    return rp
+
+def _is_robots_allowed(url: str) -> bool:
+    """Return True if NorthernTimesBot is allowed to crawl this URL.
+
+    can_fetch already falls back to wildcard rules if no agent-specific rule exists.
+    """
+    try:
+        parsed = urlparse(url)
+        robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+        rp = _fetch_robots(robots_url)
+        return rp.can_fetch("NorthernTimesBot", url)
+    except Exception:
+        return True  # fail open
 
 
 # ── Utilities ───────────────────────────────────────────────────
@@ -200,14 +252,18 @@ def detect_paywall(html: str) -> bool:
 
 
 def detect_truncation(text: str) -> bool:
-    """Check if extracted text appears truncated."""
+    """Check if extracted text appears truncated (paywall or incomplete extraction)."""
     if not text:
         return False
-    # Very short content that ends with truncation markers
-    if len(text) < 300:
-        for pattern in TRUNCATION_PATTERNS:
-            if pattern.search(text):
-                return True
+    # Check truncation markers anywhere in the text (not just short content)
+    # Common truncation signals appear at the end of paywalled articles
+    tail = text[-500:] if len(text) > 500 else text
+    for pattern in TRUNCATION_PATTERNS:
+        if pattern.search(tail):
+            return True
+    # Very short content is suspicious regardless of markers
+    if len(text) < 500:
+        return True
     return False
 
 
@@ -215,17 +271,25 @@ def detect_truncation(text: str) -> bool:
 
 def fetch_page(url: str, retries: int = 2) -> str | None:
     """Fetch page HTML with browser-like headers, retrying on transient failures."""
+    parsed = urlparse(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
     headers = {
         "User-Agent": random.choice(USER_AGENTS),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate",
+        "Accept-Encoding": "gzip, deflate, br",
         "DNT": "1",
+        "Referer": origin + "/",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Upgrade-Insecure-Requests": "1",
+        "X-Crawler-Identity": "NorthernTimesBot/1.0",
     }
     import time
     for attempt in range(1, retries + 1):
         try:
-            resp = _http_client.get(url, headers=headers)
+            resp = _get_http_client().get(url, headers=headers)
             if resp.status_code >= 500 and attempt < retries:
                 logger.warning("fetch_page HTTP %d for %s (attempt %d/%d, retrying)", resp.status_code, url, attempt, retries)
                 time.sleep(1 * attempt)
@@ -299,7 +363,9 @@ def extract_with_trafilatura(html: str, url: str) -> dict:
 
 
 def extract_with_newspaper(html: str, url: str) -> dict:
-    """Extract using newspaper3k - best for metadata."""
+    """Extract using newspaper3k - metadata ONLY (title, authors, date, images, language).
+    Never use article.html as content — it is the full page, not the article body.
+    """
     result = {}
     try:
         article = NewspaperArticle(url)
@@ -319,12 +385,12 @@ def extract_with_newspaper(html: str, url: str) -> dict:
             result["hero_image"] = article.top_image
         if article.images:
             result["images"] = list(article.images)
-        if article.text:
-            result["text"] = article.text
         if article.meta_lang:
             result["language"] = article.meta_lang
-        if article.html:
-            result["content"] = article.html
+        # NOTE: article.text is plain text — only use as last-resort fallback text,
+        # never as HTML content. article.html is the full page — never use it.
+        if article.text and len(article.text) >= 300:
+            result["text"] = article.text
     except Exception as e:
         logger.warning("extract_with_newspaper failed for %s: %s", url, e)
     return result
@@ -490,22 +556,29 @@ def merge_results(
     authors = news.get("authors", [])
     published_date = news.get("published_date") or og.get("published_date") or traf.get("published_date")
 
-    # Pick the longest content from all extractors
+    # Pick the best content: trafilatura > readability > density (newspaper excluded from content)
+    # Prefer trafilatura if it meets the minimum threshold, then fall through in order.
+    content = ""
+    extraction_method = "none"
+
+    ordered = [("traf", traf), ("read", read), ("density", density)]
     candidates = []
-    for label, data in [("traf", traf), ("read", read), ("density", density), ("news", news)]:
+    for label, data in ordered:
         c = data.get("content", "")
         if c:
             text_len = _text_length(c)
-            method = data.get("extraction_method", label)
-            candidates.append((label, c, text_len, method))
-    candidates.sort(key=lambda x: x[2], reverse=True)
+            if text_len >= MIN_ARTICLE_CHARS:
+                method = data.get("extraction_method", label)
+                candidates.append((label, c, text_len, method))
 
-    content = ""
-    extraction_method = "none"
     if candidates:
-        best_label, best_content, best_len, best_method = candidates[0]
-        content = best_content
-        extraction_method = best_method
+        # Among valid candidates, prefer trafilatura; otherwise take longest
+        traf_candidates = [c for c in candidates if c[0] == "traf"]
+        if traf_candidates:
+            _, content, _, extraction_method = traf_candidates[0]
+        else:
+            candidates.sort(key=lambda x: x[2], reverse=True)
+            _, content, _, extraction_method = candidates[0]
 
     # Run unified content cleaning
     if content:
@@ -558,6 +631,11 @@ def extract_article(
         logger.warning("Blocked unsafe URL: %s", url)
         return None
 
+    # robots.txt compliance check
+    if not _is_robots_allowed(url):
+        logger.info("robots.txt disallows extraction of %s", url)
+        return None
+
     html = fetch_page(url)
     if not html or len(html) < 500:
         logger.warning("fetch_page failed or too short for %s (got %d bytes)", url, len(html) if html else 0)
@@ -570,11 +648,11 @@ def extract_article(
 
     # Run all extractors concurrently via thread pool
     futures = {
-        _executor.submit(extract_with_trafilatura, html, url): "traf",
-        _executor.submit(extract_with_newspaper, html, url): "news",
-        _executor.submit(extract_with_readability, html, url, source_selectors): "read",
-        _executor.submit(extract_with_text_density, html, url): "density",
-        _executor.submit(extract_og_metadata, html): "og",
+        _get_executor().submit(extract_with_trafilatura, html, url): "traf",
+        _get_executor().submit(extract_with_newspaper, html, url): "news",
+        _get_executor().submit(extract_with_readability, html, url, source_selectors): "read",
+        _get_executor().submit(extract_with_text_density, html, url): "density",
+        _get_executor().submit(extract_og_metadata, html): "og",
     }
 
     results = {}
@@ -600,7 +678,7 @@ def extract_article(
     merged["paywall_detected"] = paywall_detected
     merged["truncated"] = detect_truncation(merged.get("text", ""))
 
-    if not merged.get("content") or merged["text_length"] < 100:
+    if not merged.get("content") or merged["text_length"] < 400:
         logger.warning("Extraction too short for %s: text_length=%d", url, merged.get("text_length", 0))
         return None
 

@@ -24,7 +24,8 @@ final class CrawlSource extends BaseModel
              WHERE is_active = TRUE
                AND (last_crawled_at IS NULL
                     OR last_crawled_at < NOW() - (crawl_interval || ' minutes')::INTERVAL)
-             ORDER BY last_crawled_at ASC NULLS FIRST"
+             ORDER BY last_crawled_at ASC NULLS FIRST
+             FOR UPDATE SKIP LOCKED"
         );
     }
 
@@ -56,12 +57,14 @@ final class CrawlSource extends BaseModel
             (name, feed_url, website_url, logo_url, source_type, is_active,
              crawl_interval, default_category_id, category_map,
              keyword_include, keyword_exclude, max_articles, strip_selectors,
-             attribution_text, nofollow, download_images, full_page_scrape, content_selector)
+             attribution_text, nofollow, download_images, full_page_scrape, content_selector,
+             require_review, region, custom_user_agent, crawl_delay, custom_headers, use_browser_fetch, auto_rewrite)
             VALUES
             (:name, :feed_url, :website_url, :logo_url, :source_type, :is_active,
              :crawl_interval, :default_category_id, :category_map,
              :keyword_include, :keyword_exclude, :max_articles, :strip_selectors,
-             :attribution_text, :nofollow, :download_images, :full_page_scrape, :content_selector)
+             :attribution_text, :nofollow, :download_images, :full_page_scrape, :content_selector,
+             :require_review, :region, :custom_user_agent, :crawl_delay, :custom_headers, :use_browser_fetch, :auto_rewrite)
             RETURNING *";
 
         $stmt = self::pdo()->prepare($sql);
@@ -84,6 +87,13 @@ final class CrawlSource extends BaseModel
             ':download_images'     => ($d['download_images'] ?? true) ? 'true' : 'false',
             ':full_page_scrape'    => ($d['full_page_scrape'] ?? false) ? 'true' : 'false',
             ':content_selector'    => $d['content_selector'] ?? null,
+            ':require_review'      => ($d['require_review'] ?? false) ? 'true' : 'false',
+            ':region'              => $d['region'] ?? 'international',
+            ':custom_user_agent'   => $d['custom_user_agent'] ?? null,
+            ':crawl_delay'         => (int)($d['crawl_delay'] ?? 0),
+            ':custom_headers'      => $d['custom_headers'] ?? null,
+            ':use_browser_fetch'   => ($d['use_browser_fetch'] ?? false) ? 'true' : 'false',
+            ':auto_rewrite'        => ($d['auto_rewrite'] ?? false) ? 'true' : 'false',
         ]);
 
         return $stmt->fetch() ?: null;
@@ -101,7 +111,10 @@ final class CrawlSource extends BaseModel
             strip_selectors = :strip_selectors, attribution_text = :attribution_text,
             nofollow = :nofollow, download_images = :download_images,
             full_page_scrape = :full_page_scrape, content_selector = :content_selector,
-            updated_at = NOW()
+            require_review = :require_review, region = :region,
+            custom_user_agent = :custom_user_agent, crawl_delay = :crawl_delay,
+            custom_headers = :custom_headers, use_browser_fetch = :use_browser_fetch,
+            auto_rewrite = :auto_rewrite, updated_at = NOW()
             WHERE id = :id RETURNING *";
 
         $stmt = self::pdo()->prepare($sql);
@@ -125,6 +138,13 @@ final class CrawlSource extends BaseModel
             ':download_images'     => ($d['download_images'] ?? true) ? 'true' : 'false',
             ':full_page_scrape'    => ($d['full_page_scrape'] ?? false) ? 'true' : 'false',
             ':content_selector'    => $d['content_selector'] ?? null,
+            ':require_review'      => ($d['require_review'] ?? false) ? 'true' : 'false',
+            ':region'              => $d['region'] ?? 'international',
+            ':custom_user_agent'   => $d['custom_user_agent'] ?? null,
+            ':crawl_delay'         => (int)($d['crawl_delay'] ?? 0),
+            ':custom_headers'      => $d['custom_headers'] ?? null,
+            ':use_browser_fetch'   => ($d['use_browser_fetch'] ?? false) ? 'true' : 'false',
+            ':auto_rewrite'        => ($d['auto_rewrite'] ?? false) ? 'true' : 'false',
         ]);
 
         return $stmt->fetch() ?: null;

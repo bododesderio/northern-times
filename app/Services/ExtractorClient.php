@@ -58,6 +58,9 @@ final class ExtractorClient
         if (!empty($source['content_selector'])) {
             $payload['source_selectors'] = $source['content_selector'];
         }
+        if (!empty($source['strip_selectors'])) {
+            $payload['strip_selectors'] = $source['strip_selectors'];
+        }
 
         $response = self::post('/extract', $payload);
         if ($response === null) return null;
@@ -242,12 +245,19 @@ final class ExtractorClient
     {
         $payload = array_merge(['articles' => $articles], $params);
 
-        // Timeout scales with batch size: 30s base + 5s per article, max 300s
-        $timeout = min(300, 30 + count($articles) * 5);
+        // Timeout scales with batch size: 30s base + 10s per article, max 600s
+        // Python enricher runs 4 workers concurrently; each article can take up to 60s
+        $timeout = min(600, 30 + count($articles) * 10);
 
         $response = self::post('/enrich-batch', $payload, $timeout);
-        if ($response === null) return null;
-        if (empty($response['results'])) return null;
+        if ($response === null) {
+            error_log("ExtractorClient::enrichBatch: request failed (null response) for " . count($articles) . " articles");
+            return null;
+        }
+        if (empty($response['results'])) {
+            error_log("ExtractorClient::enrichBatch: empty results for " . count($articles) . " articles");
+            return null;
+        }
 
         return $response['results'];
     }
@@ -283,7 +293,12 @@ final class ExtractorClient
                 return null;
             }
 
-            return json_decode($body, true);
+            $decoded = json_decode($body, true);
+            if (!is_array($decoded)) {
+                error_log("ExtractorClient: non-array response from {$endpoint}: " . substr((string)$body, 0, 200));
+                return null;
+            }
+            return $decoded;
         } catch (\Throwable $e) {
             error_log("ExtractorClient: " . $e->getMessage());
             return null;

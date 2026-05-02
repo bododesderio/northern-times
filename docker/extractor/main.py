@@ -42,6 +42,7 @@ from models import (
     EnrichBatchRequest, EnrichBatchResponse,
 )
 from extractor import extract_article
+from browser_extractor import extract_article_browser
 from classifier import classify_article
 from category_classifier import classify_category
 from dedup import check_duplicate
@@ -50,17 +51,69 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Article Extractor", version="2.0.0")
 
+# ── Track readiness for health checks ────────────────────────
+_ready = False
+
+
+@app.on_event("startup")
+def preload_models():
+    """Load all ML models at startup so first requests aren't slow."""
+    global _ready
+    from model_registry import get_model, _LOADERS
+    for name in _LOADERS:
+        try:
+            get_model(name)
+        except Exception as e:
+            logger.error("Failed to preload model '%s': %s", name, e)
+    _ready = True
+    logger.info("All models preloaded — extractor ready.")
+
+
+@app.on_event("shutdown")
+def graceful_shutdown():
+    """Log shutdown for observability; in-flight requests finish via uvicorn."""
+    global _ready
+    _ready = False
+    logger.info("Extractor shutting down gracefully.")
+
 
 @app.get("/health")
 def health():
     from model_registry import _models, _LOADERS
+    from fastapi.responses import JSONResponse
+
     model_status = {}
+    all_loaded = True
     for name in _LOADERS:
-        model_status[name] = "loaded" if name in _models else "not_loaded"
+        loaded = name in _models
+        model_status[name] = "loaded" if loaded else "not_loaded"
+        if not loaded:
+            all_loaded = False
+
+    if not _ready or not all_loaded:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "version": "2.0.0", "models": model_status},
+        )
+
     return {"status": "ok", "version": "2.0.0", "models": model_status}
 
 
 # ── Extraction ────────────────────────────────────────────────
+
+@app.post("/extract-browser", response_model=ExtractResponse)
+def extract_browser(req: ExtractRequest):
+    """Extract article using headless Chromium (for Cloudflare/JS-protected sites)."""
+    try:
+        result = extract_article_browser(req.url, req.source_selectors, req.strip_selectors)
+        if result is None:
+            return ExtractResponse(success=False, error="Browser extraction failed or content too short")
+        return ExtractResponse(success=True, data=ExtractedArticle(**result))
+    except Exception as e:
+        safe_url = str(req.url).replace('\n', '').replace('\r', '')[:500]
+        logger.error("Browser extract failed for %s: %s\n%s", safe_url, e, traceback.format_exc())
+        return ExtractResponse(success=False, error=f"Browser extraction error: {type(e).__name__}")
+
 
 @app.post("/extract", response_model=ExtractResponse)
 def extract(req: ExtractRequest):

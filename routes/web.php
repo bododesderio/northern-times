@@ -21,7 +21,11 @@ $routes->add('search',   new Route('/search',          ['_controller' => [$front
 $routes->add('search_api', new Route('/api/search',    ['_controller' => [$front, 'searchApi']], [], [], '', [], ['GET']));
 $routes->add('tag',       new Route('/tag/{slug}',      ['_controller' => [$front, 'tag'],      '_middleware' => ['visitor']], [], [], '', [], ['GET']));
 $routes->add('author',    new Route('/author/{username}',['_controller' => [$front, 'author'],  '_middleware' => ['visitor']], [], [], '', [], ['GET']));
+$routes->add('api_tags',       new Route('/api/tags',        ['_controller' => [$front, 'tagsApi']],      [], [], '', [], ['GET']));
 $routes->add('tag_search_api', new Route('/api/tags/search', ['_controller' => [$front, 'tagSearchApi']], [], [], '', [], ['GET']));
+$routes->add('about',    new Route('/about',            ['_controller' => [$front, 'about'],    '_middleware' => ['visitor']], [], [], '', [], ['GET']));
+$routes->add('contact',  new Route('/contact',          ['_controller' => [$front, 'contact'],  '_middleware' => ['visitor']], [], [], '', [], ['GET']));
+$routes->add('contact_post', new Route('/contact',      ['_controller' => [$front, 'contactPost'], '_middleware' => ['visitor', 'csrf']], [], [], '', [], ['POST']));
 $routes->add('policy',   new Route('/policy/{slug}',   ['_controller' => [$policy, 'show'],    '_middleware' => ['visitor']], [], [], '', [], ['GET']));
 
 // --- Feeds & API ---

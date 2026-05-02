@@ -14,15 +14,14 @@
  */
 declare(strict_types=1);
 header('X-Frame-Options: SAMEORIGIN');
-header('Content-Security-Policy: default-src \'self\' \'unsafe-inline\' data: https://fonts.googleapis.com https://fonts.gstatic.com');
+header('Content-Security-Policy: default-src \'self\' \'unsafe-inline\' data:');
 ?><!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Popup Preview</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/fonts/fonts.css">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 

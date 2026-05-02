@@ -67,15 +67,19 @@ STRIP_CLASSES_RE = re.compile(
     r"related[-_]?posts?|related[-_]?articles?|more[-_]?stories|recommended|"
     r"comments?|comment[-_]?section|disqus|"
     r"newsletter|subscribe|signup|sign[-_]?up|opt[-_]?in|email[-_]?capture|"
-    r"breadcrumb|author[-_]?box|popup|modal|cookie[-_]?banner|cookie[-_]?consent|"
+    r"breadcrumb|author[-_]?box|author[-_]?bio|author[-_]?card|author[-_]?info|byline[-_]?box|"
+    r"popup|modal|overlay|cookie[-_]?banner|cookie[-_]?consent|"
     r"promo|promoti|advertis|sponsor|paid[-_]?content|native[-_]?ad|"
     r"outbrain|taboola|mgid|revcontent|content[-_]?ad|"
     r"breaking[-_]?news[-_]?ticker|ticker|marquee|"
     r"google[-_]?ad|doubleclick|adsense|amp[-_]?ad|"
-    r"follow[-_]?us|social[-_]?links|share[-_]?this|"
-    r"read[-_]?more[-_]?link|see[-_]?also|also[-_]?read|"
+    r"follow[-_]?us|social[-_]?links|share[-_]?this|addtoany|addthis|sharedaddy|"
+    r"read[-_]?more[-_]?link|see[-_]?also|also[-_]?read|yarpp|jp[-_]?relatedposts|"
     r"donation|donate|patreon|ko[-_]?fi|buy[-_]?me|"
-    r"app[-_]?download|play[-_]?store|app[-_]?store|download[-_]?app",
+    r"app[-_]?download|play[-_]?store|app[-_]?store|download[-_]?app|"
+    r"post[-_]?tags|entry[-_]?tags|tag[-_]?list|post[-_]?navigation|nav[-_]?links|"
+    r"wp[-_]?caption(?!\s)|gallery[-_]?caption|heateor|ssba|sd[-_]?sharing|"
+    r"jetpack|likes[-_]?widget|sd[-_]?like|sd[-_]?content|sd[-_]?block",
     re.I,
 )
 
@@ -284,13 +288,46 @@ def clean_and_normalize(
 
     # ── Phase 8: Resolve relative URLs ────────────────────────
 
+    _SAFE_SCHEMES = ("http://", "https://", "data:", "mailto:", "#")
+    _SAFE_SCHEMES_RESOLVE = ("http://", "https://", "mailto:")
     for tag in soup.find_all(["a", "img", "source", "iframe"]):
         for attr in ("href", "src"):
             val = tag.get(attr)
-            if val and not val.startswith(("http://", "https://", "data:", "mailto:", "#")):
-                tag[attr] = urljoin(base_url, val)
+            if not val:
+                continue
+            # Block data: URIs on <a> href (XSS vector) — only allow on img/source src
+            if val.startswith("data:") and (tag.name == "a" or attr == "href"):
+                del tag[attr]
+                continue
+            if not val.startswith(_SAFE_SCHEMES):
+                resolved = urljoin(base_url, val)
+                # Only keep URLs with safe protocols (block javascript:, vbscript:, etc.)
+                if resolved.startswith(_SAFE_SCHEMES_RESOLVE) or (resolved.startswith("data:") and tag.name != "a"):
+                    tag[attr] = resolved
+                else:
+                    del tag[attr]
 
-    # ── Phase 9: Remove empty elements (3 passes) ────────────
+    # ── Phase 9: Strip junk anchor links (share/social/promo, not editorial) ──
+
+    JUNK_LINK_RE = re.compile(
+        r"(?:share|tweet|whatsapp|telegram|linkedin|pinterest|reddit|email\s+this|"
+        r"print\s+this|copy\s+link|subscribe|sign\s+up|log\s+in|register|download\s+app|"
+        r"follow\s+us|join\s+us|support\s+us|donate|advertise|contact\s+us)",
+        re.I,
+    )
+    for a in soup.find_all("a"):
+        text = a.get_text(strip=True)
+        href = a.get("href", "")
+        # Remove share/social links
+        if JUNK_LINK_RE.search(text):
+            a.decompose()
+            continue
+        # Remove links that are just icons (no text, no meaningful alt)
+        if not text and not a.find("img"):
+            a.decompose()
+            continue
+
+    # ── Phase 10: Remove empty elements (3 passes) ────────────
 
     empty_tags = {"p", "div", "span", "li", "ul", "ol", "h2", "h3", "h4", "h5", "h6", "figure", "figcaption", "section"}
     media_tags = {"img", "iframe", "video", "audio", "svg"}
@@ -300,7 +337,7 @@ def clean_and_normalize(
             if not tag.get_text(strip=True) and not tag.find(list(media_tags)):
                 tag.decompose()
 
-    # ── Phase 10: Extract body content ────────────────────────
+    # ── Phase 11: Extract body content ────────────────────────
 
     body = soup.find("body")
     if body:

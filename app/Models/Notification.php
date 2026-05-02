@@ -38,16 +38,33 @@ final class Notification extends BaseModel
 
     /**
      * Notify all editors/admins (users who can review articles).
+     * Sends both in-app notification and queued email.
      */
     public static function notifyEditors(string $type, string $title, ?string $body = null, ?string $link = null, ?array $metadata = null): void
     {
         $editors = self::query(
-            "SELECT u.id FROM users u
+            "SELECT u.id, u.email, u.username FROM users u
              WHERE u.role IN ('editor','super_admin')
                AND u.is_active = TRUE"
         );
         foreach ($editors as $editor) {
             self::send($editor['id'], $type, $title, $body, $link, $metadata);
+        }
+
+        // Also queue email notifications for review-related events
+        if ($type === self::TYPE_ARTICLE_SUBMITTED) {
+            $appUrl  = rtrim($_ENV['APP_URL'] ?? 'http://localhost', '/');
+            $fullLink = $link ? $appUrl . $link : $appUrl . '/admin/review';
+            $subject  = 'Article pending review: ' . $title;
+            $html     = '<p>A crawled article needs editorial review:</p>'
+                      . '<p><strong>' . htmlspecialchars($body ?? $title) . '</strong></p>'
+                      . '<p><a href="' . htmlspecialchars($fullLink) . '">Review now →</a></p>';
+            $text     = "Article pending review:\n\n" . ($body ?? $title) . "\n\nReview: " . $fullLink;
+            foreach ($editors as $editor) {
+                try {
+                    \App\Services\Mailer::queue($editor['email'], $subject, $html, $text, $editor['username'] ?? null);
+                } catch (\Throwable) {}
+            }
         }
     }
 

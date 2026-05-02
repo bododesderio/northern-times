@@ -19,6 +19,18 @@ ob_start();
   <p class="nt-page-sub">Last 30 days performance metrics</p>
 </div>
 
+<?php
+$hasAnyData = !empty($topArticles) || !empty($categoryStats) || !empty($authorStats) || !empty($dailyTrend) || !empty($summary['total_views_30d']);
+if (!$hasAnyData): ?>
+<div style="text-align:center; padding:80px 20px; color:#78716c;">
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 16px; display:block; opacity:.5;">
+    <path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/>
+  </svg>
+  <h3 style="margin:0 0 8px; font-size:18px; color:#a8a29e;">No data yet</h3>
+  <p style="margin:0; font-size:14px;">Performance metrics will appear here once articles receive views and engagement.</p>
+</div>
+<?php else: ?>
+
 <!-- Summary Cards -->
 <div class="dash-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px">
   <div class="dcard" style="padding:20px">
@@ -49,6 +61,7 @@ ob_start();
 <!-- Top Articles -->
 <div class="dcard" style="margin-bottom:28px;padding:20px">
   <div class="card-head" style="font-size:.9rem;font-weight:700;margin-bottom:14px">Top Articles</div>
+  <?php if (!empty($topArticles)): ?>
   <div style="overflow-x:auto">
     <table style="width:100%;font-size:.85rem;border-collapse:collapse">
       <thead>
@@ -77,12 +90,22 @@ ob_start();
       </tbody>
     </table>
   </div>
+  <?php else: ?>
+  <div style="text-align:center; padding:40px 20px; color:#78716c;">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 16px; display:block; opacity:.5;">
+      <path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/>
+    </svg>
+    <h3 style="margin:0 0 8px; font-size:18px; color:#a8a29e;">No performance data yet</h3>
+    <p style="margin:0; font-size:14px;">Article performance metrics will appear here once articles receive views and engagement.</p>
+  </div>
+  <?php endif; ?>
 </div>
 
 <!-- Category + Author side by side -->
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px">
   <div class="dcard" style="padding:20px">
     <div class="card-head" style="font-size:.9rem;font-weight:700;margin-bottom:14px">Category Performance</div>
+    <?php if (!empty($categoryStats)): ?>
     <table style="width:100%;font-size:.85rem;border-collapse:collapse">
       <thead>
         <tr style="border-bottom:1px solid var(--border)">
@@ -105,10 +128,14 @@ ob_start();
         <?php endforeach; ?>
       </tbody>
     </table>
+    <?php else: ?>
+    <p style="text-align:center;padding:20px;color:#78716c;font-size:.85rem;">No category data available yet.</p>
+    <?php endif; ?>
   </div>
 
   <div class="dcard" style="padding:20px">
     <div class="card-head" style="font-size:.9rem;font-weight:700;margin-bottom:14px">Author Leaderboard</div>
+    <?php if (!empty($authorStats)): ?>
     <table style="width:100%;font-size:.85rem;border-collapse:collapse">
       <thead>
         <tr style="border-bottom:1px solid var(--border)">
@@ -129,6 +156,9 @@ ob_start();
         <?php endforeach; ?>
       </tbody>
     </table>
+    <?php else: ?>
+    <p style="text-align:center;padding:20px;color:#78716c;font-size:.85rem;">No author data available yet.</p>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -153,6 +183,8 @@ if (ctx) {
 }
 </script>
 <?php endif; ?>
+
+<?php endif; /* hasAnyData */ ?>
 
 <?php
 $pageContent = ob_get_clean();

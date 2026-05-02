@@ -142,7 +142,16 @@ final class Article extends BaseModel
             ':reading_time'      => $readingTime,
         ]);
 
-        return $stmt->fetch() ?: null;
+        $row = $stmt->fetch() ?: null;
+
+        // Notify subscribers when a new article is published
+        if ($row && ($data['status'] ?? '') === self::STATUS_PUBLISHED) {
+            try {
+                \App\Services\Mailer::notifySubscribersOfArticle($row);
+            } catch (\Throwable) {}
+        }
+
+        return $row;
     }
 
     /**
@@ -159,6 +168,14 @@ final class Article extends BaseModel
             story_thread_id=:story_thread_id, is_breaking=:is_breaking,
             breaking_headline=:breaking_headline, reading_time=:reading_time, updated_at=NOW()
             WHERE id=:id RETURNING *";
+
+        // Check old status to detect publish transition
+        $oldStatus = null;
+        if (($data['status'] ?? '') === self::STATUS_PUBLISHED) {
+            $check = self::pdo()->prepare("SELECT status FROM articles WHERE id = :id");
+            $check->execute([':id' => $id]);
+            $oldStatus = $check->fetchColumn() ?: null;
+        }
 
         $stmt = self::pdo()->prepare($sql);
         $stmt->execute([
@@ -177,7 +194,16 @@ final class Article extends BaseModel
             ':reading_time'      => $readingTime,
         ]);
 
-        return $stmt->fetch() ?: null;
+        $row = $stmt->fetch() ?: null;
+
+        // Notify subscribers only when status transitions TO published
+        if ($row && $oldStatus !== null && $oldStatus !== self::STATUS_PUBLISHED) {
+            try {
+                \App\Services\Mailer::notifySubscribersOfArticle($row);
+            } catch (\Throwable) {}
+        }
+
+        return $row;
     }
 
     /**

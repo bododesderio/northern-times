@@ -65,8 +65,8 @@
     }
 
     // 3 & 4. Server says light or dark → obey
-    if (serverMode === 'dark') return 'dark';
-    return 'light';
+    if (serverMode === 'light') return 'light';
+    return 'dark';
   }
 
   /* ── Apply theme to DOM ─────────────────────────────────────── */

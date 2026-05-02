@@ -18,8 +18,8 @@ final class ImageDownloader
     private const TIMEOUT    = 25;
     private const MAX_RETRIES = 2;
     private const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB max download
-    private const MAX_WIDTH  = 1200;  // Resize images wider than this
-    private const MAX_HEIGHT = 1200;  // Resize images taller than this
+    private const MAX_WIDTH  = 1920;  // Resize images wider than this
+    private const MAX_HEIGHT = 1920;  // Resize images taller than this
     private const JPEG_QUALITY = 82;
 
     /** All image MIME types we accept. If it's image/*, we download it. */
@@ -53,13 +53,16 @@ final class ImageDownloader
         if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) return $url;
         if (str_starts_with($url, '/uploads/') || str_starts_with($url, '/storage/')) return $url;
 
-        // Block SSRF: reject private/reserved IP ranges
+        // Block SSRF: reject private/reserved IP ranges + pin DNS
         $host = parse_url($url, PHP_URL_HOST);
+        $resolvedIp = null;
         if ($host) {
             $ip = @gethostbyname($host);
-            if ($ip && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            // gethostbyname returns the original hostname on failure — detect that
+            if (!$ip || $ip === $host || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
                 return $url;
             }
+            $resolvedIp = $ip;
         }
 
         try {
@@ -91,11 +94,12 @@ final class ImageDownloader
             $fullDir     = $storageBase . '/' . self::UPLOAD_DIR . '/' . $monthDir;
             if (!is_dir($fullDir)) mkdir($fullDir, 0755, true);
 
-            // Save file
+            // Save file locally first (needed for thumbnails/resize)
             $fileHash  = substr(hash('sha256', $imageData), 0, 16);
             $filename  = $fileHash . '_' . time() . '.' . $ext;
             $filePath  = $fullDir . '/' . $filename;
-            $publicUrl = '/uploads/' . self::UPLOAD_DIR . '/' . $monthDir . '/' . $filename;
+            $relativePath = 'uploads/' . self::UPLOAD_DIR . '/' . $monthDir . '/' . $filename;
+            $publicUrl = '/' . $relativePath;
             file_put_contents($filePath, $imageData);
 
             // Get dimensions — try PHP first, then ImageMagick
@@ -123,8 +127,24 @@ final class ImageDownloader
 
             // Create thumbnail using best available backend
             $thumbnailUrl = null;
-            if ($width && $height && $width > 400) {
-                $thumbnailUrl = self::createThumbnail($filePath, $fullDir, $filename, 400);
+            if ($width && $height && $width > 640) {
+                $thumbnailUrl = self::createThumbnail($filePath, $fullDir, $filename, 640);
+            }
+
+            // Upload to S3 if configured (after resize/thumbnail so we upload final version)
+            if (StorageManager::isS3()) {
+                try {
+                    $publicUrl = StorageManager::put($filePath, $relativePath);
+                    if ($thumbnailUrl) {
+                        $thumbRelative = ltrim($thumbnailUrl, '/');
+                        $thumbLocal = $storageBase . '/../' . $thumbRelative;
+                        if (file_exists($thumbLocal)) {
+                            $thumbnailUrl = StorageManager::put($thumbLocal, $thumbRelative);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    error_log('[ImageDownloader] S3 upload failed, using local: ' . $e->getMessage());
+                }
             }
 
             // Register in media_library
@@ -204,14 +224,21 @@ final class ImageDownloader
                 CURLOPT_TIMEOUT        => self::TIMEOUT,
                 CURLOPT_CONNECTTIMEOUT => 10,
                 CURLOPT_USERAGENT      => $userAgents[$attempt] ?? $userAgents[0],
-                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYPEER => ($_ENV['VERIFY_SSL'] ?? 'true') !== 'false',
+                CURLOPT_SSL_VERIFYHOST => ($_ENV['VERIFY_SSL'] ?? 'true') !== 'false' ? 2 : 0,
                 CURLOPT_MAXFILESIZE    => self::MAX_FILE_SIZE,
                 CURLOPT_HTTPHEADER     => [
                     'Accept: image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
                     'Referer: ' . parse_url($url, PHP_URL_SCHEME) . '://' . parse_url($url, PHP_URL_HOST) . '/',
                     'Accept-Language: en-US,en;q=0.9',
+                    'X-Crawler-Identity: ' . \App\Services\RobotsChecker::USER_AGENT_FULL,
                 ],
             ]);
+
+            // Pin DNS resolution to prevent TOCTOU rebinding attacks
+            if ($resolvedIp && $host) {
+                curl_setopt($ch, CURLOPT_RESOLVE, ["{$host}:80:{$resolvedIp}", "{$host}:443:{$resolvedIp}"]);
+            }
 
             $data = curl_exec($ch);
             $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);

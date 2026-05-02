@@ -75,12 +75,35 @@ ob_start();
       </div>
 
       <!-- Live preview for image ads -->
-      <?php if (($slot['ad_type'] ?? '') === 'image' && !empty($slot['content'])): ?>
-        <div style="margin-bottom:12px;padding:12px;background:#fafafa;border:1px dashed #e2e2e2;border-radius:10px;text-align:center">
-          <div style="font-size:10px;color:#999;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Preview</div>
-          <img src="<?= h($slot['content']) ?>" alt="Ad preview"
-               style="max-width:100%;max-height:150px;border-radius:6px;display:inline-block"
-               onerror="this.parentElement.innerHTML='<div style=\'color:#ef4444;font-size:12px\'>Image not found: <?= h($slot['content']) ?></div>'" />
+      <?php if (($slot['ad_type'] ?? '') === 'image' && (!empty($slot['content']) || !empty($slot['content_tablet']) || !empty($slot['content_mobile']))): ?>
+        <div style="margin-bottom:12px;padding:12px;background:#fafafa;border:1px dashed #e2e2e2;border-radius:10px">
+          <div style="font-size:10px;color:#999;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;text-align:center">Preview</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;text-align:center">
+            <?php if (!empty($slot['content'])): ?>
+            <div>
+              <div style="font-size:10px;color:#666;margin-bottom:4px;font-weight:600">Desktop</div>
+              <img src="<?= h($slot['content']) ?>" alt="Desktop ad preview"
+                   style="max-width:100%;max-height:120px;border-radius:6px;display:inline-block"
+                   onerror="this.style.display='none'" />
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($slot['content_tablet'])): ?>
+            <div>
+              <div style="font-size:10px;color:#666;margin-bottom:4px;font-weight:600">Tablet</div>
+              <img src="<?= h($slot['content_tablet']) ?>" alt="Tablet ad preview"
+                   style="max-width:100%;max-height:120px;border-radius:6px;display:inline-block"
+                   onerror="this.style.display='none'" />
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($slot['content_mobile'])): ?>
+            <div>
+              <div style="font-size:10px;color:#666;margin-bottom:4px;font-weight:600">Mobile</div>
+              <img src="<?= h($slot['content_mobile']) ?>" alt="Mobile ad preview"
+                   style="max-width:100%;max-height:120px;border-radius:6px;display:inline-block"
+                   onerror="this.style.display='none'" />
+            </div>
+            <?php endif; ?>
+          </div>
         </div>
       <?php endif; ?>
 
@@ -90,7 +113,7 @@ ob_start();
         <form method="POST" action="/admin/ads/<?= h($slot['id']) ?>" enctype="multipart/form-data" style="margin-top:14px">
           <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
 
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
             <div>
               <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Ad Type</label>
               <select name="ad_type" style="width:100%;padding:10px;border:1px solid #e2e2e2;border-radius:10px;font-size:14px">
@@ -107,10 +130,25 @@ ob_start();
                 <option value="mobile" <?= $device === 'mobile' ? 'selected' : '' ?>>Mobile Only</option>
               </select>
             </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
             <div>
-              <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Click-through URL</label>
-              <input name="link_url" value="<?= h($slot['link_url'] ?? '') ?>"
+              <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Desktop Link URL</label>
+              <input type="url" name="link_url" value="<?= h($slot['link_url'] ?? '') ?>"
                      placeholder="https://advertiser.com/landing"
+                     style="width:100%;padding:10px;border:1px solid #e2e2e2;border-radius:10px;font-size:14px">
+            </div>
+            <div>
+              <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Tablet Link URL</label>
+              <input type="url" name="link_url_tablet" value="<?= h($slot['link_url_tablet'] ?? '') ?>"
+                     placeholder="Same as desktop if empty"
+                     style="width:100%;padding:10px;border:1px solid #e2e2e2;border-radius:10px;font-size:14px">
+            </div>
+            <div>
+              <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Mobile Link URL</label>
+              <input type="url" name="link_url_mobile" value="<?= h($slot['link_url_mobile'] ?? '') ?>"
+                     placeholder="Same as desktop if empty"
                      style="width:100%;padding:10px;border:1px solid #e2e2e2;border-radius:10px;font-size:14px">
             </div>
           </div>
@@ -137,12 +175,33 @@ ob_start();
           </div>
 
           <div style="margin-bottom:14px">
-            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Upload Image (replaces current)</label>
-            <input type="file" name="ad_image" accept="image/*,.gif"
-                   style="font-size:13px">
-            <?php if (!empty($slot['content']) && ($slot['ad_type'] ?? '') === 'image'): ?>
-              <div style="margin-top:6px;font-size:12px;color:#666">Current: <code><?= h($slot['content']) ?></code></div>
-            <?php endif; ?>
+            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:8px">Upload Images</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+              <div>
+                <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#475569">Desktop Image</label>
+                <input type="file" name="ad_image" accept="image/*,.gif" style="font-size:12px;width:100%">
+                <small style="color:#94a3b8;font-size:11px">728x90 or 970x250</small>
+                <?php if (!empty($slot['content']) && ($slot['ad_type'] ?? '') === 'image'): ?>
+                  <div style="margin-top:4px;font-size:11px;color:#666">Current: <code><?= h($slot['content']) ?></code></div>
+                <?php endif; ?>
+              </div>
+              <div>
+                <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#475569">Tablet Image</label>
+                <input type="file" name="ad_image_tablet" accept="image/*,.gif" style="font-size:12px;width:100%">
+                <small style="color:#94a3b8;font-size:11px">468x60 or 320x100</small>
+                <?php if (!empty($slot['content_tablet'])): ?>
+                  <div style="margin-top:4px;font-size:11px;color:#666">Current: <code><?= h($slot['content_tablet']) ?></code></div>
+                <?php endif; ?>
+              </div>
+              <div>
+                <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:#475569">Mobile Image</label>
+                <input type="file" name="ad_image_mobile" accept="image/*,.gif" style="font-size:12px;width:100%">
+                <small style="color:#94a3b8;font-size:11px">320x50 or 300x250</small>
+                <?php if (!empty($slot['content_mobile'])): ?>
+                  <div style="margin-top:4px;font-size:11px;color:#666">Current: <code><?= h($slot['content_mobile']) ?></code></div>
+                <?php endif; ?>
+              </div>
+            </div>
           </div>
 
           <div style="margin-bottom:14px">

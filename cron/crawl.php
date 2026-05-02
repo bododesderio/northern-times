@@ -53,6 +53,32 @@ require_once __DIR__ . '/../app/Support/helpers.php';
 
 use App\Services\CrawlerEngine;
 use App\Services\BreakingNewsEngine;
+use App\Services\Cache;
+
+// ── Distributed Redis lock (prevents overlapping across containers) ──
+$redisLockKey   = 'crawl:lock';
+$redisLockTTL   = 600; // 10 minutes max — auto-expires if process dies
+$redisLockToken = bin2hex(random_bytes(8));
+$redis          = Cache::redis();
+if ($redis) {
+    // SETNX with TTL — only one crawl process can hold the lock
+    $acquired = $redis->set($redisLockKey, $redisLockToken, ['NX', 'EX' => $redisLockTTL]);
+    if (!$acquired) {
+        echo "[" . date('Y-m-d H:i:s') . "] Crawler already running (Redis lock). Skipping.\n";
+        @flock($lockHandle, LOCK_UN);
+        @fclose($lockHandle);
+        @unlink($lockFile);
+        exit(0);
+    }
+    // Release Redis lock on exit (only if we still own it)
+    register_shutdown_function(function () use ($redis, $redisLockKey, $redisLockToken) {
+        try {
+            if ($redis->get($redisLockKey) === $redisLockToken) {
+                $redis->del($redisLockKey);
+            }
+        } catch (\Throwable) {}
+    });
+}
 
 $start = microtime(true);
 $ts    = date('Y-m-d H:i:s');

@@ -1,7 +1,7 @@
 <?php
 /**
- * HOME PAGE v4 — Full metadata on every card
- * title · excerpt · featured image · author · published time · read time
+ * HOME PAGE — Nocturnal Prestige Editorial Redesign
+ * Dark-first premium layout with varied category sections
  */
 $breaking          = $breaking          ?? [];
 $hasManualBreaking = $hasManualBreaking ?? false;
@@ -13,26 +13,25 @@ $sections          = $sections          ?? [];
 $ads               = $ads               ?? [];
 $sidebarCats       = $sidebarCats       ?? [];
 
-// Hero zone uses national/Northern Uganda articles
+// Hero uses first article from hero pool
 $hero              = $heroPool[0]            ?? null;
-$stackArticles     = array_slice($heroPool, 1, 2);
-$gridArticles      = array_slice($heroPool, 3, 6);
 
-// Top stories section uses all latest articles (excluding hero IDs)
+// Latest stories sidebar (8 articles)
+$latestSidebar     = array_slice($latest, 0, 8);
+
+// Top stories section uses remaining articles
 $heroIds           = array_column($heroPool, 'id');
 $remaining         = array_filter($topStories, fn($a) => !in_array($a['id'], $heroIds));
 $remaining         = array_values($remaining);
-$tsLead            = $remaining[0]           ?? null;
-$tsGrid            = array_slice($remaining, 1, 4);
 
-// Read-time: prefer stored column, fall back to word-count
+// Read-time helper
 function nt_rt(array $a): string {
     $mins = (int)($a['reading_time'] ?? 0);
-    if ($mins > 0) return $mins . ' min read';
+    if ($mins > 0) return $mins . ' Min Read';
     if (!empty($a['content'])) {
         $w = str_word_count(strip_tags((string)$a['content']));
         $m = max(1, (int)ceil($w / 200));
-        return $m . ' min read';
+        return $m . ' Min Read';
     }
     return '';
 }
@@ -50,7 +49,6 @@ function nt_rt(array $a): string {
     <div class="ticker-scroll">
       <?php foreach (array_merge($breaking, $breaking) as $b): ?>
         <a class="ticker-item" href="/article/<?= h($b['slug']) ?>">
-          <span class="ticker-cat"><?= h($b['category'] ?? '') ?></span>
           <?= h($b['breaking_headline'] ?: $b['title']) ?>
         </a>
       <?php endforeach; ?>
@@ -59,234 +57,66 @@ function nt_rt(array $a): string {
 </div>
 <?php endif; ?>
 
-<section class="home">
+<div class="np-home">
 
 <!-- ═══════════════════════════════════════════════════════════
-     HERO ZONE  —  3 columns: sidebar | hero+grid | latest
+     HERO SECTION — 8/4 grid: Major hero + Latest stories
 ═══════════════════════════════════════════════════════════ -->
-<div class="hero-zone">
+<section class="np-hero-section">
 
-  <!-- LEFT: category sidebar -->
-  <aside class="cat-sidebar">
-    <div class="cat-sidebar-header">Categories</div>
-    <nav class="cat-sidebar-list">
-      <?php foreach ($sidebarCats as $sc): ?>
-        <a href="/category/<?= h($sc['slug']) ?>"
-           class="cat-sidebar-item<?= ($sc['new_count'] ?? 0) > 0 ? ' has-new' : '' ?>">
-          <span class="cat-sidebar-name"><?= h($sc['name']) ?></span>
-          <?php if (($sc['new_count'] ?? 0) > 0): ?>
-            <span class="cat-sidebar-badge"><?= (int)$sc['new_count'] ?></span>
-          <?php else: ?>
-            <span class="cat-sidebar-count"><?= (int)($sc['article_count'] ?? 0) ?></span>
-          <?php endif; ?>
-        </a>
-      <?php endforeach; ?>
-    </nav>
-  </aside>
-
-  <!-- CENTER: hero content -->
-  <div class="hero-center">
-
-    <!-- Top row: big hero + 2 stacked -->
-    <div class="hero-top-row">
-
-      <?php if ($hero): ?>
-      <a href="/article/<?= h($hero['slug']) ?>" class="hero-card">
-        <div class="hero-card-img">
-          <?php if (!empty($hero['featured_image'])): ?>
-            <img src="<?= h($hero['featured_image']) ?>" alt="<?= h($hero['title']) ?>" loading="eager">
-          <?php else: ?><div class="hero-card-placeholder"></div><?php endif; ?>
-          <span class="card-cat-badge"><?= h($hero['category'] ?? '') ?></span>
-        </div>
-        <div class="hero-card-body">
-          <h2 class="hero-card-title"><?= h($hero['title']) ?></h2>
-          <p class="hero-card-excerpt"><?= h(excerpt_words($hero['excerpt'] ?: strip_tags($hero['content'] ?? ''), 30)) ?></p>
-          <div class="card-meta">
-            <?php $a = article_author($hero); ?>
-            <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-            <span class="card-author"><?= h($a['name']) ?></span>
-            <span class="card-dot">·</span>
-            <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            <span class="card-time"><?= time_ago($hero['published_at'] ?? '') ?></span>
-            <?php $rt = nt_rt($hero); if ($rt): ?>
-              <span class="card-dot">·</span>
-              <span class="card-read"><?= h($rt) ?></span>
-            <?php endif; ?>
-          </div>
-        </div>
-      </a>
-      <?php endif; ?>
-
-      <!-- 2 stacked cards -->
-      <div class="hero-stack">
-        <?php foreach ($stackArticles as $sa): ?>
-        <a href="/article/<?= h($sa['slug']) ?>" class="stack-card">
-          <div class="stack-card-img">
-            <?php if (!empty($sa['featured_image'])): ?>
-              <img src="<?= h($sa['featured_image']) ?>" alt="<?= h($sa['title']) ?>" loading="eager">
-            <?php else: ?><div class="stack-card-placeholder"></div><?php endif; ?>
-            <span class="card-cat-badge sm"><?= h($sa['category'] ?? '') ?></span>
-          </div>
-          <div class="stack-card-body">
-            <h3 class="stack-card-title"><?= h($sa['title']) ?></h3>
-            <p class="stack-card-excerpt"><?= h(excerpt_words($sa['excerpt'] ?: strip_tags($sa['content'] ?? ''), 16)) ?></p>
-            <div class="card-meta sm">
-              <?php $a = article_author($sa); ?>
-              <span class="card-author"><?= h($a['name']) ?></span>
-              <span class="card-dot">·</span>
-              <span class="card-time"><?= time_ago($sa['published_at'] ?? '') ?></span>
-              <?php $rt = nt_rt($sa); if ($rt): ?>
-                <span class="card-dot">·</span><span class="card-read"><?= h($rt) ?></span>
-              <?php endif; ?>
-            </div>
-          </div>
-        </a>
-        <?php endforeach; ?>
+  <!-- Major Hero Article -->
+  <?php if ($hero): ?>
+  <article class="np-hero-major">
+    <a href="/article/<?= h($hero['slug']) ?>" class="np-hero-link">
+      <div class="np-hero-img">
+        <?php if (!empty($hero['featured_image'])): ?>
+          <img src="<?= h($hero['featured_image']) ?>" alt="<?= h($hero['title']) ?>" loading="eager">
+        <?php else: ?>
+          <div class="np-hero-placeholder"></div>
+        <?php endif; ?>
+        <span class="np-badge-feature">Main Feature</span>
       </div>
+      <h1 class="np-hero-title"><?= h($hero['title']) ?></h1>
+      <p class="np-hero-excerpt"><?= h(excerpt_words($hero['excerpt'] ?: strip_tags($hero['content'] ?? ''), 30)) ?></p>
+      <div class="np-meta">
+        <?php $a = article_author($hero); ?>
+        <span>By <?= h($a['name']) ?></span>
+        <span class="np-meta-dot">&bull;</span>
+        <?php $rt = nt_rt($hero); if ($rt): ?>
+          <span><?= h($rt) ?></span>
+        <?php endif; ?>
+      </div>
+    </a>
 
-    </div><!-- .hero-top-row -->
+    <!-- Hero Banner Ad — fills space below hero article, stays in hero column -->
+    <?= render_ad($ads, 'hero-banner', 'ad-hero-banner') ?>
+  </article>
+  <?php endif; ?>
 
-    <!-- 3×2 grid -->
-    <?php if (!empty($gridArticles)): ?>
-    <div class="hero-grid-3x3">
-      <?php foreach ($gridArticles as $hg): ?>
-      <a href="/article/<?= h($hg['slug']) ?>" class="grid-card">
-        <div class="grid-card-img">
-          <?php if (!empty($hg['featured_image'])): ?>
-            <img src="<?= h($hg['featured_image']) ?>" alt="<?= h($hg['title']) ?>" loading="lazy">
-          <?php else: ?><div class="grid-card-placeholder"></div><?php endif; ?>
-          <span class="card-cat-badge sm"><?= h($hg['category'] ?? '') ?></span>
-        </div>
-        <div class="grid-card-body">
-          <h4 class="grid-card-title"><?= h($hg['title']) ?></h4>
-          <p class="grid-card-excerpt"><?= h(excerpt_words($hg['excerpt'] ?: strip_tags($hg['content'] ?? ''), 14)) ?></p>
-          <div class="card-meta sm">
-            <?php $a = article_author($hg); ?>
-            <span class="card-author"><?= h($a['name']) ?></span>
-            <span class="card-dot">·</span>
-            <span class="card-time"><?= time_ago($hg['published_at'] ?? '') ?></span>
-            <?php $rt = nt_rt($hg); if ($rt): ?>
-              <span class="card-dot">·</span><span class="card-read"><?= h($rt) ?></span>
-            <?php endif; ?>
-          </div>
-        </div>
-      </a>
+  <!-- Latest Stories Sidebar -->
+  <div class="np-latest-sidebar">
+    <h2 class="np-sidebar-heading">
+      Latest Stories
+      <svg class="np-arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </h2>
+    <div class="np-latest-list">
+      <?php foreach ($latestSidebar as $i => $la): ?>
+      <article class="np-latest-item<?= $i > 0 ? ' np-latest-bordered' : '' ?>">
+        <a href="/article/<?= h($la['slug']) ?>" class="np-latest-link">
+          <span class="np-cat-tag"><?= h($la['category'] ?? '') ?></span>
+          <h3 class="np-latest-title"><?= h($la['title']) ?></h3>
+          <p class="np-latest-excerpt"><?= h(excerpt_words($la['excerpt'] ?: strip_tags($la['content'] ?? ''), 20)) ?></p>
+        </a>
+      </article>
       <?php endforeach; ?>
     </div>
-    <?php endif; ?>
+  </div>
 
-  </div><!-- .hero-center -->
-
-  <!-- RIGHT: latest feed -->
-  <aside class="latest-sidebar">
-    <div class="sidebar-section-header">
-      <span class="sidebar-section-dot latest-dot"></span> Latest
-    </div>
-    <div class="latest-feed">
-      <?php foreach (array_slice($latest, 0, 12) as $i => $la): ?>
-      <a href="/article/<?= h($la['slug']) ?>" class="latest-item">
-        <span class="latest-num"><?= str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT) ?></span>
-        <div class="latest-text">
-          <span class="latest-cat"><?= h($la['category'] ?? '') ?></span>
-          <span class="latest-title"><?= h($la['title']) ?></span>
-          <span class="latest-time"><?= time_ago($la['published_at'] ?? '') ?></span>
-        </div>
-      </a>
-      <?php endforeach; ?>
-    </div>
-  </aside>
-
-</div><!-- .hero-zone -->
+</section>
 
 
 <!-- ═══════════════════════════════════════════════════════════
-     LATEST ARTICLES  —  lead + 2×2 grid + most-read sidebar
-═══════════════════════════════════════════════════════════ -->
-<?php if ($tsLead): ?>
-<div class="section-block">
-  <div class="section-header">
-    <h2 class="section-title"><span class="section-accent"></span>Latest Articles</h2>
-  </div>
-  <div class="ts-layout">
-    <div class="ts-main">
-      <div class="ts-lead-grid">
-
-        <a href="/article/<?= h($tsLead['slug']) ?>" class="ts-lead-card">
-          <div class="lead-card-img">
-            <?php if (!empty($tsLead['featured_image'])): ?>
-              <img src="<?= h($tsLead['featured_image']) ?>" alt="<?= h($tsLead['title']) ?>" loading="lazy">
-            <?php else: ?><div class="lead-card-placeholder"></div><?php endif; ?>
-            <span class="card-cat-badge"><?= h($tsLead['category'] ?? '') ?></span>
-          </div>
-          <div class="lead-card-body">
-            <h3 class="lead-card-title"><?= h($tsLead['title']) ?></h3>
-            <p class="lead-card-excerpt"><?= h(excerpt_words($tsLead['excerpt'] ?: strip_tags($tsLead['content'] ?? ''), 30)) ?></p>
-            <div class="card-meta">
-              <?php $a = article_author($tsLead); ?>
-              <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-              <span class="card-author"><?= h($a['name']) ?></span>
-              <span class="card-dot">·</span>
-              <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-              <span class="card-time"><?= time_ago($tsLead['published_at'] ?? '') ?></span>
-              <?php $rt = nt_rt($tsLead); if ($rt): ?>
-                <span class="card-dot">·</span><span class="card-read"><?= h($rt) ?></span>
-              <?php endif; ?>
-            </div>
-          </div>
-        </a>
-
-        <div class="ts-grid-2x2">
-          <?php foreach ($tsGrid as $tg): ?>
-          <a href="/article/<?= h($tg['slug']) ?>" class="grid-card">
-            <div class="grid-card-img">
-              <?php if (!empty($tg['featured_image'])): ?>
-                <img src="<?= h($tg['featured_image']) ?>" alt="<?= h($tg['title']) ?>" loading="lazy">
-              <?php else: ?><div class="grid-card-placeholder"></div><?php endif; ?>
-              <span class="card-cat-badge sm"><?= h($tg['category'] ?? '') ?></span>
-            </div>
-            <div class="grid-card-body">
-              <h4 class="grid-card-title"><?= h($tg['title']) ?></h4>
-              <p class="grid-card-excerpt"><?= h(excerpt_words($tg['excerpt'] ?: strip_tags($tg['content'] ?? ''), 14)) ?></p>
-              <div class="card-meta sm">
-                <?php $a = article_author($tg); ?>
-                <span class="card-author"><?= h($a['name']) ?></span>
-                <span class="card-dot">·</span>
-                <span class="card-time"><?= time_ago($tg['published_at'] ?? '') ?></span>
-                <?php $rt = nt_rt($tg); if ($rt): ?>
-                  <span class="card-dot">·</span><span class="card-read"><?= h($rt) ?></span>
-                <?php endif; ?>
-              </div>
-            </div>
-          </a>
-          <?php endforeach; ?>
-        </div>
-
-      </div><!-- .ts-lead-grid -->
-    </div><!-- .ts-main -->
-
-    <aside class="most-read-sidebar">
-      <div class="sidebar-section-header">
-        <span class="sidebar-section-dot mostread-dot"></span> Most Read
-      </div>
-      <div class="most-read-list">
-        <?php foreach (array_slice($most, 0, 8) as $i => $mr): ?>
-        <a href="/article/<?= h($mr['slug']) ?>" class="most-read-item">
-          <span class="most-read-rank"><?= $i + 1 ?></span>
-          <div class="most-read-text">
-            <span class="most-read-title"><?= h($mr['title']) ?></span>
-            <span class="most-read-time"><?= time_ago($mr['published_at'] ?? '') ?></span>
-          </div>
-        </a>
-        <?php endforeach; ?>
-      </div>
-    </aside>
-  </div>
-</div>
-<?php endif; ?>
-
-
-<!-- ═══════════════════════════════════════════════════════════
-     CATEGORY SECTIONS  —  lead · 2×3 grid · 4-col row
+     CATEGORY SECTIONS — Varied layouts per section
 ═══════════════════════════════════════════════════════════ -->
 <?php
 $sectionIdx = 0;
@@ -297,112 +127,153 @@ foreach ($sections as $section):
   if (empty($catArticles)) continue;
   $sectionIdx++;
 
-  $lead      = $catArticles[0];
-  $gridCards = array_slice($catArticles, 1, 6);   // 2×3
-  $rowCards  = array_slice($catArticles, 7, 4);   // 4-col
+  // Determine layout variant based on section index
+  // 1st section: thumbnail grid (Politics-style)
+  // 2nd section: bento grid (Technology-style)
+  // 3rd+ sections: card grid (Economy-style)
+  $variant = match(true) {
+    $sectionIdx % 3 === 1 => 'thumbnail',
+    $sectionIdx % 3 === 2 => 'bento',
+    default               => 'cards',
+  };
 ?>
 
-<?php if ($sectionIdx > 1 && ($sectionIdx - 1) % 3 === 0): ?>
+<?php if ($sectionIdx > 1 && $sectionIdx % 2 === 0): ?>
   <?= render_ad($ads, 'in-feed', 'ad-in-feed') ?>
 <?php endif; ?>
 
-<div class="section-block" id="section-<?= h($catSlug) ?>">
-  <div class="section-header">
-    <h2 class="section-title"><span class="section-accent"></span><?= h($catName) ?></h2>
-    <a href="/category/<?= h($catSlug) ?>" class="section-viewall">View all →</a>
+<?php if ($sectionIdx === 2 && get_site_setting('newsletter_enabled', '1') === '1'): ?>
+<!-- Inline newsletter CTA between category sections -->
+<div class="np-newsletter-banner">
+  <div class="np-newsletter-banner-inner">
+    <div class="np-newsletter-banner-text">
+      <strong><?= h(get_site_setting('newsletter_title', 'Stay informed')) ?></strong>
+      <span><?= h(get_site_setting('newsletter_intro', 'Get the best stories in your inbox. No spam.')) ?></span>
+    </div>
+    <form class="np-newsletter-banner-form" data-newsletter-form>
+      <input type="hidden" name="_csrf" value="<?= h($csrf ?? \App\Services\Csrf::token()) ?>">
+      <input type="email" name="email" placeholder="Email address" required>
+      <button type="submit"><?= h(get_site_setting('newsletter_button', 'Subscribe')) ?></button>
+    </form>
+    <div class="np-newsletter-msg" style="font-size:13px;margin-top:4px;"></div>
+  </div>
+</div>
+<?php endif; ?>
+
+<section class="np-category-section" id="section-<?= h($catSlug) ?>">
+
+  <!-- Section Header -->
+  <div class="np-section-header">
+    <div>
+      <h2 class="np-section-title"><?= h($catName) ?></h2>
+    </div>
+    <a href="/category/<?= h($catSlug) ?>" class="np-view-all">View All <?= h($catName) ?></a>
   </div>
 
-  <!-- Lead + 2×3 grid -->
-  <div class="cat-lead-grid">
-
-    <a href="/article/<?= h($lead['slug']) ?>" class="cat-lead-card">
-      <div class="lead-card-img">
-        <?php if (!empty($lead['featured_image'])): ?>
-          <img src="<?= h($lead['featured_image']) ?>" alt="<?= h($lead['title']) ?>" loading="lazy">
-        <?php else: ?><div class="lead-card-placeholder"></div><?php endif; ?>
-        <span class="card-cat-badge"><?= h($catName) ?></span>
+  <?php if ($variant === 'thumbnail'): ?>
+  <!-- ── THUMBNAIL GRID: 3-col with square thumbnails ── -->
+  <div class="np-thumbnail-grid">
+    <?php foreach (array_slice($catArticles, 0, 9) as $i => $ga): ?>
+    <a href="/article/<?= h($ga['slug']) ?>" class="np-thumb-card<?= $i >= 3 ? ' np-thumb-bordered' : '' ?>">
+      <div class="np-thumb-img">
+        <?php if (!empty($ga['featured_image'])): ?>
+          <img src="<?= h($ga['featured_image']) ?>" alt="<?= h($ga['title']) ?>" loading="lazy">
+        <?php else: ?>
+          <div class="np-thumb-placeholder"></div>
+        <?php endif; ?>
       </div>
-      <div class="lead-card-body">
-        <h3 class="lead-card-title"><?= h($lead['title']) ?></h3>
-        <p class="lead-card-excerpt"><?= h(excerpt_words($lead['excerpt'] ?: '', 30)) ?></p>
-        <div class="card-meta">
-          <?php $a = article_author($lead); ?>
-          <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-          <span class="card-author"><?= h($a['name']) ?></span>
-          <span class="card-dot">·</span>
-          <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-          <span class="card-time"><?= time_ago($lead['published_at'] ?? '') ?></span>
-          <?php $rt = nt_rt($lead); if ($rt): ?>
-            <span class="card-dot">·</span><span class="card-read"><?= h($rt) ?></span>
-          <?php endif; ?>
-        </div>
-      </div>
-    </a>
-
-    <div class="cat-grid-2x3">
-      <?php foreach ($gridCards as $gc): ?>
-      <a href="/article/<?= h($gc['slug']) ?>" class="grid-card">
-        <div class="grid-card-img">
-          <?php if (!empty($gc['featured_image'])): ?>
-            <img src="<?= h($gc['featured_image']) ?>" alt="<?= h($gc['title']) ?>" loading="lazy">
-          <?php else: ?><div class="grid-card-placeholder"></div><?php endif; ?>
-          <span class="card-cat-badge sm"><?= h($gc['category'] ?? $catName) ?></span>
-        </div>
-        <div class="grid-card-body">
-          <h4 class="grid-card-title"><?= h($gc['title']) ?></h4>
-          <p class="grid-card-excerpt"><?= h(excerpt_words($gc['excerpt'] ?: '', 14)) ?></p>
-          <div class="card-meta sm">
-            <?php $a = article_author($gc); ?>
-            <span class="card-author"><?= h($a['name']) ?></span>
-            <span class="card-dot">·</span>
-            <span class="card-time"><?= time_ago($gc['published_at'] ?? '') ?></span>
-            <?php $rt = nt_rt($gc); if ($rt): ?>
-              <span class="card-dot">·</span><span class="card-read"><?= h($rt) ?></span>
-            <?php endif; ?>
-          </div>
-        </div>
-      </a>
-      <?php endforeach; ?>
-    </div>
-
-  </div><!-- .cat-lead-grid -->
-
-  <!-- 4-col row -->
-  <?php if (!empty($rowCards)): ?>
-  <div class="four-col-row">
-    <?php foreach ($rowCards as $rc): ?>
-    <a href="/article/<?= h($rc['slug']) ?>" class="four-col-card">
-      <div class="four-col-img">
-        <?php if (!empty($rc['featured_image'])): ?>
-          <img src="<?= h($rc['featured_image']) ?>" alt="<?= h($rc['title']) ?>" loading="lazy">
-        <?php else: ?><div class="grid-card-placeholder"></div><?php endif; ?>
-        <span class="card-cat-badge sm"><?= h($rc['category'] ?? $catName) ?></span>
-      </div>
-      <div class="four-col-body">
-        <h4 class="four-col-title"><?= h($rc['title']) ?></h4>
-        <p class="four-col-excerpt"><?= h(excerpt_words($rc['excerpt'] ?: '', 12)) ?></p>
-        <div class="card-meta sm">
-          <?php $a = article_author($rc); ?>
-          <span class="card-author"><?= h($a['name']) ?></span>
-          <span class="card-dot">·</span>
-          <span class="card-time"><?= time_ago($rc['published_at'] ?? '') ?></span>
-          <?php $rt = nt_rt($rc); if ($rt): ?>
-            <span class="card-dot">·</span><span class="card-read"><?= h($rt) ?></span>
-          <?php endif; ?>
-        </div>
+      <div class="np-thumb-text">
+        <span class="np-cat-tag"><?= h($ga['category'] ?? $catName) ?></span>
+        <h4 class="np-thumb-title"><?= h($ga['title']) ?></h4>
+        <?php $a = article_author($ga); ?>
+        <span class="np-thumb-author">By <?= h($a['name']) ?></span>
       </div>
     </a>
     <?php endforeach; ?>
   </div>
+
+  <?php elseif ($variant === 'bento'): ?>
+  <!-- ── BENTO GRID: Large hero + small cards + text row ── -->
+  <div class="np-bento-grid">
+    <?php $bentoLead = $catArticles[0]; $bentoSmall = array_slice($catArticles, 1, 2); $bentoText = array_slice($catArticles, 3, 2); ?>
+
+    <!-- Large hero card -->
+    <a href="/article/<?= h($bentoLead['slug']) ?>" class="np-bento-hero">
+      <?php if (!empty($bentoLead['featured_image'])): ?>
+        <img src="<?= h($bentoLead['featured_image']) ?>" alt="<?= h($bentoLead['title']) ?>" loading="lazy">
+      <?php endif; ?>
+      <div class="np-bento-overlay">
+        <span class="np-badge-feature">Special Report</span>
+        <h3 class="np-bento-title"><?= h($bentoLead['title']) ?></h3>
+      </div>
+    </a>
+
+    <!-- Small cards -->
+    <?php foreach ($bentoSmall as $bs): ?>
+    <a href="/article/<?= h($bs['slug']) ?>" class="np-bento-small">
+      <span class="np-cat-tag"><?= h($bs['category'] ?? $catName) ?></span>
+      <h4 class="np-bento-small-title"><?= h($bs['title']) ?></h4>
+      <span class="np-read-more">Read Article <svg class="np-arrow-sm" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+    </a>
+    <?php endforeach; ?>
+
+    <!-- Text row -->
+    <?php if (!empty($bentoText)): ?>
+    <div class="np-bento-text-row">
+      <?php foreach ($bentoText as $j => $bt): ?>
+      <a href="/article/<?= h($bt['slug']) ?>" class="np-bento-text-item">
+        <span class="np-bento-num"><?= str_pad((string)($j + 1), 2, '0', STR_PAD_LEFT) ?> / <?= h(strtoupper($bt['category'] ?? $catName)) ?></span>
+        <h5 class="np-bento-text-title"><?= h($bt['title']) ?></h5>
+      </a>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+  </div>
+
+  <?php else: ?>
+  <!-- ── CARD GRID: Image cards + text list ── -->
+  <div class="np-cards-section">
+    <!-- Top 3 image cards -->
+    <div class="np-card-grid">
+      <?php foreach (array_slice($catArticles, 0, 3) as $ca): ?>
+      <a href="/article/<?= h($ca['slug']) ?>" class="np-image-card">
+        <div class="np-image-card-img">
+          <?php if (!empty($ca['featured_image'])): ?>
+            <img src="<?= h($ca['featured_image']) ?>" alt="<?= h($ca['title']) ?>" loading="lazy">
+          <?php else: ?>
+            <div class="np-thumb-placeholder np-aspect-video"></div>
+          <?php endif; ?>
+        </div>
+        <h3 class="np-image-card-title"><?= h($ca['title']) ?></h3>
+        <p class="np-image-card-excerpt"><?= h(excerpt_words($ca['excerpt'] ?: strip_tags($ca['content'] ?? ''), 18)) ?></p>
+      </a>
+      <?php endforeach; ?>
+    </div>
+
+    <!-- Bottom text-only list -->
+    <?php $textItems = array_slice($catArticles, 3, 6); ?>
+    <?php if (!empty($textItems)): ?>
+    <div class="np-text-list">
+      <?php foreach ($textItems as $ti): ?>
+      <a href="/article/<?= h($ti['slug']) ?>" class="np-text-item">
+        <span class="np-text-cat"><?= h(strtoupper($ti['category'] ?? $catName)) ?></span>
+        <h4 class="np-text-title"><?= h($ti['title']) ?></h4>
+      </a>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+  </div>
   <?php endif; ?>
 
-</div><!-- .section-block -->
+</section>
 
 <?php endforeach; ?>
 
-<button class="scroll-top" id="scrollTopBtn" title="Back to top" aria-label="Scroll to top">↑</button>
+</div><!-- .np-home -->
 
-</section>
+<button class="scroll-top" id="scrollTopBtn" title="Back to top" aria-label="Scroll to top">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
 
 <script>
 (function(){

@@ -35,15 +35,10 @@ use Symfony\Component\HttpFoundation\Response;
 final class SecurityHeadersMiddleware implements MiddlewareInterface
 {
     /**
-     * Trusted CDN origins used by the platform's JavaScript libraries.
-     * CKEditor 5, D3.js, Chart.js all load from cdnjs.cloudflare.com.
-     * Chart.js v4 and world-atlas GeoJSON load from cdn.jsdelivr.net.
+     * Trusted CDN origins for JavaScript libraries.
+     * All libraries are self-hosted — no external CDNs needed.
      */
-    private const TRUSTED_SCRIPT_CDNS = [
-        'https://cdn.ckeditor.com',
-        'https://cdnjs.cloudflare.com',
-        'https://cdn.jsdelivr.net',      // Chart.js v4, world-atlas topojson
-    ];
+    private const TRUSTED_SCRIPT_CDNS = [];
 
     /**
      * Trusted image origins: allow same-origin uploads and common external
@@ -93,6 +88,16 @@ final class SecurityHeadersMiddleware implements MiddlewareInterface
             . 'notifications=(self)'
         );
 
+        // ── Strict-Transport-Security (HSTS) ──────────────────────────
+        // Force HTTPS for 2 years. includeSubDomains covers all subdomains.
+        // Only sent when the request arrived over HTTPS (or via trusted proxy).
+        if ($request->isSecure() || ($request->headers->get('X-Forwarded-Proto') === 'https')) {
+            $response->headers->set(
+                'Strict-Transport-Security',
+                'max-age=63072000; includeSubDomains; preload'
+            );
+        }
+
         // ── X-XSS-Protection (legacy) ──────────────────────────────────
         // Belt-and-suspenders for older browsers. Modern ones use CSP instead.
         $response->headers->set('X-XSS-Protection', '1; mode=block');
@@ -103,15 +108,15 @@ final class SecurityHeadersMiddleware implements MiddlewareInterface
             $scriptCdns = implode(' ', self::TRUSTED_SCRIPT_CDNS);
             $imgSrcs    = implode(' ', self::TRUSTED_IMG_SRCS);
 
-            // font-src: Google Fonts + self for locally-served fonts
+            // font-src: self-hosted fonts only
             // frame-src: self for popup preview iframes, youtube for embeds
             $csp = implode('; ', [
                 "default-src 'self'",
                 "script-src 'self' 'unsafe-inline' {$scriptCdns}",
-                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com {$scriptCdns}",
-                "font-src 'self' https://fonts.gstatic.com data:",
+                "style-src 'self' 'unsafe-inline' {$scriptCdns}",
+                "font-src 'self' data:",
                 "img-src {$imgSrcs}",
-                "connect-src 'self' {$appUrl} https://nominatim.openstreetmap.org https://ipapi.co https://cdn.jsdelivr.net",
+                "connect-src 'self' {$appUrl} https://nominatim.openstreetmap.org https://ipapi.co",
                 "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://www.instagram.com",
                 "object-src 'none'",
                 "base-uri 'self'",

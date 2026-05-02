@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Services\RobotsChecker;
+
 /**
  * Industry-grade full-page article scraper.
  *
@@ -101,6 +103,12 @@ final class ArticleScraper
     {
         if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) return null;
 
+        // robots.txt compliance — skip article if disallowed (admin-toggleable)
+        if (\App\Models\Setting::get('crawler_robots_check', 'false') === 'true' && !RobotsChecker::isAllowed($url)) {
+            error_log("ArticleScraper: robots.txt disallows {$url}");
+            return null;
+        }
+
         try {
             $html = self::fetchPage($url);
             if (!$html || strlen($html) < 500) return null;
@@ -108,8 +116,8 @@ final class ArticleScraper
             libxml_use_internal_errors(true);
             $doc = new \DOMDocument('1.0', 'UTF-8');
             @$doc->loadHTML(
-                '<?xml encoding="UTF-8">' . mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'),
-                LIBXML_NOERROR | LIBXML_NOWARNING
+                '<meta charset="UTF-8">' . $html,
+                LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_HTML_NOIMPLIED
             );
             $xpath = new \DOMXPath($doc);
 
@@ -140,7 +148,7 @@ final class ArticleScraper
 
             libxml_clear_errors();
 
-            if ($content && $textLen > 150) {
+            if ($content && $textLen > 400) {
                 return [
                     'content'     => $content,
                     'hero_image'  => $heroImage,
@@ -177,7 +185,8 @@ final class ArticleScraper
             CURLOPT_TIMEOUT        => self::TIMEOUT,
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_USERAGENT      => $agents[array_rand($agents)],
-            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYPEER => ($_ENV['VERIFY_SSL'] ?? 'true') !== 'false',
+            CURLOPT_SSL_VERIFYHOST => ($_ENV['VERIFY_SSL'] ?? 'true') !== 'false' ? 2 : 0,
             CURLOPT_COOKIEJAR      => $cookieFile,
             CURLOPT_COOKIEFILE     => $cookieFile,
             CURLOPT_HTTPHEADER     => [
@@ -189,6 +198,7 @@ final class ArticleScraper
                 'Sec-Fetch-Mode: navigate',
                 'Sec-Fetch-Site: none',
                 'Upgrade-Insecure-Requests: 1',
+                'X-Crawler-Identity: ' . RobotsChecker::USER_AGENT_FULL,
             ],
             CURLOPT_ENCODING => '',
         ]);
@@ -204,7 +214,7 @@ final class ArticleScraper
             if (preg_match('/charset=["\']?([^"\';\s]+)/i', substr($data, 0, 5000), $m)) {
                 $data = @mb_convert_encoding($data, 'UTF-8', $m[1]) ?: $data;
             } else {
-                $data = @mb_convert_encoding($data, 'UTF-8', 'auto') ?: $data;
+                $data = @mb_convert_encoding($data, 'UTF-8', 'ISO-8859-1, Windows-1252, ASCII') ?: $data;
             }
         }
         return $data;
@@ -274,7 +284,7 @@ final class ArticleScraper
             foreach ($node->childNodes as $child) {
                 $html .= $doc->saveHTML($child);
             }
-            return (strlen(strip_tags($html)) > 100) ? $html : null;
+            return (strlen(strip_tags($html)) > 400) ? $html : null;
         } catch (\Throwable) {
             return null;
         }
@@ -324,7 +334,7 @@ final class ArticleScraper
 
         $html = '';
         foreach ($bestNode->childNodes as $child) $html .= $doc->saveHTML($child);
-        return (strlen(strip_tags($html)) > 150) ? $html : null;
+        return (strlen(strip_tags($html)) > 400) ? $html : null;
     }
 
     // ── DOM cleanup ─────────────────────────────────────────────
@@ -421,6 +431,20 @@ final class ArticleScraper
         $html = preg_replace('/\s+on\w+="[^"]*"/i', '', $html);
         $html = preg_replace('/\s+aria-[\w-]+="[^"]*"/i', '', $html);
         $html = preg_replace('/\s+role="[^"]*"/i', '', $html);
+
+        // Strip author bio / share / social / subscribe blocks by common patterns
+        $junkBlocks = [
+            '#<div[^>]*(?:author[-_]?bio|author[-_]?box|author[-_]?card|byline[-_]?box)[^>]*>.*?</div>#is',
+            '#<div[^>]*(?:share[-_]?bar|share[-_]?button|social[-_]?share|addtoany|addthis|sharedaddy)[^>]*>.*?</div>#is',
+            '#<div[^>]*(?:related[-_]?posts?|yarpp|jp[-_]?relatedposts|more[-_]?stories)[^>]*>.*?</div>#is',
+            '#<div[^>]*(?:newsletter|subscribe|email[-_]?signup|opt[-_]?in)[^>]*>.*?</div>#is',
+            '#<div[^>]*(?:post[-_]?tags|entry[-_]?tags|tag[-_]?list)[^>]*>.*?</div>#is',
+            '#<div[^>]*(?:post[-_]?navigation|nav[-_]?links|pagination)[^>]*>.*?</div>#is',
+            '#<ul[^>]*(?:social[-_]?links|share[-_]?links|follow[-_]?us)[^>]*>.*?</ul>#is',
+        ];
+        foreach ($junkBlocks as $pattern) {
+            $html = preg_replace($pattern, '', $html);
+        }
 
         $html = preg_replace('#<p[^>]*>\s*The post\s+<a[^>]*>.*?</a>\s+appeared first on\s+<a[^>]*>.*?</a>\.\s*</p>#is', '', $html);
         $html = preg_replace('#<p[^>]*>\s*The post\s+.{5,300}\s+appeared first on\s+.{3,100}\.\s*</p>#is', '', $html);

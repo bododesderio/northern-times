@@ -62,6 +62,134 @@ final class AdminController extends Controller
     ]);
   }
 
+  // ── Password Reset Flow ────────────────────────────────────
+
+  public function forgotPassword(): Response
+  {
+    return $this->render('admin/forgot_password', ['csrf' => Csrf::token()]);
+  }
+
+  public function forgotPasswordPost(): Response
+  {
+    $request = Request::createFromGlobals();
+    $email = trim((string)$request->request->get('email', ''));
+
+    // Always show success to prevent email enumeration
+    $successMsg = 'If an account exists with that email, a password reset link has been sent.';
+
+    if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+      return $this->render('admin/forgot_password', ['success' => $successMsg, 'csrf' => Csrf::token()]);
+    }
+
+    // Rate limit
+    $ip = $request->getClientIp() ?? '0.0.0.0';
+    if (!RateLimiter::allow('pw_reset:' . $ip, 3, 3600)) {
+      return $this->render('admin/forgot_password', ['success' => $successMsg, 'csrf' => Csrf::token()]);
+    }
+
+    try {
+      $pdo = \App\Services\DB::pdo();
+
+      // Auto-create table
+      $pdo->exec("CREATE TABLE IF NOT EXISTS password_resets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email VARCHAR(255) NOT NULL,
+        token VARCHAR(64) NOT NULL UNIQUE,
+        used BOOLEAN DEFAULT FALSE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )");
+
+      // Check user exists
+      $stmt = $pdo->prepare("SELECT id, name FROM users WHERE email = :email AND is_active = TRUE LIMIT 1");
+      $stmt->execute([':email' => $email]);
+      $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+      if ($user) {
+        // Generate token (64 hex chars)
+        $token = bin2hex(random_bytes(32));
+        $expiresAt = date('Y-m-d H:i:s', time() + 3600); // 1 hour
+
+        // Invalidate old tokens for this email
+        $pdo->prepare("UPDATE password_resets SET used = TRUE WHERE email = :email AND used = FALSE")
+            ->execute([':email' => $email]);
+
+        // Insert new token
+        $pdo->prepare("INSERT INTO password_resets (email, token, expires_at) VALUES (:email, :token, :expires)")
+            ->execute([':email' => $email, ':token' => $token, ':expires' => $expiresAt]);
+
+        // Send email
+        $resetUrl = ($_ENV['APP_URL'] ?? 'http://localhost:8080') . '/admin/reset-password/' . $token;
+        $html = \App\Services\Mailer::passwordResetEmail($user['name'] ?? 'User', $resetUrl);
+        \App\Services\Mailer::send($email, 'Password Reset — ' . ($_ENV['APP_NAME'] ?? 'The Northern Times'), $html);
+      }
+    } catch (\Throwable $e) {
+      error_log('Password reset error: ' . $e->getMessage());
+    }
+
+    return $this->render('admin/forgot_password', ['success' => $successMsg, 'csrf' => Csrf::token()]);
+  }
+
+  public function resetPassword(string $token): Response
+  {
+    return $this->render('admin/reset_password', ['token' => $token, 'csrf' => Csrf::token()]);
+  }
+
+  public function resetPasswordPost(string $token): Response
+  {
+    $request = Request::createFromGlobals();
+    $password = (string)$request->request->get('password', '');
+    $confirm  = (string)$request->request->get('password_confirmation', '');
+
+    if (strlen($password) < 8) {
+      return $this->render('admin/reset_password', [
+        'token' => $token, 'csrf' => Csrf::token(),
+        'error' => 'Password must be at least 8 characters.',
+      ]);
+    }
+    if ($password !== $confirm) {
+      return $this->render('admin/reset_password', [
+        'token' => $token, 'csrf' => Csrf::token(),
+        'error' => 'Passwords do not match.',
+      ]);
+    }
+
+    try {
+      $pdo = \App\Services\DB::pdo();
+
+      $stmt = $pdo->prepare(
+        "SELECT email FROM password_resets WHERE token = :token AND used = FALSE AND expires_at > NOW() LIMIT 1"
+      );
+      $stmt->execute([':token' => $token]);
+      $reset = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+      if (!$reset) {
+        return $this->render('admin/reset_password', [
+          'token' => $token, 'csrf' => Csrf::token(),
+          'error' => 'This reset link has expired or already been used.',
+        ]);
+      }
+
+      // Update password
+      $hashed = password_hash($password, PASSWORD_BCRYPT);
+      $pdo->prepare("UPDATE users SET password = :pw WHERE email = :email")
+          ->execute([':pw' => $hashed, ':email' => $reset['email']]);
+
+      // Mark token as used
+      $pdo->prepare("UPDATE password_resets SET used = TRUE WHERE token = :token")
+          ->execute([':token' => $token]);
+
+      Flash::set('success', 'Password has been reset. Please log in.');
+      return $this->redirect('/admin/login');
+    } catch (\Throwable $e) {
+      error_log('Password reset error: ' . $e->getMessage());
+      return $this->render('admin/reset_password', [
+        'token' => $token, 'csrf' => Csrf::token(),
+        'error' => 'An error occurred. Please try again.',
+      ]);
+    }
+  }
+
   public function dashboard(): Response
   {
     return $this->render('admin/dashboard');
@@ -731,7 +859,7 @@ final class AdminController extends Controller
       $topArticles = $pdo->query(
         "SELECT a.title, a.slug, COUNT(av.id) AS view_count
          FROM articles a JOIN article_views av ON av.article_id = a.id
-         WHERE av.created_at >= NOW() - INTERVAL '30 days'
+         WHERE av.viewed_at >= NOW() - INTERVAL '30 days'
          GROUP BY a.id, a.title, a.slug ORDER BY view_count DESC LIMIT 10"
       )->fetchAll(\PDO::FETCH_ASSOC);
     } catch (\Throwable) {}
@@ -1476,7 +1604,7 @@ final class AdminController extends Controller
     $subscriberCount = 0;
     try {
       $subscriberCount = (int) $pdo->query(
-        "SELECT COUNT(*) FROM newsletter_subscribers WHERE confirmed = TRUE"
+        "SELECT COUNT(*) FROM newsletter_subscribers WHERE status = 'active'"
       )->fetchColumn();
     } catch (\Throwable) {}
 

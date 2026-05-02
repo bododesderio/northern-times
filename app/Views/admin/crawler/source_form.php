@@ -166,6 +166,11 @@ ob_start();
             <span style="font-weight:600;font-size:14px">Download images locally</span>
           </label>
           <div style="font-size:12px;color:var(--muted,#888);margin-top:4px">Store featured &amp; inline images on your server instead of hotlinking. Better quality, no broken images.</div>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px">
+            <input type="checkbox" name="require_review" value="1" <?= ($s['require_review'] ?? false) ? 'checked' : '' ?>>
+            <span style="font-weight:600;font-size:14px">Require editorial review</span>
+          </label>
+          <div style="font-size:12px;color:var(--muted,#888);margin-top:4px">Articles from this source always go to the review queue, regardless of global auto-publish setting.</div>
         </div>
       </div>
     </div>

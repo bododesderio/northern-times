@@ -38,7 +38,8 @@ final class AdSlot extends BaseModel
     public static function activeSlots(): array
     {
         $rows = self::query("
-            SELECT slot_name, ad_type, content, link_url,
+            SELECT slot_name, ad_type, content, content_tablet, content_mobile,
+                   link_url, link_url_tablet, link_url_mobile,
                    device_target, max_width, max_height, custom_css, nofollow, alt_text
             FROM ad_slots
             WHERE is_active = TRUE
@@ -71,34 +72,42 @@ final class AdSlot extends BaseModel
     {
         self::execute("
             UPDATE ad_slots SET
-              ad_type       = :type,
-              content       = :content,
-              link_url      = :link,
-              is_active     = :active,
-              start_date    = :start,
-              end_date      = :end,
-              device_target = :device,
-              max_width     = :maxw,
-              max_height    = :maxh,
-              custom_css    = :css,
-              nofollow      = :nofollow,
-              alt_text      = :alt,
-              updated_at    = NOW()
+              ad_type         = :type,
+              content         = :content,
+              content_tablet  = :content_tablet,
+              content_mobile  = :content_mobile,
+              link_url        = :link,
+              link_url_tablet = :link_tablet,
+              link_url_mobile = :link_mobile,
+              is_active       = :active,
+              start_date      = :start,
+              end_date        = :end,
+              device_target   = :device,
+              max_width       = :maxw,
+              max_height      = :maxh,
+              custom_css      = :css,
+              nofollow        = :nofollow,
+              alt_text        = :alt,
+              updated_at      = NOW()
             WHERE id = :id
         ", [
-            ':type'     => $data['ad_type'] ?? 'image',
-            ':content'  => $data['content'] ?? '',
-            ':link'     => $data['link_url'] ?? null,
-            ':active'   => ($data['is_active'] ?? false) ? 'true' : 'false',
-            ':start'    => $data['start_date'] ?? null,
-            ':end'      => $data['end_date'] ?? null,
-            ':device'   => $data['device_target'] ?? 'all',
-            ':maxw'     => $data['max_width'] ?? null,
-            ':maxh'     => $data['max_height'] ?? null,
-            ':css'      => $data['custom_css'] ?? null,
-            ':nofollow' => ($data['nofollow'] ?? true) ? 'true' : 'false',
-            ':alt'      => $data['alt_text'] ?? null,
-            ':id'       => $id,
+            ':type'           => $data['ad_type'] ?? 'image',
+            ':content'        => $data['content'] ?? '',
+            ':content_tablet' => $data['content_tablet'] ?? '',
+            ':content_mobile' => $data['content_mobile'] ?? '',
+            ':link'           => $data['link_url'] ?? null,
+            ':link_tablet'    => $data['link_url_tablet'] ?? '',
+            ':link_mobile'    => $data['link_url_mobile'] ?? '',
+            ':active'         => ($data['is_active'] ?? false) ? 'true' : 'false',
+            ':start'          => $data['start_date'] ?? null,
+            ':end'            => $data['end_date'] ?? null,
+            ':device'         => $data['device_target'] ?? 'all',
+            ':maxw'           => $data['max_width'] ?? null,
+            ':maxh'           => $data['max_height'] ?? null,
+            ':css'            => $data['custom_css'] ?? null,
+            ':nofollow'       => ($data['nofollow'] ?? true) ? 'true' : 'false',
+            ':alt'            => $data['alt_text'] ?? null,
+            ':id'             => $id,
         ]);
     }
 

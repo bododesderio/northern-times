@@ -24,8 +24,17 @@ from dedup import check_duplicate
 
 logger = logging.getLogger(__name__)
 
-# Thread pool for batch processing — separate from extractor's pool
-_batch_executor = ThreadPoolExecutor(max_workers=int(os.getenv("EXTRACTOR_BATCH_WORKERS", "4")))
+# Lazy-initialized thread pool for batch processing (fork-safe for multi-worker uvicorn)
+_batch_executor = None
+_batch_lock = threading.Lock()
+
+def _get_batch_executor() -> ThreadPoolExecutor:
+    global _batch_executor
+    if _batch_executor is None:
+        with _batch_lock:
+            if _batch_executor is None:
+                _batch_executor = ThreadPoolExecutor(max_workers=int(os.getenv("EXTRACTOR_BATCH_WORKERS", "4")))
+    return _batch_executor
 
 
 def enrich(
@@ -251,7 +260,7 @@ def enrich_batch(
     # Submit all articles to thread pool
     futures = {}
     for i, article in enumerate(articles):
-        future = _batch_executor.submit(_process_one, i, article)
+        future = _get_batch_executor().submit(_process_one, i, article)
         futures[future] = i
 
     # Collect results as they complete
@@ -286,5 +295,26 @@ def enrich_batch(
                 "sentiment_score": None,
                 "quality_score": None,
             }
+
+    # Post-completion intra-batch dedup: detect duplicates that slipped through
+    # the concurrent race window (both processed before either appended its title)
+    seen_titles: list[str] = []
+    for idx, r in enumerate(results):
+        if r and r.get("success"):
+            title = (
+                r.get("extraction", {}).get("title")
+                or articles[idx].get("title", "")
+            )
+            if title:
+                from dedup import titles_are_similar
+                is_dup = False
+                for seen in seen_titles:
+                    if titles_are_similar(title, seen, dedup_threshold or 0.55):
+                        is_dup = True
+                        break
+                if is_dup:
+                    r["dedup"] = {"is_duplicate": True, "reason": "intra-batch-dedup"}
+                else:
+                    seen_titles.append(title)
 
     return results

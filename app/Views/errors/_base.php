@@ -61,8 +61,7 @@ $copyrightLine = function_exists('copyright_line')
   <link rel="icon" type="<?= htmlspecialchars($fmime) ?>" href="<?= htmlspecialchars($faviconUrl) ?>">
 <?php endif; ?>
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/fonts/fonts.css">
 
 <!--
   FIX (T-05): get_theme_css() emits the :root CSS variable block driven by

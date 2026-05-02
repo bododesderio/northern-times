@@ -1,51 +1,116 @@
 <?php
+/**
+ * AUTHOR PAGE — Nocturnal Prestige Editorial Redesign
+ * Author profile hero + article grid + sidebar
+ */
 $author   = $author ?? null;
 $articles = $articles ?? [];
-$result   = $result ?? ['total'=>0,'page'=>1,'pages'=>1];
+$result   = $result ?? ['total' => 0, 'page' => 1, 'pages' => 1];
 $ads      = $ads ?? [];
-$siteAbbr = get_site_setting('site_abbreviation', '') ?: mb_strtoupper(mb_substr(preg_replace('/\s+.*/u', '', get_site_setting('site_title', 'News')), 0, 3)) ?: 'NEWS';
 if (!$author) { echo "<h1>Author not found</h1>"; return; }
 $displayName = $author['display_name'] ?? $author['username'];
 $avatar = $author['avatar_url'] ?? '/assets/default-avatar.svg';
 ?>
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"Person","name":"<?= h($displayName) ?>","url":"<?= h(app_url('/author/'.$author['username'])) ?>",<?php if(!empty($author['bio'])):?>"description":"<?= h(substr($author['bio'],0,200)) ?>",<?php endif;?>"jobTitle":"<?= h(ucfirst($author['role']??'writer')) ?>"}
+{"@context":"https://schema.org","@type":"Person","name":"<?= h($displayName) ?>","url":"<?= h(app_url('/author/' . $author['username'])) ?>"<?php if (!empty($author['bio'])): ?>,"description":"<?= h(substr($author['bio'], 0, 200)) ?>"<?php endif; ?>,"jobTitle":"<?= h(ucfirst($author['role'] ?? 'writer')) ?>"}
 </script>
-<section class="category-page">
-  <div style="display:flex;gap:24px;align-items:flex-start;padding:32px 0;border-bottom:1px solid var(--border,#e0e0e0);margin-bottom:28px">
-    <img src="<?= h($avatar) ?>" alt="<?= h($displayName) ?>" style="width:96px;height:96px;border-radius:50%;object-fit:cover;border:3px solid var(--border,#e0e0e0);flex-shrink:0"/>
-    <div>
-      <h1 style="margin:0 0 4px;font-size:28px"><?= h($displayName) ?></h1>
-      <p style="margin:0 0 8px;color:var(--muted,#666);font-size:14px;text-transform:capitalize"><?= h($author['role']??'Writer') ?></p>
-      <?php if(!empty($author['bio'])):?><p style="margin:0 0 12px;line-height:1.6;max-width:600px"><?= h($author['bio']) ?></p><?php endif;?>
-      <p class="muted" style="margin:0;font-size:13px"><?= $result['total'] ?> article<?= $result['total']!==1?'s':'' ?> published</p>
+
+<div class="np-page-wrap">
+
+  <!-- Author Profile Header -->
+  <header class="np-author-header">
+    <div class="np-author-profile">
+      <img src="<?= h($avatar) ?>" alt="<?= h($displayName) ?>" class="np-author-avatar" />
+      <div class="np-author-info">
+        <div class="np-cat-accent-line"></div>
+        <span class="np-cat-tag"><?= h(ucfirst($author['role'] ?? 'Writer')) ?></span>
+        <h1 class="np-author-name"><?= h($displayName) ?></h1>
+        <?php if (!empty($author['bio'])): ?>
+          <p class="np-author-bio"><?= h($author['bio']) ?></p>
+        <?php endif; ?>
+        <p class="np-author-stats"><?= $result['total'] ?> article<?= $result['total'] !== 1 ? 's' : '' ?> published</p>
+      </div>
     </div>
-  </div>
-  <?php if(!empty($articles)):?>
-  <div class="cat-bottom-grid">
-    <?php foreach($articles as $a):?>
-      <article class="cat-grid-card"><a href="/article/<?= h($a['slug']) ?>">
-        <?php if(!empty($a['featured_image'])):?><div class="cat-grid-img"><img src="<?= h($a['featured_image']) ?>" alt="<?= h($a['title']) ?>" loading="lazy"/></div>
-        <?php else:?><div class="cat-grid-placeholder"><?= h($siteAbbr) ?></div><?php endif;?>
-        <div class="cat-grid-body">
-          <span class="cat-grid-badge"><?= h($a['category']??'') ?></span>
-          <h4><?= h($a['title']) ?></h4>
-          <p class="cat-grid-excerpt"><?= h($a['excerpt']?:excerpt((string)($a['content']??''),80)) ?></p>
-          <div class="meta tiny"><?= h($a['published_at']?date('M j, Y',strtotime((string)$a['published_at'])):'') ?><?php if(!empty($a['reading_time'])):?> <span class="dot">&middot;</span> <?= (int)$a['reading_time'] ?> min read<?php endif;?></div>
+  </header>
+
+  <?php if (!empty($articles)): ?>
+  <div class="np-cat-layout">
+
+    <!-- Main Content: Article Grid -->
+    <div class="np-cat-main">
+      <div class="np-cat-grid-header">
+        <h2 class="np-cat-grid-title">Articles by <?= h($displayName) ?></h2>
+      </div>
+
+      <div class="np-cat-article-grid">
+        <?php foreach ($articles as $i => $a): ?>
+        <article class="np-cat-card">
+          <a href="/article/<?= h($a['slug']) ?>" class="np-cat-card-link">
+            <div class="np-cat-card-img">
+              <?php if (!empty($a['featured_image'])): ?>
+                <img src="<?= h($a['featured_image']) ?>" alt="<?= h($a['title']) ?>" loading="<?= $i < 3 ? 'eager' : 'lazy' ?>">
+              <?php else: ?>
+                <div class="np-cat-card-placeholder"></div>
+              <?php endif; ?>
+            </div>
+            <?php if (!empty($a['category'])): ?>
+              <span class="np-cat-tag"><?= h($a['category']) ?></span>
+            <?php endif; ?>
+            <h3 class="np-cat-card-title"><?= h($a['title']) ?></h3>
+            <p class="np-cat-card-excerpt"><?= h($a['excerpt'] ?: excerpt((string)($a['content'] ?? ''), 100)) ?></p>
+            <div class="np-cat-card-meta">
+              <span><?= h(!empty($a['published_at']) ? date('M j, Y', strtotime((string)$a['published_at'])) : '') ?></span>
+              <?php if (!empty($a['reading_time'])): ?>
+                <span class="np-meta-dot">&bull;</span>
+                <span><?= (int)$a['reading_time'] ?> min read</span>
+              <?php endif; ?>
+            </div>
+          </a>
+        </article>
+        <?php endforeach; ?>
+      </div>
+
+      <?php if ($result['pages'] > 1): ?>
+      <nav class="np-pagination" aria-label="Author articles pagination">
+        <?php for ($p = 1; $p <= $result['pages']; $p++): ?>
+          <?php if ($p === $result['page']): ?>
+            <span class="np-pagination-current"><?= $p ?></span>
+          <?php else: ?>
+            <a href="/author/<?= h($author['username']) ?>?page=<?= $p ?>" class="np-pagination-link"><?= $p ?></a>
+          <?php endif; ?>
+        <?php endfor; ?>
+      </nav>
+      <?php endif; ?>
+
+      <?= render_ad($ads, 'in-feed', 'ad-in-feed') ?>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="np-cat-sidebar">
+
+      <!-- Newsletter CTA -->
+      <section class="np-sidebar-newsletter">
+        <div class="np-sidebar-newsletter-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+          <h2 class="np-sidebar-heading-text">The Daily Brief</h2>
         </div>
-      </a></article>
-    <?php endforeach;?>
+        <p class="np-sidebar-newsletter-desc">Stay ahead of the curve with our morning briefing.</p>
+        <form class="np-sidebar-newsletter-form" action="/api/newsletter" method="POST">
+          <input type="hidden" name="_csrf" value="<?= h(\App\Services\Csrf::token()) ?>">
+          <input type="email" name="email" placeholder="EMAIL ADDRESS" required class="np-sidebar-input">
+          <button type="submit" class="np-sidebar-btn">Subscribe Now</button>
+        </form>
+      </section>
+
+    </aside>
+
   </div>
-  <?php if($result['pages']>1):?>
-  <div style="text-align:center;margin:32px 0;display:flex;gap:8px;justify-content:center">
-    <?php for($p=1;$p<=$result['pages'];$p++):?>
-      <?php if($p===$result['page']):?><span style="padding:8px 14px;border-radius:6px;background:var(--accent,#cc0000);color:#fff;font-weight:600"><?= $p ?></span>
-      <?php else:?><a href="/author/<?= h($author['username']) ?>?page=<?= $p ?>" style="padding:8px 14px;border-radius:6px;border:1px solid var(--border);color:var(--ink);text-decoration:none"><?= $p ?></a><?php endif;?>
-    <?php endfor;?>
-  </div>
-  <?php endif;?>
-  <?= render_ad($ads,'in-feed','ad-in-feed') ?>
-  <?php else:?>
-    <div class="card" style="margin-top:24px"><h3 style="margin:0 0 6px">No published articles yet</h3><p class="muted" style="margin:0">Articles will appear here when published.</p></div>
-  <?php endif;?>
-</section>
+
+  <?php else: ?>
+    <div class="np-empty-state">
+      <h3>No published articles yet</h3>
+      <p>Articles by <?= h($displayName) ?> will appear here when published.</p>
+    </div>
+  <?php endif; ?>
+
+</div>

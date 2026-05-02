@@ -316,6 +316,14 @@ final class FrontendController extends Controller
   /* ================================================================
      TAG SEARCH API — /api/tags/search?q=...  (Phase 10)
      ================================================================ */
+  public function tagsApi(): Response
+  {
+    $tags = \App\Models\Tag::allNames();
+    return $this->json($tags, 200, [
+      'Cache-Control' => 'public, max-age=300',
+    ]);
+  }
+
   public function tagSearchApi(): Response
   {
     $q = trim((string)(Request::createFromGlobals()->query->get('q', '')));
@@ -340,6 +348,10 @@ final class FrontendController extends Controller
 
     $articles = Article::byCategorySlug($slug, 1, 40)['rows'];
 
+    // Most-read articles for sidebar
+    $most = [];
+    try { $most = Article::mostRead(10); } catch (\Throwable) {}
+
     $meta = [
       'title'       => $category['name'] . ' — ' . $this->siteTitle(),
       'description' => $category['description'] ?: ('Latest stories in ' . $category['name'] . '.'),
@@ -349,7 +361,7 @@ final class FrontendController extends Controller
 
     $ads = AdSlot::activeSlots();
 
-    return $this->layout('category', compact('category','articles','ads','meta'));
+    return $this->layout('category', compact('category','articles','ads','most','meta'));
   }
 
   /* ================================================================
@@ -365,6 +377,12 @@ final class FrontendController extends Controller
       $articles = Article::search($q, 1, 50)['rows'];
     }
 
+    // Sidebar data
+    $trending = [];
+    try { $trending = Article::mostRead(5); } catch (\Throwable) {}
+    $tags = [];
+    try { $tags = \App\Models\Tag::trending(8); } catch (\Throwable) {}
+
     $meta = [
       'title'       => ($q ? 'Search: ' . $q : 'Search') . ' — ' . $this->siteTitle(),
       'description' => 'Search the ' . $this->siteTitle() . ' archive.',
@@ -372,7 +390,7 @@ final class FrontendController extends Controller
       'og_image'    => \app_url('/assets/og-default.png'),
     ];
 
-    return $this->layout('search', compact('q','articles','meta'));
+    return $this->layout('search', compact('q','articles','trending','tags','meta'));
   }
 
   /* ================================================================
@@ -750,10 +768,14 @@ Disallow: /search?
             } catch (\Throwable) {}
 
             // Policy pages
-            $policies = ['privacy-policy', 'terms-of-service', 'cookie-policy', 'about'];
+            $policies = ['privacy-policy', 'terms-of-service', 'cookie-policy'];
             foreach ($policies as $pSlug) {
                 $addUrl($site . '/policy/' . $pSlug, null, 'monthly', '0.4');
             }
+
+            // Standalone pages
+            $addUrl($site . '/about', null, 'monthly', '0.6');
+            $addUrl($site . '/contact', null, 'monthly', '0.6');
         } else {
             // Articles for specific month
             $pdo = \App\Services\DB::pdo();
@@ -982,7 +1004,23 @@ Disallow: /search?
 
     try {
       Subscriber::subscribe($email, $name);
-      return $this->json(['ok' => true, 'message' => "Subscribed! You'll get the next headlines."]);
+
+      // Send welcome email immediately
+      try {
+        $pdo = \App\Services\DB::pdo();
+        $stmt = $pdo->prepare("SELECT unsub_token FROM newsletter_subscribers WHERE email = :email LIMIT 1");
+        $stmt->execute([':email' => $email]);
+        $token = $stmt->fetchColumn();
+        if ($token) {
+          $displayName = $name ?: 'there';
+          $html = \App\Services\Mailer::welcomeEmail($displayName, $token);
+          \App\Services\Mailer::send($email, 'Welcome to ' . ($_ENV['APP_NAME'] ?? 'The Northern Times'), $html);
+        }
+      } catch (\Throwable $e) {
+        error_log('Newsletter welcome email failed: ' . $e->getMessage());
+      }
+
+      return $this->json(['ok' => true, 'message' => "Subscribed! Check your inbox for a welcome message."]);
     } catch (\Throwable) {
       return $this->json(['ok' => false, 'message' => 'Subscription failed. Please try again.'], 500);
     }
@@ -1320,6 +1358,128 @@ Disallow: /search?
       'Cache-Control' => 'public, max-age=300',
       'Access-Control-Allow-Origin' => '*',
     ]);
+  }
+
+  /* ================================================================
+     ABOUT PAGE
+     ================================================================ */
+  public function about(): Response
+  {
+    $meta = [
+      'title'       => 'About Us — ' . $this->siteTitle(),
+      'description' => 'Learn about ' . $this->siteTitle() . ' — independent journalism from Northern Uganda and beyond.',
+      'canonical'   => \app_url('/about'),
+      'og_image'    => \app_url('/assets/og-default.png'),
+    ];
+
+    return $this->layout('about', compact('meta'));
+  }
+
+  /* ================================================================
+     CONTACT PAGE
+     ================================================================ */
+  public function contact(): Response
+  {
+    $meta = [
+      'title'       => 'Contact Us — ' . $this->siteTitle(),
+      'description' => 'Get in touch with ' . $this->siteTitle() . '. Send tips, inquiries, or feedback.',
+      'canonical'   => \app_url('/contact'),
+      'og_image'    => \app_url('/assets/og-default.png'),
+    ];
+
+    return $this->layout('contact', compact('meta'));
+  }
+
+  public function contactPost(): Response
+  {
+    $request = Request::createFromGlobals();
+
+    $name    = trim((string)$request->request->get('name', ''));
+    $email   = trim((string)$request->request->get('email', ''));
+    $subject = trim((string)$request->request->get('subject', ''));
+    $message = trim((string)$request->request->get('message', ''));
+
+    $errors = [];
+    if ($name === '') $errors[] = 'Name is required.';
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'A valid email is required.';
+    if ($subject === '') $errors[] = 'Subject is required.';
+    if ($message === '') $errors[] = 'Message is required.';
+    if (mb_strlen($message) > 10000) $errors[] = 'Message too long (max 10,000 characters).';
+
+    // Rate limit
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (!RateLimiter::allow('contact:' . $ip, 5, 3600)) {
+      $errors[] = 'Too many messages. Please try again later.';
+    }
+
+    if (!empty($errors)) {
+      $meta = [
+        'title'       => 'Contact Us — ' . $this->siteTitle(),
+        'description' => 'Get in touch with ' . $this->siteTitle() . '.',
+        'canonical'   => \app_url('/contact'),
+        'og_image'    => \app_url('/assets/og-default.png'),
+      ];
+      $formError = implode(' ', $errors);
+      $formData  = compact('name', 'email', 'subject', 'message');
+      return $this->layout('contact', compact('meta', 'formError', 'formData'));
+    }
+
+    // Store in contact_messages table
+    try {
+      $pdo = \App\Services\DB::pdo();
+
+      // Auto-create table if it doesn't exist
+      $pdo->exec("CREATE TABLE IF NOT EXISTS contact_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        subject VARCHAR(500) NOT NULL,
+        message TEXT NOT NULL,
+        ip_address INET,
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )");
+
+      $stmt = $pdo->prepare("INSERT INTO contact_messages (name, email, subject, message, ip_address) VALUES (:name, :email, :subject, :message, :ip::inet)");
+      $stmt->execute([
+        ':name'    => $name,
+        ':email'   => $email,
+        ':subject' => $subject,
+        ':message' => $message,
+        ':ip'      => $ip,
+      ]);
+
+      // Email notification to admin
+      $adminEmail = function_exists('get_site_setting')
+          ? get_site_setting('contact_email', $_ENV['MAIL_FROM_ADDRESS'] ?? '')
+          : ($_ENV['MAIL_FROM_ADDRESS'] ?? '');
+      if ($adminEmail) {
+        try {
+          \App\Services\Mailer::send(
+            $adminEmail,
+            "[Contact Form] {$subject}",
+            "<h3>New contact form submission</h3>"
+            . "<p><strong>From:</strong> " . htmlspecialchars($name) . " &lt;" . htmlspecialchars($email) . "&gt;</p>"
+            . "<p><strong>Subject:</strong> " . htmlspecialchars($subject) . "</p>"
+            . "<hr><p>" . nl2br(htmlspecialchars($message)) . "</p>"
+            . "<hr><p style='color:#999;font-size:12px;'>IP: {$ip} | " . date('Y-m-d H:i:s') . "</p>"
+          );
+        } catch (\Throwable $mailErr) {
+          error_log('Contact form email notification failed: ' . $mailErr->getMessage());
+        }
+      }
+    } catch (\Throwable $e) {
+      error_log('Contact form error: ' . $e->getMessage());
+    }
+
+    $meta = [
+      'title'       => 'Message Sent — ' . $this->siteTitle(),
+      'description' => 'Your message has been sent.',
+      'canonical'   => \app_url('/contact'),
+      'og_image'    => \app_url('/assets/og-default.png'),
+    ];
+    $formSuccess = true;
+    return $this->layout('contact', compact('meta', 'formSuccess'));
   }
 
   /* ================================================================

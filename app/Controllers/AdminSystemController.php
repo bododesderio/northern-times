@@ -178,9 +178,9 @@ final class AdminSystemController extends Controller
         $pdo   = DB::pdo();
         $count = 0;
 
-        if ($this->tableExists($pdo, 'crawl_log')) {
-            $count = (int)$pdo->query("SELECT COUNT(*) FROM crawl_log")->fetchColumn();
-            $pdo->exec("TRUNCATE crawl_log RESTART IDENTITY CASCADE");
+        if ($this->tableExists($pdo, 'crawl_logs')) {
+            $count = (int)$pdo->query("SELECT COUNT(*) FROM crawl_logs")->fetchColumn();
+            $pdo->exec("TRUNCATE crawl_logs RESTART IDENTITY CASCADE");
         }
         if ($this->tableExists($pdo, 'crawl_sources')) {
             $crawlCols = $pdo->query(
@@ -245,9 +245,9 @@ final class AdminSystemController extends Controller
             }
 
             // Crawler stats
-            if ($this->tableExists($pdo, 'crawl_log')) {
-                $c = (int)$pdo->query("SELECT COUNT(*) FROM crawl_log")->fetchColumn();
-                $pdo->exec("TRUNCATE crawl_log RESTART IDENTITY CASCADE");
+            if ($this->tableExists($pdo, 'crawl_logs')) {
+                $c = (int)$pdo->query("SELECT COUNT(*) FROM crawl_logs")->fetchColumn();
+                $pdo->exec("TRUNCATE crawl_logs RESTART IDENTITY CASCADE");
                 $total += $c;
             }
             if ($this->tableExists($pdo, 'crawl_sources')) {
@@ -318,7 +318,7 @@ final class AdminSystemController extends Controller
         if (\Symfony\Component\HttpFoundation\Request::createFromGlobals()->getMethod() === 'GET') {
             return $this->redirect('/admin/system');
         }
-        return $this->purgeTable('crawl_log', 'purge_crawl_history', 'crawl history', 'content');
+        return $this->purgeTable('crawl_logs', 'purge_crawl_history', 'crawl history', 'content');
     }
 
     public function purgeSeoHistory(): Response
@@ -540,9 +540,9 @@ final class AdminSystemController extends Controller
 
         $pdo = DB::pdo();
         $srcCount  = (int)$pdo->query("SELECT COUNT(*) FROM crawl_sources")->fetchColumn();
-        $logCount  = (int)$pdo->query("SELECT COUNT(*) FROM crawl_log")->fetchColumn();
+        $logCount  = (int)$pdo->query("SELECT COUNT(*) FROM crawl_logs")->fetchColumn();
 
-        $pdo->exec("TRUNCATE crawl_log");
+        $pdo->exec("TRUNCATE crawl_logs");
         $pdo->exec("DELETE FROM crawl_sources");
 
         SystemLog::log('reset_crawler_system', "Reset entire crawler ({$srcCount} sources, {$logCount} logs)", $srcCount + $logCount, 'danger');
@@ -579,7 +579,7 @@ final class AdminSystemController extends Controller
             'media_library', 'categories',
             'newsletter_subscribers', 'newsletter_issues',
             'popups', 'popup_events', 'popup_dismissals',
-            'crawl_log', 'crawl_sources',
+            'crawl_logs', 'crawl_sources',
             'notifications',
             'social_mentions', 'social_keywords',
             'login_attempts',
@@ -1048,7 +1048,7 @@ final class AdminSystemController extends Controller
     {
         $tables = [
             'articles', 'comments', 'newsletter_subscribers', 'media_library',
-            'popups', 'crawl_sources', 'crawl_log', 'notifications',
+            'popups', 'crawl_sources', 'crawl_logs', 'notifications',
             'newsletter_issues', 'categories', 'ad_slots',
         ];
 
@@ -1078,7 +1078,7 @@ final class AdminSystemController extends Controller
 
     private const ALLOWED_PURGE_TABLES = [
         'comments', 'newsletter_subscribers', 'notifications', 'email_queue',
-        'crawl_log', 'crawl_logs', 'social_mentions', 'login_attempts',
+        'crawl_logs', 'crawl_logs', 'social_mentions', 'login_attempts',
         'article_views', 'site_visitors', 'popup_events', 'seo_issues',
         'seo_audits', 'image_health_log', 'story_threads', 'tags',
         'push_subscriptions', 'social_posts_log', 'article_revisions',
@@ -1152,6 +1152,10 @@ final class AdminSystemController extends Controller
                 $host = getenv('REDIS_HOST') ?: ($_ENV['REDIS_HOST'] ?? 'redis');
                 $port = (int)(getenv('REDIS_PORT') ?: ($_ENV['REDIS_PORT'] ?? 6379));
                 if (@$redis->connect($host, $port, 2)) {
+                    $pass = getenv('REDIS_PASSWORD') ?: ($_ENV['REDIS_PASSWORD'] ?? '');
+                    if ($pass !== '') {
+                        $redis->auth($pass);
+                    }
                     $env['redis_status'] = 'connected';
                     $info = $redis->info();
                     $env['redis_info'] = [

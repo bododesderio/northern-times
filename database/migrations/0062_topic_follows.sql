@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS topic_follows (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(255) NOT NULL,
     follow_type VARCHAR(20) NOT NULL CHECK (follow_type IN ('category', 'tag')),
-    follow_id UUID NOT NULL,
+    follow_id VARCHAR(255) NOT NULL,
     unsub_token VARCHAR(64) NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

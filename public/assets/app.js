@@ -30,9 +30,10 @@
     t.style.marginTop = container.children.length ? "8px" : "0";
     t.style.padding = "10px 16px";
     t.style.borderRadius = "12px";
-    t.style.border = "1px solid #e2e2e2";
-    t.style.background = "#fff";
-    t.style.boxShadow = "0 12px 40px rgba(0,0,0,0.12)";
+    t.style.border = "1px solid var(--np-border, #333)";
+    t.style.background = "var(--np-surface-1, #1c1917)";
+    t.style.color = "var(--color-text-primary, #fafafa)";
+    t.style.boxShadow = "0 12px 40px rgba(0,0,0,0.25)";
     t.style.fontFamily = 'system-ui, sans-serif';
     t.style.fontSize = "14px";
     t.style.cursor = "pointer";
@@ -175,6 +176,12 @@
   initNewsletterForm($("#newsletterForm"), $("#newsletterMsg"));
   initNewsletterForm($("form[data-mini-newsletter]"), $("[data-mini-msg]"));
 
+  // Bind inline newsletter forms (article sidebar, homepage banner, etc.)
+  document.querySelectorAll("form[data-newsletter-form]").forEach(form => {
+    const msg = form.parentElement?.querySelector(".np-newsletter-msg");
+    initNewsletterForm(form, msg);
+  });
+
   // ── Mobile Drawer ──────────────────────────────────────────────────────────
   const openDrawerBtn  = $("#openDrawer");
   const closeDrawerBtn = $("#closeDrawer");
@@ -207,7 +214,7 @@
   }
 
   // ── Reading Progress Bar (article pages only) ──────────────────────────────
-  const articleContent = $("#content") || $(".article-body") || $("#articleBody");
+  const articleContent = $(".article-body") || $("#articleBody");
   if (articleContent) {
     let rafScheduled = false;
 
@@ -221,7 +228,7 @@
     const progressBar = document.createElement("div");
     progressBar.id = "ntProgress";
     Object.assign(progressBar.style, {
-      height: "100%", width: "0%", background: "#121212", transition: "width 0.08s linear"
+      height: "100%", width: "0%", background: "var(--np-accent, #e67e22)", transition: "width 0.08s linear"
     });
 
     progressWrap.appendChild(progressBar);

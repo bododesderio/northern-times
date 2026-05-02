@@ -283,7 +283,7 @@ function get_theme_css(): string
   --accent-dark: {$accentDark};
   --accent-text: {$accentText};
   --selection-bg: {$selection};
-  --mast-color: {$mastColor};
+  --mast-color: {$mastColor ?: 'var(--accent)'};
 
   --serif: {$fontSerif};
   --ui: {$fontUi};

@@ -116,11 +116,12 @@ ob_start();
         </button>
       </form>
 
-      <div class="lp-foot">
+      <div class="lp-foot" style="display:flex;justify-content:space-between;align-items:center;">
         <a href="/" class="lp-back-link">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
           Back to front page
         </a>
+        <a href="/admin/forgot-password" class="lp-back-link" style="font-size:13px;">Forgot password?</a>
       </div>
 
     </div>

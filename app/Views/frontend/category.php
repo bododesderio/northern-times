@@ -1,110 +1,110 @@
 <?php
+/**
+ * CATEGORY PAGE — Nocturnal Prestige Editorial Redesign
+ * 12-col grid: 9-col article grid + 3-col sidebar
+ */
 $category = $category ?? null;
 $articles = $articles ?? [];
 $ads = $ads ?? [];
+$most = $most ?? [];
 if (!$category) { echo "<h1>Not found</h1>"; return; }
 
-$siteAbbr = get_site_setting('site_abbreviation', '') ?: mb_strtoupper(mb_substr(preg_replace('/\s+.*/u', '', get_site_setting('site_title', 'News')), 0, 3)) ?: 'NEWS';
-$lead = !empty($articles) ? $articles[0] : null;
-$sideStories = array_slice($articles, 1, 2);
-$gridStories = array_slice($articles, 3);
+$allArticles = $articles;
+$gridArticles = $allArticles;
 ?>
-<section class="category-page">
-  <header class="cat-page-header">
-    <h1><?= h($category['name']) ?></h1>
-    <p class="muted"><?= h($category['description'] ?: ('Latest stories in ' . $category['name'] . '.')) ?></p>
-    <div class="follow-topic-form" style="margin-top:12px">
-      <form class="follow-form" data-type="category" data-id="<?= h($category['id'] ?? '') ?>" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input type="email" placeholder="Your email" required style="padding:6px 12px;border:1px solid var(--border,#ddd);border-radius:6px;font-size:13px;width:200px">
-        <button type="submit" style="padding:6px 14px;background:var(--accent,#cc0000);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">Follow this topic</button>
-        <span class="follow-msg" style="font-size:12px;color:var(--muted,#888)"></span>
-      </form>
-    </div>
+<div class="np-page-wrap">
+
+  <!-- Category Header -->
+  <header class="np-cat-header">
+    <div class="np-cat-accent-line"></div>
+    <span class="np-cat-tag">Section</span>
+    <h1 class="np-cat-title"><?= h($category['name']) ?></h1>
+    <p class="np-cat-desc"><?= h($category['description'] ?: ('Deep-dive reporting and expert analysis on ' . strtolower($category['name']) . '.')) ?></p>
   </header>
 
-  <?php if ($lead): ?>
-  <!-- Lead + 2 stacked -->
-  <div class="cat-top-row">
-    <article class="cat-lead">
-      <a href="/article/<?= h($lead['slug']) ?>">
-        <?php if (!empty($lead['featured_image'])): ?>
-          <div class="cat-lead-img">
-            <img src="<?= h($lead['featured_image']) ?>" alt="<?= h($lead['title']) ?>" loading="eager" />
-          </div>
-        <?php else: ?>
-          <div class="cat-lead-placeholder"><?= h($siteAbbr) ?></div>
-        <?php endif; ?>
-        <h3><?= h($lead['title']) ?></h3>
-        <p class="cat-lead-excerpt"><?= h($lead['excerpt'] ?: excerpt((string)($lead['content'] ?? ''), 180)) ?></p>
-        <div class="meta tiny">
-          <?= h($lead['author'] ?? 'Staff') ?>
-          <span class="dot">&middot;</span>
-          <?= h($lead['published_at'] ? date('M j, Y', strtotime((string)$lead['published_at'])) : '') ?><?php if (!empty($lead['published_at'])): ?> &middot; <span title="<?= h(date('M j, Y', strtotime((string)$lead['published_at']))) ?>"><?= time_ago((string)$lead['published_at']) ?></span><?php endif; ?>
-        </div>
-      </a>
-    </article>
+  <?php if (!empty($gridArticles)): ?>
+  <div class="np-cat-layout">
 
-    <?php if (!empty($sideStories)): ?>
-    <div class="cat-side-stack">
-      <?php foreach ($sideStories as $a): ?>
-        <article class="cat-side-item">
-          <a href="/article/<?= h($a['slug']) ?>">
-            <div class="cat-side-row">
+    <!-- Main Content: Article Grid -->
+    <div class="np-cat-main">
+      <div class="np-cat-grid-header">
+        <h2 class="np-cat-grid-title">Latest in <?= h($category['name']) ?></h2>
+      </div>
+
+      <div class="np-cat-article-grid">
+        <?php foreach ($gridArticles as $i => $a): ?>
+        <article class="np-cat-card">
+          <a href="/article/<?= h($a['slug']) ?>" class="np-cat-card-link">
+            <div class="np-cat-card-img">
               <?php if (!empty($a['featured_image'])): ?>
-                <img src="<?= h($a['featured_image']) ?>" alt="<?= h($a['title']) ?>" class="cat-side-thumb" loading="lazy" />
+                <img src="<?= h($a['featured_image']) ?>" alt="<?= h($a['title']) ?>" loading="<?= $i < 3 ? 'eager' : 'lazy' ?>">
+              <?php else: ?>
+                <div class="np-cat-card-placeholder"></div>
               <?php endif; ?>
-              <div class="cat-side-text">
-                <h4><?= h($a['title']) ?></h4>
-                <p><?= h($a['excerpt'] ?: excerpt((string)($a['content'] ?? ''), 90)) ?></p>
-                <div class="meta tiny">
-                  <?= h($a['author'] ?? 'Staff') ?>
-                  <span class="dot">&middot;</span>
-                  <?= h($a['published_at'] ? date('M j, Y', strtotime((string)$a['published_at'])) : '') ?><?php if (!empty($a['published_at'])): ?> &middot; <?= time_ago((string)$a['published_at']) ?><?php endif; ?>
-                </div>
-              </div>
+            </div>
+            <span class="np-cat-tag"><?= h($a['category'] ?? $category['name']) ?></span>
+            <h3 class="np-cat-card-title"><?= h($a['title']) ?></h3>
+            <div class="np-cat-card-meta">
+              <span>By <?= h($a['author'] ?? 'Staff') ?></span>
+              <span class="np-meta-dot">&bull;</span>
+              <span><?= h(!empty($a['published_at']) ? time_ago((string)$a['published_at']) : '') ?></span>
             </div>
           </a>
         </article>
-      <?php endforeach; ?>
+        <?php endforeach; ?>
+      </div>
+
+      <?= render_ad($ads, 'in-feed', 'ad-in-feed') ?>
     </div>
-    <?php endif; ?>
-  </div>
 
-  <!-- ═══ IN-FEED AD ═══ -->
-  <?= render_ad($ads, 'in-feed', 'ad-in-feed') ?>
+    <!-- Sidebar -->
+    <aside class="np-cat-sidebar">
 
-  <!-- 4-column grid for rest -->
-  <?php if (!empty($gridStories)): ?>
-  <div class="cat-bottom-grid" style="margin-top:28px">
-    <?php foreach ($gridStories as $a): ?>
-      <article class="cat-grid-card">
-        <a href="/article/<?= h($a['slug']) ?>">
-          <?php if (!empty($a['featured_image'])): ?>
-            <div class="cat-grid-img">
-              <img src="<?= h($a['featured_image']) ?>" alt="<?= h($a['title']) ?>" loading="lazy" />
+      <!-- Trending in Category -->
+      <?php if (!empty($most)): ?>
+      <section class="np-sidebar-section">
+        <div class="np-sidebar-heading-accent">
+          <h2 class="np-sidebar-heading-text">Trending in <?= h($category['name']) ?></h2>
+        </div>
+        <div class="np-trending-list">
+          <?php foreach (array_slice($most, 0, 4) as $i => $m): ?>
+          <a href="/article/<?= h($m['slug']) ?>" class="np-trending-item">
+            <span class="np-trending-num"><?= str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT) ?></span>
+            <div>
+              <h4 class="np-trending-title"><?= h($m['title']) ?></h4>
+              <?php if (!empty($m['views'])): ?>
+                <span class="np-trending-reads"><?= number_format((int)$m['views']) ?> reads</span>
+              <?php endif; ?>
             </div>
-          <?php else: ?>
-            <div class="cat-grid-placeholder"><?= h($siteAbbr) ?></div>
-          <?php endif; ?>
-          <div class="cat-grid-body">
-            <h4><?= h($a['title']) ?></h4>
-            <p class="cat-grid-excerpt"><?= h($a['excerpt'] ?: excerpt((string)($a['content'] ?? ''), 80)) ?></p>
-            <div class="meta tiny">
-              <?= h($a['author'] ?? 'Staff') ?>
-              <span class="dot">&middot;</span>
-              <?= h($a['published_at'] ? date('M j', strtotime((string)$a['published_at'])) : '') ?><?php if (!empty($a['published_at'])): ?> &middot; <?= time_ago((string)$a['published_at']) ?><?php endif; ?>
-            </div>
-          </div>
-        </a>
-      </article>
-    <?php endforeach; ?>
+          </a>
+          <?php endforeach; ?>
+        </div>
+      </section>
+      <?php endif; ?>
+
+      <!-- Newsletter CTA -->
+      <section class="np-sidebar-newsletter">
+        <div class="np-sidebar-newsletter-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+          <h2 class="np-sidebar-heading-text">The Daily Brief</h2>
+        </div>
+        <p class="np-sidebar-newsletter-desc">Stay ahead of the curve with our morning briefing.</p>
+        <form class="follow-form np-sidebar-newsletter-form" data-type="category" data-id="<?= h($category['id'] ?? '') ?>">
+          <input type="email" placeholder="EMAIL ADDRESS" required class="np-sidebar-input">
+          <button type="submit" class="np-sidebar-btn">Subscribe Now</button>
+          <span class="follow-msg np-sidebar-msg"></span>
+        </form>
+      </section>
+
+    </aside>
+
   </div>
-  <?php endif; ?>
 
   <?php else: ?>
-    <div class="card" style="margin-top:24px">
-      <h3 style="margin:0 0 6px;">Nothing published here yet</h3>
-      <p class="muted" style="margin:0;">Articles will appear here when published.</p>
+    <div class="np-empty-state">
+      <h3>Nothing published here yet</h3>
+      <p>Articles will appear here when published.</p>
     </div>
   <?php endif; ?>
-</section>
+
+</div>

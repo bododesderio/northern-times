@@ -73,6 +73,11 @@ final class AdminCrawlerController extends Controller
             return $this->redirect('/admin/crawler/create');
         }
 
+        if (!filter_var($data['feed_url'], FILTER_VALIDATE_URL) || !in_array(parse_url($data['feed_url'], PHP_URL_SCHEME), ['http', 'https'], true)) {
+            Flash::set('error', 'Feed URL must be a valid HTTP/HTTPS URL.');
+            return $this->redirect('/admin/crawler/create');
+        }
+
         CrawlSource::store($data);
         Flash::set('success', 'Source "' . $data['name'] . '" created.');
         return $this->redirect('/admin/crawler');
@@ -103,6 +108,11 @@ final class AdminCrawlerController extends Controller
 
         if ($data['name'] === '' || $data['feed_url'] === '') {
             Flash::set('error', 'Name and Feed URL are required.');
+            return $this->redirect('/admin/crawler/' . $id . '/edit');
+        }
+
+        if (!filter_var($data['feed_url'], FILTER_VALIDATE_URL) || !in_array(parse_url($data['feed_url'], PHP_URL_SCHEME), ['http', 'https'], true)) {
+            Flash::set('error', 'Feed URL must be a valid HTTP/HTTPS URL.');
             return $this->redirect('/admin/crawler/' . $id . '/edit');
         }
 
@@ -189,6 +199,18 @@ final class AdminCrawlerController extends Controller
         return $this->redirect('/admin/crawler');
     }
 
+    /** Test S3 storage connection. */
+    public function testStorage(): Response
+    {
+        $result = \App\Services\StorageManager::testConnection();
+        if ($result['ok']) {
+            Flash::set('success', $result['message']);
+        } else {
+            Flash::set('error', $result['message']);
+        }
+        return $this->redirect('/admin/crawler/settings');
+    }
+
     /** Visual crawler runner page. */
     public function visualRunner(): Response
     {
@@ -273,9 +295,10 @@ final class AdminCrawlerController extends Controller
             'settings' => [
                 'crawler_enabled'       => Setting::get('crawler_enabled', 'false'),
                 'crawler_interval'      => Setting::get('crawler_interval', '30'),
-                'crawler_auto_publish'  => Setting::get('crawler_auto_publish', 'true'),
+                'crawler_auto_publish'  => Setting::get('crawler_auto_publish', 'pending_review'),
                 'crawler_max_age_hours' => Setting::get('crawler_max_age_hours', '72'),
                 'crawler_default_author'=> Setting::get('crawler_default_author', ''),
+                'crawler_robots_check'  => Setting::get('crawler_robots_check', 'false'),
             ],
             'users' => \App\Models\User::query("SELECT id, username FROM users WHERE is_active = TRUE ORDER BY username"),
             'csrf'  => Csrf::token(),
@@ -289,11 +312,14 @@ final class AdminCrawlerController extends Controller
     {
         $req = Request::createFromGlobals();
 
-        $keys = ['crawler_enabled', 'crawler_interval', 'crawler_auto_publish', 'crawler_max_age_hours', 'crawler_default_author'];
+        $keys = ['crawler_enabled', 'crawler_interval', 'crawler_auto_publish', 'crawler_max_age_hours', 'crawler_default_author', 'crawler_robots_check'];
         foreach ($keys as $key) {
             $val = trim((string)$req->request->get($key, ''));
-            if ($key === 'crawler_enabled' || $key === 'crawler_auto_publish') {
+            if (in_array($key, ['crawler_enabled', 'crawler_robots_check'], true)) {
                 $val = $req->request->get($key) ? 'true' : 'false';
+            } elseif ($key === 'crawler_auto_publish') {
+                $allowed = ['published', 'pending_review', 'draft'];
+                $val = in_array($val, $allowed, true) ? $val : 'published';
             }
             Setting::set($key, $val, 'crawler');
         }
@@ -318,6 +344,17 @@ final class AdminCrawlerController extends Controller
 
         Flash::set('success', "Archived {$count} articles from \"{$source['name']}\".");
         return $this->redirect('/admin/crawler');
+    }
+
+    /** AJAX: check whether a URL is allowed by robots.txt. */
+    public function robotsCheck(): Response
+    {
+        $url = trim(Request::createFromGlobals()->query->get('url', ''));
+        if ($url === '') {
+            return $this->json(['ok' => false, 'error' => 'No URL provided']);
+        }
+        $allowed = \App\Services\RobotsChecker::isAllowed($url);
+        return $this->json(['allowed' => $allowed, 'url' => $url]);
     }
 
     /** AJAX: test a feed URL and return item count. */
@@ -405,6 +442,7 @@ final class AdminCrawlerController extends Controller
             'download_images'     => (bool)$req->request->get('download_images'),
             'full_page_scrape'    => (bool)$req->request->get('full_page_scrape'),
             'content_selector'    => trim((string)$req->request->get('content_selector', '')) ?: null,
+            'require_review'      => (bool)$req->request->get('require_review'),
         ];
     }
 }

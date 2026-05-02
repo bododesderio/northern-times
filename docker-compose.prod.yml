@@ -2,7 +2,7 @@
 #  PRODUCTION OVERRIDE — HTTPS with Let's Encrypt
 #
 #  Usage:
-#    1. Set your domain in .env: APP_DOMAIN=northerntimes.com
+#    1. Set your domain in .env: APP_DOMAIN=northerntimes.co.ug
 #    2. First run (obtain cert):
 #       docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 #       docker compose -f docker-compose.yml -f docker-compose.prod.yml \
@@ -20,11 +20,24 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+    # tmpfs overlays the base compose's bind-mount, allowing envsubst to write
+    tmpfs:
+      - /etc/nginx/conf.d:size=1m
     volumes:
       - ./:/var/www/html:ro
-      - ./docker/nginx/production-ssl.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/nginx/production-ssl.conf:/tmp/ssl.template:ro
       - certbot_www:/var/www/certbot:ro
       - certbot_certs:/etc/nginx/ssl:ro
+    # Process the SSL template with the domain, then start nginx
+    command: /bin/sh -c "envsubst '$$APP_DOMAIN' < /tmp/ssl.template > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "--no-check-certificate", "https://localhost:443/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   certbot:
     image: certbot/certbot:latest

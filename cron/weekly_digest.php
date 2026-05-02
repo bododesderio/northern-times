@@ -100,7 +100,7 @@ foreach ($subscribers as $sub) {
 
     try {
         $pdo->prepare("
-            INSERT INTO email_queue (recipient_email, recipient_name, subject, body_html, status)
+            INSERT INTO email_queue (to_email, to_name, subject, body_html, status)
             VALUES (:email, :name, :subject, :body, 'pending')
         ")->execute([
             ':email' => $sub['email'],

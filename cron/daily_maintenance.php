@@ -10,7 +10,16 @@
 
 declare(strict_types=1);
 
+set_time_limit(0);
+ini_set('memory_limit', '256M');
+
 require_once __DIR__ . '/../vendor/autoload.php';
+if (file_exists(__DIR__ . '/../.env')) {
+    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
+    $dotenv->safeLoad();
+}
+require_once __DIR__ . '/../app/Support/helpers.php';
+\App\Services\ErrorTracker::register();
 
 use App\Services\StatsAggregator;
 use App\Models\DbBackup;
@@ -74,6 +83,53 @@ try {
     }
 } catch (\Throwable $e) {
     echo "[daily] Webhook cleanup error: " . $e->getMessage() . "\n";
+}
+
+// 4. Purge old article_views (> 90 days)
+try {
+    $pdo = DB::pdo();
+    $stmt = $pdo->prepare("DELETE FROM article_views WHERE viewed_at < NOW() - INTERVAL '90 days'");
+    $stmt->execute();
+    $d = $stmt->rowCount();
+    if ($d > 0) echo "[daily] Purged {$d} old article views.\n";
+} catch (\Throwable $e) {
+    echo "[daily] Article views cleanup error: " . $e->getMessage() . "\n";
+}
+
+// 5. Purge old login_attempts (> 30 days)
+try {
+    $pdo = DB::pdo();
+    $stmt = $pdo->prepare("DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL '30 days'");
+    $stmt->execute();
+    $d = $stmt->rowCount();
+    if ($d > 0) echo "[daily] Purged {$d} old login attempts.\n";
+} catch (\Throwable $e) {
+    echo "[daily] Login attempts cleanup error: " . $e->getMessage() . "\n";
+}
+
+// 6. Purge old popup_events (> 60 days)
+try {
+    $pdo = DB::pdo();
+    $exists = $pdo->query("SELECT 1 FROM information_schema.tables WHERE table_name = 'popup_events'")->fetchColumn();
+    if ($exists) {
+        $stmt = $pdo->prepare("DELETE FROM popup_events WHERE created_at < NOW() - INTERVAL '60 days'");
+        $stmt->execute();
+        $d = $stmt->rowCount();
+        if ($d > 0) echo "[daily] Purged {$d} old popup events.\n";
+    }
+} catch (\Throwable $e) {
+    echo "[daily] Popup events cleanup error: " . $e->getMessage() . "\n";
+}
+
+// 7. Purge sent email_queue entries (> 30 days)
+try {
+    $pdo = DB::pdo();
+    $stmt = $pdo->prepare("DELETE FROM email_queue WHERE status = 'sent' AND sent_at < NOW() - INTERVAL '30 days'");
+    $stmt->execute();
+    $d = $stmt->rowCount();
+    if ($d > 0) echo "[daily] Purged {$d} old sent emails.\n";
+} catch (\Throwable $e) {
+    echo "[daily] Email queue cleanup error: " . $e->getMessage() . "\n";
 }
 
 flock($fp, LOCK_UN);

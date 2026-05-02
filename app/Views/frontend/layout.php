@@ -101,6 +101,35 @@ try {
   $navCats = [];
 }
 
+// ── Sidebar categories with daily article counts ────────────────
+$sidebarCats = [];
+try {
+  $sbCacheKey = 'nt_sidebarCats_v2';
+  $sbCached   = function_exists('apcu_fetch') ? apcu_fetch($sbCacheKey) : false;
+
+  if (is_array($sbCached)) {
+    $sidebarCats = $sbCached;
+  } else {
+    $sidebarCats = $pdo->query("
+      SELECT c.name, c.slug,
+             COUNT(a.id) FILTER (WHERE a.published_at >= CURRENT_DATE) AS today_count
+      FROM categories c
+      LEFT JOIN articles a ON a.category_id = c.id
+        AND a.status = 'published'
+        AND (a.published_at IS NULL OR a.published_at <= NOW())
+        AND a.deleted_at IS NULL
+      WHERE c.show_in_sidebar = TRUE
+      GROUP BY c.id, c.name, c.slug, c.sort_order
+      ORDER BY c.sort_order ASC, c.name ASC
+    ")->fetchAll() ?: [];
+    if (function_exists('apcu_store')) {
+      apcu_store($sbCacheKey, $sidebarCats, 300); // 5-min cache
+    }
+  }
+} catch (\Throwable) {
+  $sidebarCats = [];
+}
+
 // ── JSON-LD structured data ──────────────────────────────────────
 $siteUrl = rtrim(\app_url('/'), '/');
 
@@ -160,7 +189,7 @@ if ($metaType === 'article') {
 }
 ?>
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="<?= h(get_site_setting('theme_mode', 'system')) ?>">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -227,20 +256,14 @@ if ($metaType === 'article') {
   <link rel="alternate" type="application/rss+xml" title="<?= h($siteTitle) ?> RSS" href="/rss.xml" />
 
   <!-- App config -->
-  <meta name="theme-color"  content="<?= h(get_site_setting('theme_accent', '#cc0000')) ?>" />
+  <meta name="theme-color"  content="<?= h(get_site_setting('theme_accent', '#0c0a09')) ?>" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="x-csrf-token" content="<?= h($csrf) ?>" />
   <meta name="x-app-url"    content="<?= h(\app_url('/')) ?>" />
 
-  <!-- DNS prefetch for external services -->
-  <link rel="dns-prefetch" href="//fonts.googleapis.com" />
-
-  <!-- Fonts — preconnect + swap to prevent FOIT -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700&family=UnifrakturMaguntia&display=swap" />
-  <link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700&family=UnifrakturMaguntia&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
-  <noscript><link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700&family=UnifrakturMaguntia&display=swap" rel="stylesheet"></noscript>
+  <!-- Fonts — self-hosted, no external CDN -->
+  <link rel="stylesheet" href="/assets/fonts/fonts.css" />
+  <!-- Material Symbols removed — all icons now use inline SVGs -->
 
   <!--
     Theme CSS variables — DB-driven, injected BEFORE app.css.
@@ -248,33 +271,32 @@ if ($metaType === 'article') {
   <?= get_theme_css() ?>
 
   <!-- Main stylesheet (preloaded for faster render) -->
-  <link rel="preload" href="/assets/app.css?v=15" as="style" />
-  <link rel="stylesheet" href="/assets/app.css?v=15" />
-  <link rel="stylesheet" href="/assets/responsive.css?v=1" />
+  <link rel="preload" href="/assets/app.css?v=22" as="style" />
+  <link rel="stylesheet" href="/assets/app.css?v=22" />
+  <link rel="stylesheet" href="/assets/responsive.css?v=2" />
 
   <!-- Inline article image styles (figure, caption, sizing, alignment) -->
   <link rel="stylesheet" href="/assets/article.css?v=1" />
 
   <!-- Dark mode (CSS + JS in head to prevent flash of wrong theme) -->
-  <link rel="stylesheet" href="/assets/dark-mode.css?v=1" />
-  <script src="/assets/dark-mode.js?v=1"></script>
+  <link rel="stylesheet" href="/assets/dark-mode.css?v=2" />
+  <script src="/assets/dark-mode.js?v=2"></script>
 
   <!-- Popups -->
   <link rel="stylesheet" href="/assets/popups.css?v=1" />
 
   <!-- Critical inline styles — CLS prevention + fast first paint -->
   <style>
+    html,body{background:var(--color-bg-primary,#0c0a09);color:var(--color-text-primary,#fafafa)}
+    html:not(.dark) body{background:var(--color-bg-primary,#fafaf9);color:var(--color-text-primary,#1c1917)}
     .skip{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
-    .skip:focus{left:18px;top:18px;width:auto;height:auto;background:var(--surface,#fff);border:1px solid var(--border,#e2e2e2);padding:10px 12px;border-radius:12px;z-index:99999}
-    .header-logo{max-height:48px;width:auto;display:block}
-    .header-title{font-size:36px;line-height:1}
-    /* Prevent image CLS */
+    .skip:focus{left:18px;top:18px;width:auto;height:auto;background:var(--np-surface-1,#1c1917);border:1px solid var(--np-border,#292524);padding:10px 12px;z-index:99999}
+    .header-logo{max-height:40px;width:auto;display:block}
+    .header-title{font-family:'Newsreader',Georgia,serif;font-size:24px;font-weight:900;line-height:1;text-transform:uppercase;letter-spacing:-.03em}
     img{max-width:100%;height:auto}
     img[loading="lazy"]{content-visibility:auto}
-    /* Skeleton placeholder while images load */
-    .img-placeholder{background:linear-gradient(110deg,#f0f0f0 8%,#e8e8e8 18%,#f0f0f0 33%);background-size:200% 100%;animation:shimmer 1.5s linear infinite}
+    .img-placeholder{background:linear-gradient(110deg,var(--np-surface-1,#1c1917) 8%,var(--np-surface-2,#282a2b) 18%,var(--np-surface-1,#1c1917) 33%);background-size:200% 100%;animation:shimmer 1.5s linear infinite}
     @keyframes shimmer{to{background-position:-200% 0}}
-    /* Ad device targeting */
     @media(max-width:767px){.ad-desktop-only{display:none!important}}
     @media(min-width:768px){.ad-mobile-only{display:none!important}}
   </style>
@@ -304,61 +326,77 @@ if ($metaType === 'article') {
 <a class="skip" href="#content">Skip to content</a>
 
 <header class="site-header">
-  <!-- Compact header bar -->
+  <!-- Top navigation bar -->
   <div class="header-bar">
     <div class="header-bar-inner container">
       <div class="header-left">
         <button class="burger" id="openDrawer" type="button" aria-label="Open menu" aria-controls="drawer" aria-expanded="false">
           <span class="burger-lines" aria-hidden="true"><span></span><span></span><span></span></span>
         </button>
-        <span class="header-date tiny"><?= h(date('l, F j, Y')) ?></span>
+        <a class="header-brand" href="/">
+          <?php if ($siteLogoUrl): ?>
+            <img src="<?= h($siteLogoUrl) ?>" alt="<?= h($siteTitle) ?>" class="header-logo" fetchpriority="high" decoding="async" />
+          <?php else: ?>
+            <span class="header-title"><?= h($siteTitle) ?></span>
+          <?php endif; ?>
+        </a>
+        <nav class="header-nav" aria-label="Primary">
+          <?php foreach (array_slice($navCats, 0, 6) as $i => $cat): ?>
+            <?php
+              $catPath  = '/category/' . (string)$cat['slug'];
+              $isActive = ($path === $catPath) || str_starts_with($path, $catPath . '/');
+            ?>
+            <a href="<?= h($catPath) ?>" class="header-nav-link<?= $isActive ? ' active' : '' ?>"><?= h($cat['name']) ?></a>
+          <?php endforeach; ?>
+        </nav>
       </div>
 
-      <a class="header-brand" href="/">
-        <?php if ($siteLogoUrl): ?>
-          <img src="<?= h($siteLogoUrl) ?>" alt="<?= h($siteTitle) ?>" class="header-logo" fetchpriority="high" decoding="async" />
-        <?php else: ?>
-          <span class="header-title"><?= h($siteTitle) ?></span>
-        <?php endif; ?>
-      </a>
-
       <div class="header-right">
+        <div class="header-search-box">
+          <input type="text" id="headerSearchInput" placeholder="Search..." autocomplete="off" />
+        </div>
         <button type="button" class="header-icon-btn" id="searchToggle" aria-label="Toggle search">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         </button>
-        <button type="button" id="darkToggle" class="header-icon-btn" aria-label="Toggle dark mode" title="Toggle dark/light mode">
-          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-        </button>
+        <a href="#newsletter" class="header-subscribe-btn">Subscribe</a>
       </div>
     </div>
   </div>
 
-  <!-- Expandable search bar (hidden by default) -->
+  <!-- Expandable search bar (hidden by default, mobile + toggle fallback) -->
   <div class="search-expand" id="searchExpand" hidden>
     <form class="search-expand-inner container" action="/search" method="GET" role="search">
       <input type="search" name="q" placeholder="Search <?= h($siteTitle) ?>…" value="<?= h($searchQ) ?>" autofocus />
       <button type="submit" aria-label="Search">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       </button>
       <button type="button" class="search-close" id="searchClose" aria-label="Close search">&times;</button>
     </form>
   </div>
-
-  <!-- Category tabs (scrollable, visible on ALL screen sizes) -->
-  <nav class="cat-tabs" aria-label="Primary">
-    <div class="cat-tabs-inner container">
-      <a href="/" class="cat-tab <?= $path === '/' ? 'active' : '' ?>">Home</a>
-      <?php foreach ($navCats as $cat): ?>
-        <?php
-          $catPath  = '/category/' . (string)$cat['slug'];
-          $isActive = ($path === $catPath) || str_starts_with($path, $catPath . '/');
-        ?>
-        <a href="<?= h($catPath) ?>" class="cat-tab <?= $isActive ? 'active' : '' ?>"><?= h($cat['name']) ?></a>
-      <?php endforeach; ?>
-    </div>
-  </nav>
 </header>
+
+<!-- Editorial sidebar (desktop only) -->
+<aside class="editorial-sidebar" id="editorialSidebar">
+  <div class="sidebar-brand">
+    <h3 class="sidebar-edition-label">EDITORIAL</h3>
+    <p class="sidebar-edition-sub">Global Edition</p>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="/" class="sidebar-nav-item<?= $path === '/' ? ' active' : '' ?>">
+      <span class="sidebar-nav-label">Home</span>
+    </a>
+    <div class="sidebar-section-title">Categories</div>
+    <?php foreach ($sidebarCats as $cat): ?>
+      <?php $catPath = '/category/' . (string)$cat['slug']; ?>
+      <a href="<?= h($catPath) ?>" class="sidebar-nav-item<?= str_starts_with($path, $catPath) ? ' active' : '' ?>">
+        <span class="sidebar-nav-label"><?= h($cat['name']) ?></span>
+        <?php if ((int)($cat['today_count'] ?? 0) > 0): ?>
+          <span class="sidebar-nav-badge"><?= (int)$cat['today_count'] ?></span>
+        <?php endif; ?>
+      </a>
+    <?php endforeach; ?>
+  </nav>
+</aside>
 
 <div id="drawerBackdrop" class="drawer-backdrop"></div>
 
@@ -373,7 +411,9 @@ if ($metaType === 'article') {
     <?php else: ?>
       <div class="drawer-title"><?= h($siteTitle) ?></div>
     <?php endif; ?>
-    <button class="drawer-close" id="closeDrawer" type="button" aria-label="Close menu">Close</button>
+    <button class="drawer-close" id="closeDrawer" type="button" aria-label="Close menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
   </div>
 
   <form class="drawer-search" action="/search" method="GET" role="search">
@@ -400,18 +440,18 @@ if ($metaType === 'article') {
   </div>
 </aside>
 
-<main id="content" class="container<?= $path === '/' ? ' container-home' : '' ?>">
+<?php
+  $isFullWidth = ($path === '/') || str_starts_with($path, '/article/') || str_starts_with($path, '/category/') || str_starts_with($path, '/search') || $path === '/about' || $path === '/contact';
+?>
+<main id="content" class="main-content<?= $isFullWidth ? '' : ' container' ?>">
   <?= $content ?? '' ?>
 </main>
-
-<!-- ═══ FOOTER SEPARATOR ═══ -->
-<div class="footer-separator"><div class="container"><div class="footer-sep-line"></div></div></div>
 
 <footer class="site-footer">
   <!-- Newsletter banner -->
   <?php if (get_site_setting('newsletter_enabled', '1') === '1'): ?>
   <?php $nlBg = get_site_setting('newsletter_bg_color', ''); ?>
-  <div class="footer-newsletter"<?= $nlBg ? " style=\"background:{$nlBg}\"" : '' ?>>
+  <div id="newsletter" class="footer-newsletter"<?= $nlBg ? ' style="background:' . h($nlBg) . '"' : '' ?>>
     <div class="container footer-nl-inner">
       <div class="footer-nl-text">
         <div class="footer-nl-title"><?= h(get_site_setting('newsletter_title', 'Stay informed')) ?></div>
@@ -430,10 +470,10 @@ if ($metaType === 'article') {
   </div>
   <?php endif; ?>
 
-  <!-- Main footer grid -->
+  <!-- Simplified editorial footer -->
   <div class="footer-main">
-    <div class="container footer-grid">
-      <div class="footer-col footer-brand-col">
+    <div class="container footer-bottom-flex">
+      <div class="footer-brand-block">
         <?php if ($siteLogoUrl): ?>
           <a href="/" class="footer-logo">
             <img src="<?= h($siteLogoUrl) ?>" alt="<?= h($siteTitle) ?>" loading="lazy" decoding="async" />
@@ -441,99 +481,49 @@ if ($metaType === 'article') {
         <?php else: ?>
           <a href="/" class="footer-masthead"><?= h($siteTitle) ?></a>
         <?php endif; ?>
-        <p class="footer-about">
-          <?= nl2br(h(get_site_setting('footer_about', "Old-school newsroom values, modern delivery. We publish with clarity, not noise."))) ?>
-        </p>
-        <div class="footer-contact">
-          <a href="mailto:<?= h(get_site_setting('footer_tip_line', 'news@example.com')) ?>">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>
-            <?= h(get_site_setting('footer_tip_line', 'news@example.com')) ?>
-          </a>
-          <a href="mailto:<?= h(get_site_setting('footer_ads', 'ads@example.com')) ?>">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-            <?= h(get_site_setting('footer_ads', 'ads@example.com')) ?>
-          </a>
-        </div>
+        <p class="footer-copyright"><?= h(copyright_line()) ?></p>
       </div>
 
-      <div class="footer-col">
-        <div class="footer-heading">Sections</div>
-        <nav class="footer-nav">
-          <?php
-            $footerCats = [];
-            try {
-              $footerCats = \App\Services\DB::pdo()->query("SELECT name, slug FROM categories WHERE show_in_nav = TRUE ORDER BY sort_order ASC, name ASC LIMIT 8")->fetchAll() ?: [];
-            } catch (\Throwable $e) {}
-          ?>
-          <?php if (!empty($footerCats)): ?>
-            <?php foreach ($footerCats as $fc): ?>
-              <a href="/category/<?= h($fc['slug']) ?>"><?= h($fc['name']) ?></a>
-            <?php endforeach; ?>
-          <?php else: ?>
-            <a href="/category/world">World</a>
-            <a href="/category/politics">Politics</a>
-            <a href="/category/business">Business</a>
-            <a href="/category/technology">Technology</a>
-            <a href="/category/opinion">Opinion</a>
-            <a href="/category/health">Health</a>
-          <?php endif; ?>
-        </nav>
-      </div>
-
-      <div class="footer-col">
-        <div class="footer-heading">Company</div>
-        <nav class="footer-nav">
-          <?php
-            $footerPolicies = [];
-            try {
-              $footerPolicies = \App\Services\DB::pdo()
-                ->query("SELECT title, slug FROM policy_pages WHERE is_published = TRUE AND show_in_footer = TRUE ORDER BY sort_order ASC, title ASC LIMIT 10")
-                ->fetchAll() ?: [];
-            } catch (\Throwable) {}
-          ?>
+      <nav class="footer-links-row">
+        <?php
+          $footerPolicies = [];
+          try {
+            $footerPolicies = \App\Services\DB::pdo()
+              ->query("SELECT title, slug FROM policy_pages WHERE is_published = TRUE AND show_in_footer = TRUE ORDER BY sort_order ASC, title ASC LIMIT 6")
+              ->fetchAll() ?: [];
+          } catch (\Throwable) {}
+        ?>
+        <?php if (!empty($footerPolicies)): ?>
           <?php foreach ($footerPolicies as $fp): ?>
             <a href="/policy/<?= h($fp['slug']) ?>"><?= h($fp['title']) ?></a>
           <?php endforeach; ?>
-          <?php if (empty($footerPolicies)): ?>
-            <a href="/policy/editorial-standards">Editorial Standards</a>
-            <a href="/policy/privacy">Privacy Policy</a>
-            <a href="/policy/terms">Terms of Use</a>
-          <?php endif; ?>
-        </nav>
-      </div>
+        <?php else: ?>
+          <a href="/policy/editorial-standards">Ethics Policy</a>
+          <a href="/policy/terms">Terms of Service</a>
+          <a href="/policy/privacy">Privacy</a>
+        <?php endif; ?>
+        <a href="/about">About</a>
+        <a href="/contact">Contact</a>
+      </nav>
 
-      <div class="footer-col">
-        <div class="footer-heading">Connect</div>
-        <div class="footer-socials">
-          <?php
-            $socials = [
-              ['key' => 'social_twitter',   'label' => 'X (Twitter)', 'svg' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>'],
-              ['key' => 'social_facebook',  'label' => 'Facebook',    'svg' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>'],
-              ['key' => 'social_instagram', 'label' => 'Instagram',   'svg' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg>'],
-              ['key' => 'social_youtube',   'label' => 'YouTube',     'svg' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12z"/></svg>'],
-            ];
-            foreach ($socials as $s):
-              $url = get_site_setting($s['key'], '');
-              if ($url === '') continue;
-          ?>
-            <a href="<?= h($url) ?>" class="footer-social-link" aria-label="<?= h($s['label']) ?>" target="_blank" rel="noopener">
-              <?= $s['svg'] ?>
-            </a>
-          <?php endforeach; ?>
-        </div>
-        <div class="footer-tagline">
-          Based in Northern Uganda.<br>
-          Reporting for everyone who still believes words matter.
-        </div>
+      <div class="footer-social-icons">
+        <?php
+          $socials = [
+            ['key' => 'social_twitter',   'label' => 'X (Twitter)',   'icon' => 'public'],
+            ['key' => 'social_facebook',  'label' => 'Facebook',      'icon' => 'public'],
+            ['key' => 'social_instagram', 'label' => 'Instagram',     'icon' => 'public'],
+          ];
+          $contactEmail = get_site_setting('contact_email', get_site_setting('footer_tip_line', ''));
+          if ($contactEmail):
+        ?>
+          <a href="mailto:<?= h($contactEmail) ?>" class="footer-icon-btn" aria-label="Email">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+          </a>
+        <?php endif; ?>
+        <a href="/rss.xml" class="footer-icon-btn" aria-label="RSS Feed">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="6.18" cy="17.82" r="2.18"/><path d="M4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83c0-8.59-6.97-15.56-15.56-15.56zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"/></svg>
+        </a>
       </div>
-    </div>
-  </div>
-
-  <!-- Bottom bar -->
-  <div class="footer-bottom-bar">
-    <div class="container footer-bottom-inner">
-      <span><?= h(copyright_line()) ?></span>
-      <span class="footer-motto">The truth shall set you free.</span>
     </div>
   </div>
 </footer>
@@ -600,6 +590,18 @@ if ($metaType === 'article') {
   const searchToggle = document.getElementById('searchToggle');
   const searchExpand = document.getElementById('searchExpand');
   const searchClose = document.getElementById('searchClose');
+  const headerSearchInput = document.getElementById('headerSearchInput');
+
+  // Desktop inline search — Enter submits
+  if (headerSearchInput) {
+    headerSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && headerSearchInput.value.trim()) {
+        window.location.href = '/search?q=' + encodeURIComponent(headerSearchInput.value.trim());
+      }
+    });
+  }
+
+  // Mobile search toggle (expandable fallback)
   if (searchToggle && searchExpand) {
     searchToggle.addEventListener('click', () => {
       const open = !searchExpand.hidden;

@@ -36,6 +36,18 @@ ob_start();
   <p class="nt-page-sub">Reader engagement metrics and social share analytics</p>
 </div>
 
+<?php
+$hasAnyData = !empty($topArticles) || !empty($platformBreakdown) || !empty($recentShares) || !empty($dailyTrend) || !empty($summary['total_shares_30d']);
+if (!$hasAnyData): ?>
+<div style="text-align:center; padding:80px 20px; color:#78716c;">
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto 16px; display:block; opacity:.5;">
+    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>
+  </svg>
+  <h3 style="margin:0 0 8px; font-size:18px; color:#a8a29e;">No engagement data yet</h3>
+  <p style="margin:0; font-size:14px;">Share and engagement metrics will appear here once readers interact with articles.</p>
+</div>
+<?php else: ?>
+
 <!-- Summary Cards -->
 <div class="dash-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:28px">
   <div class="dcard" style="padding:20px">
@@ -238,6 +250,8 @@ ob_start();
 })();
 <?php endif; ?>
 </script>
+
+<?php endif; /* hasAnyData */ ?>
 
 <?php
 $pageContent = ob_get_clean();

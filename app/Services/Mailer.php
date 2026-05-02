@@ -78,9 +78,13 @@ final class Mailer
      */
     private static function sendViaMail(string $to, string $subject, string $bodyHtml, ?string $bodyText, ?string $toName): bool
     {
+        // Sanitize header values to prevent header injection
+        $subject = str_replace(["\r", "\n", "\0"], '', $subject);
+        $toName  = $toName ? str_replace(["\r", "\n", "\0"], '', $toName) : null;
+
         $boundary = '----=_Part_' . bin2hex(random_bytes(8));
 
-        $headers  = "From: " . self::formatAddress(self::$fromEmail, self::$fromName) . "\r\n";
+        $headers  = "From: " . self::formatAddress(self::$fromEmail, str_replace(["\r", "\n", "\0"], '', self::$fromName)) . "\r\n";
         $headers .= "Reply-To: " . self::$fromEmail . "\r\n";
         $headers .= "MIME-Version: 1.0\r\n";
         $headers .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
@@ -158,16 +162,21 @@ final class Mailer
             // Build message
             $boundary = '----=_Part_' . bin2hex(random_bytes(8));
             $textPart = $bodyText ?: strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $bodyHtml));
+
+            // Sanitize header values to prevent header injection
+            $subject = str_replace(["\r", "\n", "\0"], '', $subject);
+            $toName  = $toName ? str_replace(["\r", "\n", "\0"], '', $toName) : null;
             $recipientHeader = $toName ? self::formatAddress($to, $toName) : $to;
 
-            $message  = "From: " . self::formatAddress(self::$fromEmail, self::$fromName) . "\r\n";
+            $message  = "From: " . self::formatAddress(self::$fromEmail, str_replace(["\r", "\n", "\0"], '', self::$fromName)) . "\r\n";
             $message .= "To: {$recipientHeader}\r\n";
             $message .= "Subject: {$subject}\r\n";
             $message .= "MIME-Version: 1.0\r\n";
             $message .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
             $message .= "X-Mailer: NorthernTimes/1.0\r\n";
             $message .= "Date: " . date('r') . "\r\n";
-            $message .= "Message-ID: <" . bin2hex(random_bytes(16)) . "@" . ($host) . ">\r\n";
+            $domain = $_ENV['APP_DOMAIN'] ?? parse_url($_ENV['APP_URL'] ?? '', PHP_URL_HOST) ?? $host;
+            $message .= "Message-ID: <" . bin2hex(random_bytes(16)) . "@" . $domain . ">\r\n";
             $message .= "\r\n";
             $message .= "--{$boundary}\r\n";
             $message .= "Content-Type: text/plain; charset=UTF-8\r\n";
@@ -466,6 +475,75 @@ ARTICLE;
         <p style=\"color:#666;font-size:14px;\">This link expires in 1 hour. If you didn't request this, ignore this email.</p>";
 
         return self::template($content);
+    }
+
+    /**
+     * Generate HTML email for a new article notification.
+     */
+    public static function newArticleEmail(array $article, string $unsubToken): string
+    {
+        self::boot();
+        $appUrl   = rtrim($_ENV['APP_URL'] ?? '', '/');
+        $unsubUrl = "{$appUrl}/unsubscribe?token={$unsubToken}";
+        $articleUrl = "{$appUrl}/article/" . ($article['slug'] ?? '');
+        $title   = htmlspecialchars($article['title'] ?? 'New Article', ENT_QUOTES, 'UTF-8');
+        $excerpt = htmlspecialchars($article['excerpt'] ?? '', ENT_QUOTES, 'UTF-8');
+        $image   = $article['featured_image'] ?? '';
+
+        $imgHtml = '';
+        if ($image) {
+            $imgSrc = str_starts_with($image, 'http') ? $image : "{$appUrl}{$image}";
+            $imgHtml = "<img src=\"{$imgSrc}\" alt=\"\" style=\"width:100%;max-width:560px;height:auto;border-radius:6px;margin-bottom:16px;\" />";
+        }
+
+        $content = "{$imgHtml}
+        <h2 style=\"margin:0 0 12px;color:#1a1a1a;font-size:22px;line-height:1.3;\"><a href=\"{$articleUrl}\" style=\"color:#1a1a1a;text-decoration:none;\">{$title}</a></h2>
+        <p style=\"color:#555;font-size:15px;line-height:1.6;margin:0 0 20px;\">{$excerpt}</p>
+        <p><a href=\"{$articleUrl}\" style=\"display:inline-block;background:#cc0000;color:#fff;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600;\">Read Full Article</a></p>";
+
+        return self::template($content, $unsubUrl);
+    }
+
+    /**
+     * Queue email notifications to all active subscribers for a new article.
+     * Uses email_queue table so emails are sent gradually by the cron processor.
+     */
+    public static function notifySubscribersOfArticle(array $article): void
+    {
+        try {
+            $pdo = DB::pdo();
+            $subject = ($article['title'] ?? 'New Article') . ' — ' . ($_ENV['APP_NAME'] ?? 'The Northern Times');
+
+            $batchSize = 500;
+            $offset = 0;
+            $total = 0;
+
+            do {
+                $stmt = $pdo->prepare(
+                    "SELECT email, name, unsub_token FROM newsletter_subscribers
+                     WHERE status = 'active' ORDER BY created_at ASC
+                     LIMIT :limit OFFSET :offset"
+                );
+                $stmt->bindValue(':limit', $batchSize, \PDO::PARAM_INT);
+                $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+                $stmt->execute();
+                $subs = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+                foreach ($subs as $sub) {
+                    $html = self::newArticleEmail($article, $sub['unsub_token'] ?? '');
+                    self::queue($sub['email'], $subject, $html, null, $sub['name'] ?? null);
+                    $total++;
+                }
+
+                $offset += $batchSize;
+            } while (count($subs) >= $batchSize);
+
+            if ($total > 0) {
+                error_log("Mailer: queued article notification to {$total} subscribers for: " . ($article['title'] ?? ''));
+            }
+        } catch (\Throwable $e) {
+            error_log("Mailer::notifySubscribersOfArticle failed: " . $e->getMessage());
+        }
     }
 
     /* ================================================================
