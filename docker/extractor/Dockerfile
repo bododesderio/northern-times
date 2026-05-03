@@ -46,5 +46,5 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" || exit 1
 
-# Reduced from 4 to 2 workers to fit memory budget (~2.8GB models + overhead)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "2"]
+# 1 worker: each worker loads all models (~2.8GB). 2 workers exceed the 4G container limit.
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]

@@ -27,11 +27,20 @@ use App\Services\DB;
 
 // Lock file to prevent overlapping runs
 $lockFile = sys_get_temp_dir() . '/nt_daily_maintenance.lock';
-$fp = fopen($lockFile, 'w');
-if (!flock($fp, LOCK_EX | LOCK_NB)) {
+$fp = @fopen($lockFile, 'c');
+if (!$fp || !flock($fp, LOCK_EX | LOCK_NB)) {
     echo "[daily] Already running, skipping.\n";
+    if ($fp) fclose($fp);
     exit(0);
 }
+ftruncate($fp, 0);
+fwrite($fp, (string)getmypid());
+fflush($fp);
+register_shutdown_function(function () use ($fp, $lockFile) {
+    @flock($fp, LOCK_UN);
+    @fclose($fp);
+    @unlink($lockFile);
+});
 
 echo "[daily] " . date('Y-m-d H:i:s') . " Starting daily maintenance...\n";
 
@@ -131,8 +140,5 @@ try {
 } catch (\Throwable $e) {
     echo "[daily] Email queue cleanup error: " . $e->getMessage() . "\n";
 }
-
-flock($fp, LOCK_UN);
-fclose($fp);
 
 echo "[daily] Done.\n";

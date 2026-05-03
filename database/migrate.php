@@ -57,7 +57,8 @@ foreach ($files as $file) {
 
     // Record migration (outside the migration's own transaction if it had one)
     if ($hasOwnTransaction) {
-      $pdo->exec("INSERT INTO migrations (migration) VALUES ('" . addslashes($name) . "')");
+      $stmt = $pdo->prepare("INSERT INTO migrations (migration) VALUES (:m)");
+      $stmt->execute([':m' => $name]);
     } else {
       $stmt = $pdo->prepare("INSERT INTO migrations (migration) VALUES (:m)");
       $stmt->execute([':m' => $name]);

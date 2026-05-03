@@ -14,7 +14,7 @@
  *  - A revision snapshot is always created before any content change
  *
  * Crontab:
- *   * * * * * cd /var/www/html && php cron/rewrite.php >> storage/logs/rewriter.log 2>&1
+ *   */10 * * * * cd /var/www/html && php cron/rewrite.php >> storage/logs/rewriter.log 2>&1
  */
 
 declare(strict_types=1);

@@ -33,7 +33,7 @@ services:
     # Process the SSL template with the domain, then start nginx
     command: /bin/sh -c "envsubst '$$APP_DOMAIN' < /tmp/ssl.template > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "--quiet", "--no-check-certificate", "https://localhost:443/"]
+      test: ["CMD-SHELL", "curl -sf --insecure https://localhost/healthz || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

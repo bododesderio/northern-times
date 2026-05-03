@@ -9,7 +9,7 @@ OLLAMA_PID=$!
 
 # Wait for server to be ready
 echo "Waiting for Ollama to be ready..."
-until curl -sf http://localhost:11434/api/health > /dev/null 2>&1; do
+until ollama list > /dev/null 2>&1; do
   sleep 1
 done
 echo "Ollama ready."

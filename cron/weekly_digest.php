@@ -8,11 +8,15 @@ declare(strict_types=1);
 set_time_limit(0);
 
 $lockFile = sys_get_temp_dir() . '/nt_weekly_digest.lock';
-$fp = fopen($lockFile, 'w');
-if (!flock($fp, LOCK_EX | LOCK_NB)) {
+$fp = @fopen($lockFile, 'c');
+if (!$fp || !flock($fp, LOCK_EX | LOCK_NB)) {
     echo "[digest] Already running.\n";
+    if ($fp) fclose($fp);
     exit(0);
 }
+ftruncate($fp, 0);
+fwrite($fp, (string)getmypid());
+fflush($fp);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 if (file_exists(__DIR__ . '/../.env')) {
@@ -25,13 +29,27 @@ use App\Services\DB;
 use App\Services\Cache;
 
 // Redis distributed lock for multi-container deployments
+$digestRedis = null;
+$digestRedisLocked = false;
 try {
-    $redis = Cache::redis();
-    if ($redis && !$redis->set('lock:weekly_digest', getmypid(), ['NX', 'EX' => 7200])) {
+    $digestRedis = Cache::redis();
+    if ($digestRedis && !$digestRedis->set('lock:weekly_digest', getmypid(), ['NX', 'EX' => 7200])) {
         echo "[digest] Redis lock held by another instance.\n";
+        flock($fp, LOCK_UN); fclose($fp);
         exit(0);
     }
+    $digestRedisLocked = (bool)$digestRedis;
 } catch (\Throwable) {}
+
+// Release both locks on exit — covers normal exit, early exit, and crashes
+register_shutdown_function(function () use ($fp, $lockFile, &$digestRedis, &$digestRedisLocked) {
+    if ($digestRedisLocked && $digestRedis) {
+        try { $digestRedis->del('lock:weekly_digest'); } catch (\Throwable) {}
+    }
+    @flock($fp, LOCK_UN);
+    @fclose($fp);
+    @unlink($lockFile);
+});
 
 echo "[digest] " . date('Y-m-d H:i:s') . " Starting weekly digest...\n";
 
@@ -54,7 +72,6 @@ $articles = $pdo->query("
 
 if (empty($articles)) {
     echo "[digest] No articles from past week. Skipping.\n";
-    flock($fp, LOCK_UN); fclose($fp);
     exit(0);
 }
 
@@ -126,5 +143,4 @@ foreach ($subscribers as $sub) {
 
 echo "[digest] Queued {$queued} digest emails for " . count($subscribers) . " subscribers.\n";
 
-flock($fp, LOCK_UN); fclose($fp);
 echo "[digest] Done.\n";

@@ -43,6 +43,23 @@ if (isset($args['stats'])) {
 
 $batchSize = isset($args['batch']) ? max(1, (int)$args['batch']) : 50;
 
+// Prevent overlapping runs — two concurrent queue processors can double-send emails
+$lockFile   = sys_get_temp_dir() . '/nt_email_queue.lock';
+$lockHandle = @fopen($lockFile, 'c');
+if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    echo "[{$timestamp}] Queue processor already running (locked). Skipping.\n";
+    if ($lockHandle) fclose($lockHandle);
+    exit(0);
+}
+ftruncate($lockHandle, 0);
+fwrite($lockHandle, (string)getmypid());
+fflush($lockHandle);
+register_shutdown_function(function () use ($lockHandle, $lockFile) {
+    @flock($lockHandle, LOCK_UN);
+    @fclose($lockHandle);
+    @unlink($lockFile);
+});
+
 echo "[{$timestamp}] Processing queue (batch={$batchSize})...\n";
 
 try {

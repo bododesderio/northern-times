@@ -33,7 +33,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3:8b")
 @app.get("/health")
 def health():
     try:
-        resp = httpx.get(f"{OLLAMA_URL}/api/health", timeout=3)
+        resp = httpx.get(f"{OLLAMA_URL}/api/tags", timeout=3)
         ollama_ok = resp.status_code == 200
     except Exception:
         ollama_ok = False

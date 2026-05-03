@@ -276,6 +276,7 @@ function get_theme_css(): string
     $fontArticle = $c('theme_font_article', '21px');
     $lineHeight  = $c('theme_line_height',  '1.7');
 
+    $mastColorVal = $mastColor ?: 'var(--accent)';
     $radius      = $c('theme_radius',       '16px');
     $maxWidth    = $c('theme_max_width',    '1180px');
     $contentMax  = $c('theme_content_max',  '1000px');
@@ -307,7 +308,7 @@ function get_theme_css(): string
   --accent-dark: {$accentDark};
   --accent-text: {$accentText};
   --selection-bg: {$selection};
-  --mast-color: {$mastColor ?: 'var(--accent)'};
+  --mast-color: {$mastColorVal};
 
   --serif: {$fontSerif};
   --ui: {$fontUi};
