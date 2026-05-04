@@ -484,7 +484,7 @@ final class CrawlerEngine
                         } catch (\Throwable) {}
 
                         // Queue for AI rewriting if enabled for this source
-                        if (($_ENV['REWRITER_ENABLED'] ?? 'false') === 'true' && !empty($source['auto_rewrite'])) {
+                        if (strtolower($_ENV['REWRITER_ENABLED'] ?? 'false') === 'true' && !empty($source['auto_rewrite'])) {
                             try {
                                 $pdo->prepare("UPDATE articles SET rewrite_status = 'queued' WHERE id = :id")
                                     ->execute([':id' => $newId]);
@@ -1388,7 +1388,7 @@ final class CrawlerEngine
                         } catch (\Throwable) {}
 
                         // Queue for AI rewriting if enabled for this source
-                        if (($_ENV['REWRITER_ENABLED'] ?? 'false') === 'true' && !empty($source['auto_rewrite'])) {
+                        if (strtolower($_ENV['REWRITER_ENABLED'] ?? 'false') === 'true' && !empty($source['auto_rewrite'])) {
                             try {
                                 $pdo->prepare("UPDATE articles SET rewrite_status = 'queued' WHERE id = :id")
                                     ->execute([':id' => $newId]);

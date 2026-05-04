@@ -315,4 +315,7 @@ if ($existingSources > 0) {
     echo "  Sources seeded: {$srcCount}\n";
 }
 
+// Ensure all sources have auto_rewrite enabled
+$pdo->exec("UPDATE crawl_sources SET auto_rewrite = TRUE WHERE auto_rewrite = FALSE");
+
 echo "Seeder complete.\n";
