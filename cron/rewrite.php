@@ -13,8 +13,8 @@
  *  - If auto_apply=false: sets rewrite_status='pending_approval' for editor review
  *  - A revision snapshot is always created before any content change
  *
- * Crontab:
- *   */10 * * * * cd /var/www/html && php cron/rewrite.php >> storage/logs/rewriter.log 2>&1
+ * Crontab: every 10 minutes
+ *   cd /var/www/html && php cron/rewrite.php >> storage/logs/rewriter.log 2>&1
  */
 
 declare(strict_types=1);
