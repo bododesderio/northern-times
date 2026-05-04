@@ -27,6 +27,25 @@ $pdo = DB::pdo();
 echo "Running seeder...\n";
 
 // ══════════════════════════════════════════════════════════════
+// 0. CRITICAL SETTINGS (crawler_enabled, etc.)
+// ══════════════════════════════════════════════════════════════
+$settings = [
+    'crawler_enabled'      => 'true',
+    'crawler_auto_publish' => 'true',
+    'site_name'            => $_ENV['APP_NAME'] ?? 'The Northern Times',
+    'site_tagline'         => 'Independent journalism from Northern Uganda and beyond.',
+];
+$settingStmt = $pdo->prepare("
+    INSERT INTO site_settings (key, value)
+    VALUES (:key, :val)
+    ON CONFLICT (key) DO NOTHING
+");
+foreach ($settings as $key => $val) {
+    $settingStmt->execute([':key' => $key, ':val' => $val]);
+}
+echo "  Settings ensured.\n";
+
+// ══════════════════════════════════════════════════════════════
 // 1. SUPER ADMIN
 // ══════════════════════════════════════════════════════════════
 $pdo->exec("

@@ -526,7 +526,7 @@ final class CrawlerEngine
             return [$found, $new, $dupes];
 
         } catch (\Throwable $e) {
-            if ($pdo->inTransaction()) { try { $pdo->rollBack(); } catch (\Throwable) {} }
+            if (isset($pdo) && $pdo->inTransaction()) { try { $pdo->rollBack(); } catch (\Throwable) {} }
             CrawlLog::finish($logId, 'failed', 0, 0, 0, $e->getMessage());
             CrawlSource::markCrawled($source['id'], false, $e->getMessage());
             CrawlSource::incrementStats($source['id'], 0, 0, 1);
@@ -1427,7 +1427,7 @@ final class CrawlerEngine
             return [$found, $new, $dupes];
 
         } catch (\Throwable $e) {
-            if ($pdo->inTransaction()) { try { $pdo->rollBack(); } catch (\Throwable) {} }
+            if (isset($pdo) && $pdo->inTransaction()) { try { $pdo->rollBack(); } catch (\Throwable) {} }
             CrawlLog::finish($logId, 'failed', 0, 0, 0, $e->getMessage());
             CrawlSource::markCrawled($source['id'], false, $e->getMessage());
             CrawlSource::incrementStats($source['id'], 0, 0, 1);
