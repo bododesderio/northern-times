@@ -37,8 +37,10 @@ fflush($lockHandle);
 
 // Release lock on exit
 register_shutdown_function(function () use ($lockHandle, $lockFile) {
-    @flock($lockHandle, LOCK_UN);
-    @fclose($lockHandle);
+    if (is_resource($lockHandle)) {
+        @flock($lockHandle, LOCK_UN);
+        @fclose($lockHandle);
+    }
     @unlink($lockFile);
 });
 

@@ -36,9 +36,9 @@ $settings = [
     'site_tagline'         => 'Independent journalism from Northern Uganda and beyond.',
 ];
 $settingStmt = $pdo->prepare("
-    INSERT INTO site_settings (key, value)
+    INSERT INTO site_settings (setting_key, setting_value)
     VALUES (:key, :val)
-    ON CONFLICT (key) DO NOTHING
+    ON CONFLICT (setting_key) DO NOTHING
 ");
 foreach ($settings as $key => $val) {
     $settingStmt->execute([':key' => $key, ':val' => $val]);
