@@ -271,7 +271,7 @@ foreach ($sections as $section):
 
 </div><!-- .np-home -->
 
-<button class="scroll-top" id="scrollTopBtn" title="Back to top" aria-label="Scroll to top">
+<button class="scroll-top" id="scrollTopBtn" data-tip="Back to top" aria-label="Scroll to top">
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
 </button>
 

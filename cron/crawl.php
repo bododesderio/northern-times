@@ -76,7 +76,9 @@ if ($redis) {
             if ($redis->get($redisLockKey) === $redisLockToken) {
                 $redis->del($redisLockKey);
             }
-        } catch (\Throwable) {}
+        } catch (\Throwable $e) {
+            error_log('Crawl Redis lock release failed: ' . $e->getMessage());
+        }
     });
 }
 
@@ -90,7 +92,8 @@ $cronRun = null;
 try {
     $cronRun = \App\Models\CronRun::start('crawler');
 } catch (\Throwable $e) {
-    // Table may not exist yet
+    // Table may not exist yet on first run
+    error_log('CronRun tracking unavailable: ' . $e->getMessage());
 }
 
 $useParallel = in_array('--parallel', $argv ?? [], true);

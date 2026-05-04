@@ -299,9 +299,41 @@
     headings.forEach(h => observer.observe(h));
   }
 
-  // Optional: listen for dark mode change (if you add toggle later)
-  // window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", e => {
-  //   document.documentElement.classList.toggle("dark", e.matches);
-  // });
+  // ── Custom confirm dialog (replaces browser confirm()) ───────────────────
+  window.ntConfirm = function(message, title) {
+    return new Promise(function(resolve) {
+      var overlay = document.createElement('div');
+      overlay.className = 'nt-confirm-overlay';
+      overlay.innerHTML =
+        '<div class="nt-confirm-box">' +
+          '<div class="nt-confirm-title">' + (title || 'Confirm') + '</div>' +
+          '<div class="nt-confirm-msg">' + message + '</div>' +
+          '<div class="nt-confirm-actions">' +
+            '<button class="nt-confirm-cancel">Cancel</button>' +
+            '<button class="nt-confirm-ok">Continue</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(overlay);
+
+      function close(result) {
+        overlay.style.opacity = '0';
+        setTimeout(function() { overlay.remove(); }, 150);
+        resolve(result);
+      }
+
+      overlay.querySelector('.nt-confirm-cancel').addEventListener('click', function() { close(false); });
+      overlay.querySelector('.nt-confirm-ok').addEventListener('click', function() { close(true); });
+      overlay.addEventListener('click', function(e) { if (e.target === overlay) close(false); });
+      document.addEventListener('keydown', function handler(e) {
+        if (e.key === 'Escape') { close(false); document.removeEventListener('keydown', handler); }
+      });
+      overlay.querySelector('.nt-confirm-ok').focus();
+    });
+  };
+
+  // ── Custom alert (replaces browser alert()) ─────────────────────────────
+  window.ntAlert = function(message, type) {
+    toast(message, type || 'info', 3500);
+  };
 
 })();

@@ -369,6 +369,92 @@ function sidebarLink(string $key, string $label, string $href, string $active, b
   textarea.form-control { resize: vertical; line-height: 1.6; }
   .form-hint { margin-top: 4px; font-size: 12px; color: var(--adm-muted); }
 
+  /* ── CUSTOM SELECT (no browser default) ─────────────────────── */
+  select,
+  select.form-control {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    padding-right: 36px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 12px;
+    cursor: pointer;
+  }
+  select:not(.form-control) {
+    width: 100%;
+    padding: 10px 36px 10px 13px;
+    border: 1px solid var(--adm-border);
+    border-radius: 9px;
+    font-size: 14px;
+    background-color: var(--adm-surface);
+    color: var(--adm-ink);
+    transition: border-color var(--speed, .18s), box-shadow var(--speed, .18s);
+    outline: none;
+  }
+  select:focus {
+    border-color: var(--accent, #cc0000);
+    box-shadow: 0 0 0 3px rgba(204,0,0,.1);
+  }
+  select:hover { border-color: var(--adm-muted); }
+  html[data-adm-theme="dark"] select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  }
+
+  /* ── CUSTOM TOOLTIPS (replace title attr) ───────────────────── */
+  [data-tooltip] {
+    position: relative;
+  }
+  [data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) scale(.92);
+    padding: 6px 10px;
+    background: var(--adm-ink);
+    color: var(--adm-surface);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.3;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .15s, transform .15s;
+    z-index: 9000;
+  }
+  [data-tooltip]:hover::after,
+  [data-tooltip]:focus-visible::after {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+
+  /* ── CUSTOM CONFIRM DIALOG ──────────────────────────────────── */
+  .nt-dialog-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.5);
+    backdrop-filter: blur(3px);
+    z-index: 10000;
+    display: flex; align-items: center; justify-content: center;
+    animation: ntFadeIn .15s ease;
+  }
+  .nt-dialog {
+    background: var(--adm-surface);
+    border: 1px solid var(--adm-border);
+    border-radius: 14px;
+    padding: 24px;
+    max-width: 420px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+    animation: ntSlideDown .2s cubic-bezier(.2,.8,.2,1);
+  }
+  .nt-dialog-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .nt-dialog-body  { font-size: 14px; color: var(--adm-muted); margin-bottom: 20px; line-height: 1.5; }
+  .nt-dialog-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  @keyframes ntFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
   /* ── TABLES ─────────────────────────────────────────────────── */
   .table-wrap { border: 1px solid var(--adm-border); border-radius: var(--radius, 12px); overflow: hidden; background: var(--adm-surface); box-shadow: var(--adm-shadow); transition: border-color 220ms ease, background 220ms ease; }
   table { width: 100%; border-collapse: collapse; }

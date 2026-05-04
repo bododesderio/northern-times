@@ -97,7 +97,8 @@ try {
       apcu_store($cacheKey, $navCats, 600);
     }
   }
-} catch (\Throwable) {
+} catch (\Throwable $e) {
+  error_log('Layout nav categories: ' . $e->getMessage());
   $navCats = [];
 }
 
@@ -126,7 +127,8 @@ try {
       apcu_store($sbCacheKey, $sidebarCats, 300); // 5-min cache
     }
   }
-} catch (\Throwable) {
+} catch (\Throwable $e) {
+  error_log('Layout sidebar categories: ' . $e->getMessage());
   $sidebarCats = [];
 }
 

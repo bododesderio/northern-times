@@ -54,7 +54,7 @@ $log = static function (string $msg): void {
 };
 
 // Check enabled
-if (($_ENV['REWRITER_ENABLED'] ?? 'false') !== 'true') {
+if (strtolower($_ENV['REWRITER_ENABLED'] ?? 'false') !== 'true') {
     $log('Rewriter disabled (REWRITER_ENABLED != true). Exiting.');
     exit(0);
 }
@@ -196,9 +196,14 @@ foreach ($articles as $article) {
         $done++;
 
     } catch (\Throwable $e) {
-        $pdo->prepare("UPDATE articles SET rewrite_status = 'failed', updated_at = NOW() WHERE id = :id")
-            ->execute([':id' => $id]);
+        try {
+            $pdo->prepare("UPDATE articles SET rewrite_status = 'failed', updated_at = NOW() WHERE id = :id")
+                ->execute([':id' => $id]);
+        } catch (\Throwable $dbErr) {
+            error_log('Rewriter: failed to mark article as failed: ' . $dbErr->getMessage());
+        }
         $log(sprintf('  [fail] #%s "%s" — %s', $id, mb_substr($title, 0, 60), $e->getMessage()));
+        error_log('Rewriter batch error: ' . $e->getMessage());
         $failed++;
     }
 }

@@ -110,7 +110,7 @@ try { $articleTags = \App\Models\Tag::forArticle($article['id'] ?? ''); } catch 
                   aria-label="View original source"
                   data-src-url="<?= h($sourceUrl) ?>"
                   data-src-name="<?= h($sourceName ?: 'Original article') ?>"
-                  title="View original source"
+                  data-tip="View original source"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                 </button>
@@ -164,7 +164,7 @@ try { $articleTags = \App\Models\Tag::forArticle($article['id'] ?? ''); } catch 
               aria-label="View original source"
               data-src-url="<?= h($sourceUrl) ?>"
               data-src-name="<?= h($sourceName ?: 'Original article') ?>"
-              title="View original source"
+              data-tip="View original source"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
             </button>
@@ -216,7 +216,7 @@ try { $articleTags = \App\Models\Tag::forArticle($article['id'] ?? ''); } catch 
                 data-image="<?= h($heroImg) ?>"
                 data-category="<?= h($category) ?>"
                 data-date="<?= h($pubDate) ?>"
-                aria-label="Save article" title="Save for later">
+                aria-label="Save article" data-tip="Save for later">
           <svg class="bookmark-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
         </button>
       </div>
@@ -233,7 +233,7 @@ try { $articleTags = \App\Models\Tag::forArticle($article['id'] ?? ''); } catch 
                 data-image="<?= h($heroImg) ?>"
                 data-category="<?= h($category) ?>"
                 data-date="<?= h($pubDate) ?>"
-                aria-label="Save article" title="Save for later">
+                aria-label="Save article" data-tip="Save for later">
           <svg class="bookmark-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
         </button>
       </div>
@@ -1704,7 +1704,7 @@ document.querySelectorAll('.share-copy-btn').forEach(function(btn) {
 })();
 </script>
 
-<button class="scroll-top" id="scrollTopBtn" title="Back to top" aria-label="Scroll to top">
+<button class="scroll-top" id="scrollTopBtn" data-tip="Back to top" aria-label="Scroll to top">
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
 </button>
 <script>

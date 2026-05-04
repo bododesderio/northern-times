@@ -184,12 +184,14 @@ final class FrontendController extends Controller
     if (!empty($article['story_thread_id'])) {
       try {
         $threadArticles = Article::storyThreadArticles($article['story_thread_id'], $article['id'], 8);
-      } catch (\Throwable) {}
+      } catch (\Throwable $e) {
+        error_log('Article story thread: ' . $e->getMessage());
+      }
     }
 
     // Comments
     $comments = [];
-    try { $comments = Comment::forArticle($article['id']); } catch (\Throwable) {}
+    try { $comments = Comment::forArticle($article['id']); } catch (\Throwable $e) { error_log('Article comments: ' . $e->getMessage()); }
 
     // Crawled articles always show the super_admin's live profile.
     // Own articles show the publishing user's live profile.
@@ -350,7 +352,7 @@ final class FrontendController extends Controller
 
     // Most-read articles for sidebar
     $most = [];
-    try { $most = Article::mostRead(10); } catch (\Throwable) {}
+    try { $most = Article::mostRead(10); } catch (\Throwable $e) { error_log('Category most read: ' . $e->getMessage()); }
 
     $meta = [
       'title'       => $category['name'] . ' — ' . $this->siteTitle(),
@@ -379,9 +381,9 @@ final class FrontendController extends Controller
 
     // Sidebar data
     $trending = [];
-    try { $trending = Article::mostRead(5); } catch (\Throwable) {}
+    try { $trending = Article::mostRead(5); } catch (\Throwable $e) { error_log('Search trending: ' . $e->getMessage()); }
     $tags = [];
-    try { $tags = \App\Models\Tag::trending(8); } catch (\Throwable) {}
+    try { $tags = \App\Models\Tag::trending(8); } catch (\Throwable $e) { error_log('Search tags: ' . $e->getMessage()); }
 
     $meta = [
       'title'       => ($q ? 'Search: ' . $q : 'Search') . ' — ' . $this->siteTitle(),
@@ -442,7 +444,9 @@ final class FrontendController extends Controller
       if (Comment::recentCountByIp($ip) >= 5) {
         return $this->json(['ok' => false, 'message' => 'Too many comments. Try again later.'], 429);
       }
-    } catch (\Throwable) {}
+    } catch (\Throwable $e) {
+      error_log('Comment rate limit check: ' . $e->getMessage());
+    }
 
     // Verify article exists
     $art = Article::queryOne(
@@ -470,7 +474,12 @@ final class FrontendController extends Controller
         $pdo = \App\Services\DB::pdo();
         $pdo->prepare("UPDATE newsletter_subscribers SET source = 'comment' WHERE email = :email AND (source IS NULL OR source = 'manual')")
             ->execute([':email' => mb_strtolower($email)]);
-      } catch (\Throwable) {} // duplicate email is fine
+      } catch (\Throwable $e) {
+        // Duplicate email is expected; log unexpected errors
+        if (stripos($e->getMessage(), 'duplicate') === false && stripos($e->getMessage(), 'unique') === false) {
+          error_log('Comment newsletter subscribe: ' . $e->getMessage());
+        }
+      }
     }
 
     return $this->json([
@@ -765,7 +774,9 @@ Disallow: /search?
                 foreach ($allTags as $t) {
                     $addUrl($site . '/tag/' . $t['slug'], null, 'daily', '0.5');
                 }
-            } catch (\Throwable) {}
+            } catch (\Throwable $e) {
+                error_log('Sitemap tags: ' . $e->getMessage());
+            }
 
             // Policy pages
             $policies = ['privacy-policy', 'terms-of-service', 'cookie-policy'];
@@ -825,7 +836,9 @@ Disallow: /search?
       \App\Services\DB::pdo()->prepare(
         "INSERT INTO ad_events (ad_slot_id, ip_address, event_type, page_url) VALUES (:id, :ip::inet, 'click', :page)"
       )->execute([':id' => $id, ':ip' => $ip, ':page' => mb_substr($page, 0, 500)]);
-    } catch (\Throwable) {}
+    } catch (\Throwable $e) {
+      error_log('Ad click tracking: ' . $e->getMessage());
+    }
 
     $linkUrl = AdSlot::recordClick($id);
 
@@ -848,11 +861,12 @@ Disallow: /search?
       $body = json_decode(file_get_contents('php://input'), true);
       $adId = $body['ad_id'] ?? '';
       $page = $body['page'] ?? '/';
-        \App\Services\DB::pdo()->prepare(
-          "INSERT INTO ad_events (ad_slot_id, ip_address, event_type, page_url) VALUES (:id, :ip::inet, 'impression', :page)"
-        )->execute([':id' => $adId, ':ip' => $ip, ':page' => mb_substr($page, 0, 500)]);
-      }
-    } catch (\Throwable) {}
+      \App\Services\DB::pdo()->prepare(
+        "INSERT INTO ad_events (ad_slot_id, ip_address, event_type, page_url) VALUES (:id, :ip::inet, 'impression', :page)"
+      )->execute([':id' => $adId, ':ip' => $ip, ':page' => mb_substr($page, 0, 500)]);
+    } catch (\Throwable $e) {
+      error_log('Ad impression tracking: ' . $e->getMessage());
+    }
 
     return new Response('', 204);
   }
@@ -905,7 +919,9 @@ Disallow: /search?
         ':region'  => $geo['region'] ?? null,
         ':ip'      => $ip,
       ]);
-    } catch (\Throwable) {}
+    } catch (\Throwable $e) {
+      error_log('Visitor geolocation: ' . $e->getMessage());
+    }
 
     return new Response('', 204);
   }
@@ -1029,7 +1045,8 @@ Disallow: /search?
       }
 
       return $this->json(['ok' => true, 'message' => "Subscribed! Check your inbox for a welcome message."]);
-    } catch (\Throwable) {
+    } catch (\Throwable $e) {
+      error_log('Newsletter subscribe: ' . $e->getMessage());
       return $this->json(['ok' => false, 'message' => 'Subscription failed. Please try again.'], 500);
     }
   }
@@ -1164,7 +1181,9 @@ Disallow: /search?
 
       $pdo->prepare("UPDATE articles SET share_count = share_count + 1 WHERE id = :id")
         ->execute([':id' => $articleId]);
-    } catch (\Throwable) {}
+    } catch (\Throwable $e) {
+      error_log('Share tracking: ' . $e->getMessage());
+    }
 
     return new Response('', 204);
   }
@@ -1217,7 +1236,9 @@ Disallow: /search?
           WHERE id = :aid2
         ")->execute([':aid1' => $articleId, ':aid2' => $articleId]);
       }
-    } catch (\Throwable) {}
+    } catch (\Throwable $e) {
+      error_log('Engagement tracking: ' . $e->getMessage());
+    }
 
     return new Response('', 204);
   }
