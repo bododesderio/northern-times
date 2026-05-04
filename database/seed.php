@@ -286,12 +286,12 @@ if ($existingSources > 0) {
             name, feed_url, website_url, source_type, is_active,
             crawl_interval, default_category_id, region, category_map,
             keyword_include, keyword_exclude, max_articles, strip_selectors,
-            content_selector, attribution_text, nofollow
+            content_selector, attribution_text, nofollow, auto_rewrite
         ) VALUES (
             :name, :feed, :site, 'rss', TRUE,
             30, :default_cat, :region, :catmap::jsonb,
             :kw_include, :kw_exclude, 20, :strip,
-            :content, :attr, TRUE
+            :content, :attr, TRUE, TRUE
         ) ON CONFLICT DO NOTHING
     ");
 
@@ -315,7 +315,20 @@ if ($existingSources > 0) {
     echo "  Sources seeded: {$srcCount}\n";
 }
 
-// Ensure all sources have auto_rewrite enabled
-$pdo->exec("UPDATE crawl_sources SET auto_rewrite = TRUE WHERE auto_rewrite = FALSE");
+// ══════════════════════════════════════════════════════════════
+// 4. ENFORCE AUTO-REWRITE ON ALL SOURCES (always runs)
+// ══════════════════════════════════════════════════════════════
+$updated = $pdo->exec("UPDATE crawl_sources SET auto_rewrite = TRUE WHERE auto_rewrite = FALSE");
+echo "  Auto-rewrite enabled on {$updated} source(s).\n";
 
+// ══════════════════════════════════════════════════════════════
+// 5. RESET STALE CRAWL STATE (force re-crawl on empty DB)
+// ══════════════════════════════════════════════════════════════
+$articleCount = (int)$pdo->query("SELECT count(*) FROM articles")->fetchColumn();
+if ($articleCount === 0) {
+    $pdo->exec("UPDATE crawl_sources SET last_crawled_at = NULL, consecutive_failures = 0");
+    echo "  No articles found — reset last_crawled_at to force immediate re-crawl.\n";
+}
+
+echo "  Articles: {$articleCount}\n";
 echo "Seeder complete.\n";
