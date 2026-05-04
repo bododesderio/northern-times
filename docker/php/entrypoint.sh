@@ -65,6 +65,9 @@ if [ "${WAITED}" -lt "${MAX_WAIT}" ]; then
   echo "[entrypoint] Running database migrations..."
   cd "${APP_ROOT}"
   php database/migrate.php 2>&1 || echo "[entrypoint] WARNING: Migration runner returned non-zero"
+
+  echo "[entrypoint] Running database seeder..."
+  php database/seed.php 2>&1 || echo "[entrypoint] WARNING: Seeder returned non-zero"
 fi
 
 # ── 5. Install cron jobs ───────────────────────────────────────
