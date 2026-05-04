@@ -914,7 +914,7 @@ final class CrawlerEngine
     /**
      * Increment consecutive_failures counter for a source after a crawl error.
      */
-    private static function incrementFailures(int $sourceId): void
+    private static function incrementFailures(string $sourceId): void
     {
         try {
             $pdo = \App\Models\BaseModel::pdo();

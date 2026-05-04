@@ -197,6 +197,15 @@ final class ImageDownloader
 
     private static function fetchImage(string $url): ?string
     {
+        // Resolve DNS for SSRF protection and pinning
+        $host = parse_url($url, PHP_URL_HOST);
+        $resolvedIp = null;
+        if ($host) {
+            $ip = @gethostbyname($host);
+            if ($ip && $ip !== $host && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false) {
+                $resolvedIp = $ip;
+            }
+        }
         // Skip known ad/tracking URLs
         $adDomains = ['doubleclick.net', 'googlesyndication.com', 'googleads.g.doubleclick',
                       'facebook.com/tr', 'pixel.', 'beacon.', 'analytics.',
