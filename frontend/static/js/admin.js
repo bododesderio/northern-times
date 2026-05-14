@@ -170,4 +170,146 @@
     return false;
   };
 
+  // ── Reusable Image Upload Component ────────────────────────────────────────
+  /**
+   * ntImageUpload(containerId, inputName)
+   *
+   * Initializes a reusable image upload component inside the element with the
+   * given containerId. It creates:
+   *   - A file input for device upload (AJAX POST to /admin/media/upload/)
+   *   - A "Media Library" button that opens the media picker in a modal
+   *   - A URL input as fallback manual entry
+   *   - An image preview that updates on selection
+   *
+   * The selected URL is stored in a hidden input with the given inputName.
+   *
+   * Usage:
+   *   <div id="featured-image"></div>
+   *   <script>ntImageUpload('featured-image', 'featured_image_url');</script>
+   */
+  window.ntImageUpload = function(containerId, inputName, initialValue) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+
+    initialValue = initialValue || '';
+
+    // Build the component HTML
+    container.innerHTML =
+      '<div class="nt-img-upload">' +
+        '<div class="nt-img-preview" id="' + containerId + '-preview" style="margin-bottom:12px;border-radius:10px;overflow:hidden;border:1px solid var(--adm-border,#e0e0e0);background:#f5f5f5;display:' + (initialValue ? 'block' : 'none') + '">' +
+          '<img id="' + containerId + '-preview-img" src="' + initialValue + '" alt="Preview" style="max-width:100%;max-height:220px;display:block;object-fit:cover">' +
+        '</div>' +
+        '<input type="hidden" name="' + inputName + '" id="' + containerId + '-value" value="' + initialValue + '">' +
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">' +
+          '<label class="btn light" style="cursor:pointer;margin:0;font-size:13px;padding:8px 14px">' +
+            '<input type="file" accept="image/*" id="' + containerId + '-file" style="display:none">' +
+            'Upload from Device' +
+          '</label>' +
+          '<button type="button" class="btn light" style="font-size:13px;padding:8px 14px" id="' + containerId + '-picker-btn">Media Library</button>' +
+          '<span id="' + containerId + '-status" style="font-size:12px;color:var(--adm-muted,#888)"></span>' +
+        '</div>' +
+        '<div class="form-group" style="margin-bottom:0">' +
+          '<label class="form-label" style="font-size:12px">Or paste image URL</label>' +
+          '<input type="url" id="' + containerId + '-url" class="form-control" placeholder="https://..." value="' + initialValue + '" style="font-size:13px">' +
+        '</div>' +
+      '</div>';
+
+    var hiddenInput = document.getElementById(containerId + '-value');
+    var urlInput = document.getElementById(containerId + '-url');
+    var fileInput = document.getElementById(containerId + '-file');
+    var pickerBtn = document.getElementById(containerId + '-picker-btn');
+    var previewWrap = document.getElementById(containerId + '-preview');
+    var previewImg = document.getElementById(containerId + '-preview-img');
+    var statusEl = document.getElementById(containerId + '-status');
+
+    function setImage(url) {
+      hiddenInput.value = url;
+      urlInput.value = url;
+      if (url) {
+        previewImg.src = url;
+        previewWrap.style.display = 'block';
+      } else {
+        previewWrap.style.display = 'none';
+      }
+    }
+
+    function getCsrfToken() {
+      var meta = document.querySelector('meta[name="csrf-token"]');
+      if (meta) return meta.content;
+      var match = document.cookie.match(/csrftoken=([^;]+)/);
+      return match ? match[1] : '';
+    }
+
+    // File upload via AJAX
+    fileInput.addEventListener('change', function() {
+      if (!fileInput.files.length) return;
+      var formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('folder', 'Articles');
+
+      statusEl.textContent = 'Uploading...';
+
+      fetch('/admin/media/upload/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrfToken() },
+        body: formData
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.url) {
+          setImage(data.url);
+          statusEl.textContent = 'Uploaded!';
+          setTimeout(function() { statusEl.textContent = ''; }, 2000);
+        } else {
+          statusEl.textContent = data.error || 'Upload failed.';
+        }
+      })
+      .catch(function(err) {
+        statusEl.textContent = 'Error: ' + err.message;
+      });
+    });
+
+    // URL input change
+    urlInput.addEventListener('change', function() {
+      setImage(urlInput.value.trim());
+    });
+    urlInput.addEventListener('blur', function() {
+      setImage(urlInput.value.trim());
+    });
+
+    // Media Library picker (opens in modal iframe)
+    pickerBtn.addEventListener('click', function() {
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .18s ease';
+      var modal = document.createElement('div');
+      modal.style.cssText = 'background:#fff;border-radius:14px;width:90vw;max-width:860px;height:80vh;max-height:640px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 16px 64px rgba(0,0,0,.25)';
+      modal.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #e0e0e0">' +
+          '<strong style="font-size:15px">Select from Media Library</strong>' +
+          '<button type="button" id="' + containerId + '-picker-close" style="background:none;border:none;font-size:22px;cursor:pointer;color:#888;line-height:1">&times;</button>' +
+        '</div>' +
+        '<iframe src="/admin/media/picker/" style="flex:1;border:none;width:100%"></iframe>';
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+      requestAnimationFrame(function() { overlay.style.opacity = '1'; });
+
+      function closeModal() {
+        overlay.style.opacity = '0';
+        setTimeout(function() { overlay.remove(); }, 180);
+        window.removeEventListener('message', messageHandler);
+      }
+
+      function messageHandler(e) {
+        if (e.data && e.data.type === 'nt-media-selected' && e.data.url) {
+          setImage(e.data.url);
+          closeModal();
+        }
+      }
+
+      document.getElementById(containerId + '-picker-close').addEventListener('click', closeModal);
+      overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
+      window.addEventListener('message', messageHandler);
+    });
+  };
+
 })();
