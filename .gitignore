@@ -1,40 +1,33 @@
-# Dependencies
-/vendor/
-
 # Environment
 .env
 .env.local
+.env.generated
 .env.*.local
-
-# Storage - runtime data
-/storage/backups/*
-/storage/uploads/*
-/storage/cache/*
-/storage/logs/*
-/storage/geoip/*
-
-# Keep directory structure
-!/storage/backups/.gitkeep
-!/storage/uploads/.gitkeep
-!/storage/cache/.gitkeep
-!/storage/logs/.gitkeep
-!/storage/geoip/.gitkeep
 
 # Python
 __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+.ruff_cache/
 *.egg-info/
 venv/
 .venv/
 
-# Docker
-docker/extractor/__pycache__/
+# Django storage (runtime data, mounted as volumes)
+backend/storage/logs/*
+backend/storage/uploads/*
+backend/storage/backups/*
+backend/storage/cache/*
+backend/storage/geoip/*
+!backend/storage/logs/.gitkeep
+!backend/storage/uploads/.gitkeep
+!backend/storage/backups/.gitkeep
+!backend/storage/cache/.gitkeep
+!backend/storage/geoip/.gitkeep
 
-# PHPUnit
-.phpunit.cache/
-.phpunit.result.cache
+# Static file build output
+frontend/staticfiles/
 
 # IDE / Editor
 .idea/
@@ -42,7 +35,10 @@ docker/extractor/__pycache__/
 *.swp
 *.swo
 *~
+
+# Tooling
 .claude/
+.trunk/
 
 # OS files
 .DS_Store
@@ -51,10 +47,3 @@ desktop.ini
 
 # Logs
 *.log
-
-# Temp/debug scripts
-scripts/check_homepage.php
-scripts/crawl_all_force.php
-scripts/crawl_punch.php
-scripts/test_crawl.php
-scripts/test_filter.php

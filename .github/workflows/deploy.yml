@@ -1,0 +1,61 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment target"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - staging
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy (${{ github.event.inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            echo "==> Pulling latest code..."
+            git pull origin main
+
+            echo "==> Building containers..."
+            docker compose -f docker-compose.django.yml -f docker-compose.django.prod.yml build django
+
+            echo "==> Stopping old containers..."
+            docker compose -f docker-compose.django.yml -f docker-compose.django.prod.yml up -d
+
+            echo "==> Waiting for health check..."
+            sleep 10
+            curl -sf http://localhost:8000/api/health/ || {
+              echo "ERROR: Health check failed!"
+              exit 1
+            }
+
+            echo "==> Pruning old images..."
+            docker image prune -f
+
+            echo "==> Deploy complete!"
+
+      - name: Notify on failure
+        if: failure()
+        run: echo "::error::Deployment to ${{ github.event.inputs.environment }} failed!"
