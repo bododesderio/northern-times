@@ -48,4 +48,12 @@ desktop.ini
 # Logs
 *.log
 
-nul
+
+# Storage - never commit these
+storage/uploads/
+storage/backups/
+storage/geoip/
+
+# Crawled data
+backend/apps/crawler/data/
+backend/storage/
