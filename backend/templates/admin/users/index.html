@@ -1,0 +1,74 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Users & Roles{% endblock %}
+{% block breadcrumb_title %}Users & Roles{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1>Users &amp; Roles</h1>
+    <div class="sub">Manage who has access to the newsroom and what they can do.</div>
+  </div>
+  <a class="btn" href="{% url 'admin_user_create' %}">+ New User</a>
+</div>
+
+{# Filters #}
+<div class="card" style="padding:16px;margin-bottom:20px">
+  <form method="GET" action="{% url 'admin_users' %}" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <input name="q" value="{{ q|default:'' }}" placeholder="Search by name or email..." class="form-control" style="flex:1;min-width:220px">
+    <select name="role" class="form-control" style="min-width:160px">
+      <option value="">All roles</option>
+      <option value="super_admin" {% if role_filter == 'super_admin' %}selected{% endif %}>Super Admin</option>
+      <option value="editor" {% if role_filter == 'editor' %}selected{% endif %}>Editor</option>
+      <option value="author" {% if role_filter == 'author' %}selected{% endif %}>Author</option>
+    </select>
+    <button class="btn" type="submit">Filter</button>
+    {% if q or role_filter %}<a class="btn light" href="{% url 'admin_users' %}">Reset</a>{% endif %}
+  </form>
+</div>
+
+{# Users Table #}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th>Articles</th><th style="text-align:right">Actions</th></tr>
+    </thead>
+    <tbody>
+      {% if not users %}
+        <tr><td colspan="6" class="muted" style="text-align:center;padding:40px">No users found.</td></tr>
+      {% endif %}
+      {% for u in users %}
+        <tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="width:36px;height:36px;border-radius:50%;background:{% if u.role == 'super_admin' %}#c00{% elif u.role == 'editor' %}#1a6bbf{% else %}#4a4a4a{% endif %};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px">
+                {{ u.username|make_list|first|upper }}
+              </div>
+              <span style="font-weight:700">{{ u.username }}</span>
+            </div>
+          </td>
+          <td class="muted">{{ u.email }}</td>
+          <td>
+            <span class="badge {% if u.role == 'super_admin' %}red{% elif u.role == 'editor' %}blue{% else %}grey{% endif %}">
+              {{ u.role|title }}
+            </span>
+          </td>
+          <td><span class="badge {% if u.is_active %}green{% else %}grey{% endif %}">{% if u.is_active %}Active{% else %}Inactive{% endif %}</span></td>
+          <td>{{ u.article_count|default:0 }}</td>
+          <td style="text-align:right">
+            <div style="display:flex;gap:6px;justify-content:flex-end">
+              <a href="{% url 'admin_user_edit' pk=u.id %}" class="btn light xs">Edit</a>
+              {% if u.id != request.user.id %}
+                <form method="POST" action="{% url 'admin_user_delete' pk=u.id %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Deactivate this user?')">
+                  {% csrf_token %}
+                  <button class="btn danger xs" type="submit">Deactivate</button>
+                </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

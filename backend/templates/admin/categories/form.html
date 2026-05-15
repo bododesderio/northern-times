@@ -1,0 +1,60 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}{% if is_edit %}Edit Category{% else %}New Category{% endif %}{% endblock %}
+{% block breadcrumb_title %}{% if is_edit %}Edit Category{% else %}New Category{% endif %}{% endblock %}
+
+{% block admin_content %}
+<div class="card" style="max-width:980px">
+  <header style="margin-bottom:20px">
+    <h1 style="margin:0 0 6px">{% if is_edit %}Edit Category{% else %}New Category{% endif %}</h1>
+    <p class="muted">Slug powers the URL: <code>/category/{slug}</code>. If left empty, it will be generated from the name.</p>
+  </header>
+
+  <form method="POST" action="{% if is_edit %}{% url 'admin_category_edit' pk=category.id %}{% else %}{% url 'admin_category_create' %}{% endif %}">
+    {% csrf_token %}
+
+    <div class="form-group">
+      <label class="form-label">Name <span class="req">*</span></label>
+      <input name="name" type="text" required value="{{ category.name|default:'' }}" class="form-control" placeholder="Category name">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Slug (optional)</label>
+      <input name="slug" type="text" value="{{ category.slug|default:'' }}" class="form-control" placeholder="e.g. world, politics, business">
+      <div class="form-hint">Use simple lowercase words. No spaces. Hyphens are fine.</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Description (optional)</label>
+      <textarea name="description" class="form-control" style="min-height:110px">{{ category.description|default:'' }}</textarea>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px">
+      <div class="form-group">
+        <label class="form-label">Sort Order</label>
+        <input type="number" name="sort_order" value="{{ category.sort_order|default:50 }}" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Show in Navbar</label>
+        <select name="show_in_nav" class="form-control">
+          <option value="1" {% if category.show_in_nav %}selected{% endif %}>Yes</option>
+          <option value="0" {% if not category.show_in_nav %}selected{% endif %}>No</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Show in Sidebar</label>
+        <select name="show_in_sidebar" class="form-control">
+          <option value="1" {% if category.show_in_sidebar %}selected{% endif %}>Yes</option>
+          <option value="0" {% if not category.show_in_sidebar %}selected{% endif %}>No</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;border-top:1px solid var(--adm-border);padding-top:20px">
+      <button class="btn" type="submit">{% if is_edit %}Update Category{% else %}Create Category{% endif %}</button>
+      <a class="btn light" href="{% url 'admin_categories' %}">Cancel</a>
+      {% if is_edit %}<span class="muted" style="margin-left:auto;font-size:12px">ID: {{ category.id }}</span>{% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

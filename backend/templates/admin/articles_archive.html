@@ -1,0 +1,117 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Article Archive{% endblock %}
+{% block breadcrumb_title %}Article Archive{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+  <div>
+    <h1 style="margin:0 0 6px;">Article Archive</h1>
+    <div class="muted" style="font-size:14px">Archived articles can be restored to draft, edited, or permanently deleted.</div>
+  </div>
+  <a class="btn light" href="{% url 'admin_articles' %}">&larr; Back to Articles</a>
+</div>
+
+<form class="card" method="GET" action="{% url 'admin_articles_archive' %}" style="margin:16px 0;padding:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;background:var(--adm-bg)">
+  <input name="q" value="{{ q|default:'' }}" placeholder="Search archived articles..." class="form-control" style="flex:1;min-width:220px">
+  <button class="btn" type="submit">Search</button>
+  <a class="btn light" href="{% url 'admin_articles_archive' %}">Reset</a>
+</form>
+
+<form id="bulkForm" method="POST" action="{% url 'admin_articles_archive_bulk' %}">
+  {% csrf_token %}
+  <input type="hidden" name="action" id="bulkAction" value="">
+
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+    <label style="font-size:14px;color:var(--adm-muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+      <input type="checkbox" id="selectAll" style="width:16px;height:16px"> Select All
+    </label>
+    <button type="button" onclick="submitBulk('restore')" class="btn light sm" disabled id="btnBulkRestore">Restore Selected</button>
+    <button type="button" onclick="submitBulk('delete')" class="btn danger sm" disabled id="btnBulkDelete">Delete Selected Permanently</button>
+    <span id="selectedCount" class="muted" style="font-size:13px"></span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px"></th>
+          <th>Title</th>
+          <th>Category</th>
+          <th>Author</th>
+          <th>Date</th>
+          <th style="text-align:right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if not articles %}
+          <tr><td colspan="6" class="muted" style="padding:40px;text-align:center">No archived articles yet.</td></tr>
+        {% endif %}
+        {% for a in articles %}
+          <tr>
+            <td style="text-align:center"><input type="checkbox" name="ids[]" value="{{ a.id }}" class="rowCheck" style="width:16px;height:16px"></td>
+            <td>
+              <strong>{{ a.title }}</strong>
+              <div class="muted" style="font-size:11px;margin-top:2px"><code style="background:var(--adm-bg);padding:1px 4px;border-radius:3px">{{ a.slug }}</code></div>
+            </td>
+            <td>{{ a.category|default:"" }}</td>
+            <td>{{ a.author|default:"" }}</td>
+            <td class="muted">{% if a.published_at %}{{ a.published_at|date:"M j, Y" }}{% else %}--{% endif %}</td>
+            <td style="text-align:right">
+              <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
+                <form method="POST" action="{% url 'admin_article_restore' pk=a.id %}" style="display:inline">
+                  {% csrf_token %}
+                  <button class="btn sm" type="submit" style="background:#e6ffe6;color:#006400;border:1px solid #b7e4b7">Restore</button>
+                </form>
+                <a class="btn light sm" href="{% url 'admin_article_edit' pk=a.id %}">Edit</a>
+                <form method="POST" action="{% url 'admin_article_permanent_delete' pk=a.id %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'PERMANENTLY delete this article? This cannot be undone.')">
+                  {% csrf_token %}
+                  <button class="btn danger sm" type="submit">Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</form>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+  <span class="muted" style="font-size:14px">Page {{ page }} of {{ total_pages }}</span>
+  <a class="btn light sm" href="?page=1{% if q %}&q={{ q }}{% endif %}">First</a>
+  {% if page > 1 %}<a class="btn light sm" href="?page={{ page|add:"-1" }}{% if q %}&q={{ q }}{% endif %}">Prev</a>{% endif %}
+  {% if page < total_pages %}<a class="btn light sm" href="?page={{ page|add:"1" }}{% if q %}&q={{ q }}{% endif %}">Next</a>{% endif %}
+  <a class="btn light sm" href="?page={{ total_pages }}{% if q %}&q={{ q }}{% endif %}">Last</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block admin_scripts %}
+<script>
+var selectAll = document.getElementById('selectAll');
+var checks = document.querySelectorAll('.rowCheck');
+var btnRestore = document.getElementById('btnBulkRestore');
+var btnDelete = document.getElementById('btnBulkDelete');
+var countSpan = document.getElementById('selectedCount');
+function updateBulk() {
+  var n = document.querySelectorAll('.rowCheck:checked').length;
+  btnRestore.disabled = n === 0;
+  btnDelete.disabled = n === 0;
+  countSpan.textContent = n > 0 ? n + ' selected' : '';
+}
+if (selectAll) selectAll.addEventListener('change', function() { checks.forEach(function(c){ c.checked = selectAll.checked; }); updateBulk(); });
+checks.forEach(function(c) { c.addEventListener('change', updateBulk); });
+function submitBulk(action) {
+  var n = document.querySelectorAll('.rowCheck:checked').length;
+  if (n === 0) return;
+  ntConfirm(action === 'delete' ? 'PERMANENTLY delete ' + n + ' article(s)?' : 'Restore ' + n + ' article(s) as drafts?').then(function(ok) {
+    if (!ok) return;
+    document.getElementById('bulkAction').value = action;
+    document.getElementById('bulkForm').submit();
+  });
+  return;
+}
+</script>
+{% endblock %}

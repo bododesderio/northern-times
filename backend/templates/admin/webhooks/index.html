@@ -1,0 +1,49 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Webhooks{% endblock %}
+{% block breadcrumb_title %}Webhooks{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1>Webhooks</h1>
+    <div class="sub">Manage outgoing webhook notifications for article.published events.</div>
+  </div>
+  <a href="{% url 'admin_webhook_create' %}" class="btn">+ New Webhook</a>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>URL</th><th>Events</th><th style="text-align:center">Status</th><th style="text-align:center">Deliveries</th><th style="text-align:right">Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for wh in webhooks %}
+        <tr>
+          <td>
+            <div style="font-weight:600;max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ wh.url }}</div>
+          </td>
+          <td>
+            {% for event in wh.events %}
+              <span class="badge blue" style="font-size:10px">{{ event }}</span>
+            {% endfor %}
+          </td>
+          <td style="text-align:center">
+            <span class="badge {% if wh.is_active %}green{% else %}grey{% endif %}">{% if wh.is_active %}Active{% else %}Inactive{% endif %}</span>
+          </td>
+          <td style="text-align:center">{{ wh.delivery_count|default:0 }}</td>
+          <td style="text-align:right">
+            <div style="display:flex;gap:6px;justify-content:flex-end">
+              <a href="{% url 'admin_webhook_edit' pk=wh.id %}" class="btn light xs">Edit</a>
+              <form method="POST" action="{% url 'admin_webhook_test' pk=wh.id %}" style="display:inline">{% csrf_token %}<button class="btn light xs">Test</button></form>
+              <form method="POST" action="{% url 'admin_webhook_delete' pk=wh.id %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete this webhook?')">{% csrf_token %}<button class="btn danger xs">Delete</button></form>
+            </div>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="muted" style="text-align:center;padding:40px">No webhooks configured yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

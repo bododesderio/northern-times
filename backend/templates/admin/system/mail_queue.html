@@ -1,0 +1,74 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Mail Queue{% endblock %}
+{% block breadcrumb_title %}Mail Queue{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <h1>Mail Queue</h1>
+  <div style="display:flex;gap:10px">
+    <form method="POST" action="{{ flush_action|default:'' }}" style="display:inline">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="padding:10px 24px">Process Queue Now</button>
+    </form>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:24px">
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Queued</div>
+    <div style="font-size:28px;font-weight:700">{{ stats.queued|default:"0" }}</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Sent (24h)</div>
+    <div style="font-size:28px;font-weight:700;color:#16a34a">{{ stats.sent_24h|default:"0" }}</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Failed (24h)</div>
+    <div style="font-size:28px;font-weight:700;color:#dc2626">{{ stats.failed_24h|default:"0" }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Recipient</th>
+          <th>Subject</th>
+          <th>Status</th>
+          <th>Attempts</th>
+          <th>Queued At</th>
+          <th>Sent At</th>
+          <th>Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mail in emails %}
+        <tr>
+          <td style="font-size:13px">{{ mail.to_email }}</td>
+          <td><strong>{{ mail.subject|truncatewords:8 }}</strong></td>
+          <td>
+            {% if mail.status == 'sent' %}
+            <span style="color:#16a34a;font-weight:600;font-size:13px">Sent</span>
+            {% elif mail.status == 'failed' %}
+            <span style="color:#dc2626;font-weight:600;font-size:13px">Failed</span>
+            {% else %}
+            <span style="color:#d97706;font-weight:600;font-size:13px">Queued</span>
+            {% endif %}
+          </td>
+          <td class="muted">{{ mail.attempts|default:"0" }}</td>
+          <td class="muted" style="font-size:12px;white-space:nowrap">{{ mail.created_at|date:"M j, g:iA" }}</td>
+          <td class="muted" style="font-size:12px;white-space:nowrap">{{ mail.sent_at|date:"M j, g:iA"|default:"--" }}</td>
+          <td style="font-size:12px;color:#dc2626;max-width:200px">{{ mail.error_message|default:"" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="muted" style="text-align:center;padding:40px">Mail queue is empty.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Login Quotes{% endblock %}
+{% block breadcrumb_title %}Login Quotes{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <h1>Login Quotes</h1>
+  <button type="button" class="btn" style="padding:10px 24px" onclick="document.getElementById('addQuoteForm').style.display='block'">Add Quote</button>
+</div>
+
+<div class="card" id="addQuoteForm" style="padding:24px;margin-bottom:20px;display:none">
+  <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">Add New Quote</h3>
+  <form method="POST" action="{{ form_action|default:'' }}">
+    {% csrf_token %}
+    <div class="form-group">
+      <label class="form-label">Quote Text <span class="req">*</span></label>
+      <textarea name="quote_text" required class="form-control" rows="3" placeholder="The only way to do great journalism is..."></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Author</label>
+      <input name="author" class="form-control" placeholder="e.g. Walter Cronkite">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button type="submit" class="btn" style="padding:10px 24px">Add Quote</button>
+      <button type="button" class="btn light" style="padding:10px 24px" onclick="this.closest('.card').style.display='none'">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:50px">#</th>
+          <th>Quote</th>
+          <th style="width:180px">Author</th>
+          <th style="width:80px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for q in quotes %}
+        <tr>
+          <td class="muted">{{ forloop.counter }}</td>
+          <td style="font-size:14px;line-height:1.6;font-style:italic;white-space:normal">"{{ q.quote_text }}"</td>
+          <td style="font-weight:600;font-size:14px">{{ q.author|default:"Unknown" }}</td>
+          <td>
+            <form method="POST" action="{{ delete_action|default:'' }}" style="display:inline" onsubmit="return confirm('Delete this quote?')">
+              {% csrf_token %}
+              <input type="hidden" name="quote_id" value="{{ q.id }}">
+              <input type="hidden" name="_method" value="DELETE">
+              <button type="submit" class="btn light xs" style="color:#dc2626">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="4" class="muted" style="text-align:center;padding:40px">No login quotes yet. Add one above.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

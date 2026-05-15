@@ -1,0 +1,68 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Compose Newsletter{% endblock %}
+{% block breadcrumb_title %}Compose Newsletter{% endblock %}
+
+{% block admin_content %}
+<div style="max-width:800px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <div>
+      <h1 style="margin:0">Compose Newsletter</h1>
+      <p class="muted" style="margin:4px 0 0">Sending to {{ active_count|default:0 }} active subscribers</p>
+    </div>
+    <a href="{% url 'admin_newsletter' %}" class="btn sm light">&larr; Back</a>
+  </div>
+
+  <div class="card" style="padding:14px;margin-bottom:20px;background:#fffbeb;border:1px solid rgba(245,158,11,.2)">
+    <strong style="font-size:13px;color:#92400e">Tips for better newsletters</strong>
+    <ul style="margin:8px 0 0;padding-left:20px;font-size:13px;color:#78350f;line-height:1.8">
+      <li>Pick 3-5 of your best articles</li>
+      <li>Write a personal intro for better engagement</li>
+      <li>Use a clear, curiosity-driven subject line</li>
+      <li>Always preview before sending</li>
+    </ul>
+  </div>
+
+  <form method="POST" action="{% url 'admin_newsletter_preview' %}">
+    {% csrf_token %}
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="form-group">
+        <label class="form-label">Subject Line <span class="req">*</span></label>
+        <input type="text" name="subject" class="form-control" required placeholder="e.g. This Week's Top Stories" style="font-size:15px">
+        <div class="form-hint">Keep it under 60 characters for best inbox display.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Personal Introduction <span class="muted">(optional)</span></label>
+        <textarea name="intro" rows="3" class="form-control" placeholder="Write a brief personal note to your readers..."></textarea>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <label class="form-label">Select Articles <span class="req">*</span></label>
+      {% if recent_articles %}
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+          {% for a in recent_articles %}
+            <label style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--adm-border);border-radius:10px;cursor:pointer;transition:background .15s">
+              <input type="checkbox" name="article_ids" value="{{ a.id }}" style="width:18px;height:18px">
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:600;font-size:14px">{{ a.title }}</div>
+                <div class="muted" style="font-size:12px">{{ a.category|default:"" }} &middot; {{ a.published_at|date:"M j" }}</div>
+              </div>
+              <span class="muted" style="font-size:12px">{{ a.views|default:0 }} views</span>
+            </label>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted" style="margin-top:12px">No published articles available.</p>
+      {% endif %}
+    </div>
+
+    <div style="display:flex;gap:12px">
+      <button type="submit" class="btn">Preview Newsletter</button>
+      <a href="{% url 'admin_newsletter' %}" class="btn light">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}{{ page_title|default:"Edit Ad" }}{% endblock %}
+{% block breadcrumb_title %}{{ page_title|default:"Edit Ad" }}{% endblock %}
+
+{% block admin_content %}
+<div class="card" style="max-width:720px">
+  <h1 style="margin-bottom:24px">{% if ad.id %}Edit Ad{% else %}New Ad{% endif %}</h1>
+
+  <form method="POST" action="{{ form_action|default:'' }}" id="adForm">
+    {% csrf_token %}
+
+    <div class="form-group">
+      <label class="form-label">Name <span class="req">*</span></label>
+      <input name="name" id="name" required value="{{ ad.name|default:'' }}" class="form-control" placeholder="e.g. Sidebar Banner Q2">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Slot Name <span class="req">*</span></label>
+      <input name="slot_name" id="slot_name" required value="{{ ad.slot_name|default:'' }}" class="form-control" placeholder="e.g. sidebar_top, header_leaderboard">
+      <div class="form-hint">Identifier used in templates to place this ad.</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Device Targeting</label>
+      <select name="device_targeting" id="device_targeting" class="form-control">
+        <option value="all" {% if ad.device_targeting == 'all' %}selected{% endif %}>All Devices</option>
+        <option value="desktop" {% if ad.device_targeting == 'desktop' %}selected{% endif %}>Desktop Only</option>
+        <option value="mobile" {% if ad.device_targeting == 'mobile' %}selected{% endif %}>Mobile Only</option>
+        <option value="tablet" {% if ad.device_targeting == 'tablet' %}selected{% endif %}>Tablet Only</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" name="is_active" id="is_active" {% if ad.is_active %}checked{% endif %} style="width:auto">
+        Active
+      </label>
+      <div class="form-hint">When unchecked, this ad will not be displayed on the site.</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">HTML Content <span class="req">*</span></label>
+      <textarea name="html_content" id="html_content" required class="form-control" rows="12" style="font-family:monospace;font-size:13px;line-height:1.5">{{ ad.html_content|default:'' }}</textarea>
+      <div class="form-hint">Raw HTML/JS for the ad. Supports ad network scripts, images, or custom HTML.</div>
+    </div>
+
+    <div style="display:flex;gap:16px;margin-top:28px">
+      <button class="btn" type="submit" style="padding:12px 32px">{% if ad.id %}Update Ad{% else %}Create Ad{% endif %}</button>
+      <a class="btn light" href="{% url 'admin_ads' %}" style="padding:12px 32px">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

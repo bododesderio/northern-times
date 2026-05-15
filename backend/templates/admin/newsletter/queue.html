@@ -1,0 +1,111 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Email Queue{% endblock %}
+{% block breadcrumb_title %}Email Queue{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1>Email Queue</h1>
+    <p class="sub">Monitor outbound email delivery</p>
+  </div>
+  <a href="{% url 'admin_newsletter' %}" class="btn light sm">Back to Newsletter</a>
+</div>
+
+{# Status Filter Tabs #}
+<div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">
+  <a href="{% url 'admin_newsletter_queue' %}"
+     class="btn sm {% if not request.GET.status %}light{% endif %}"
+     style="{% if not request.GET.status %}background:var(--adm-ink);color:var(--adm-surface);border-color:var(--adm-ink){% endif %}">
+    All
+  </a>
+  <a href="{% url 'admin_newsletter_queue' %}?status=pending"
+     class="btn light sm"
+     style="{% if request.GET.status == 'pending' %}background:#fef9c3;color:#854d0e;border-color:#fde68a{% endif %}">
+    Pending
+  </a>
+  <a href="{% url 'admin_newsletter_queue' %}?status=sent"
+     class="btn light sm"
+     style="{% if request.GET.status == 'sent' %}background:#dcfce7;color:#15803d;border-color:#bbf7d0{% endif %}">
+    Sent
+  </a>
+  <a href="{% url 'admin_newsletter_queue' %}?status=failed"
+     class="btn light sm"
+     style="{% if request.GET.status == 'failed' %}background:#fee2e2;color:#b91c1c;border-color:#fecaca{% endif %}">
+    Failed
+  </a>
+</div>
+
+{# Queue Table #}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>To</th>
+        <th>Subject</th>
+        <th style="text-align:center">Status</th>
+        <th style="text-align:center">Attempts</th>
+        <th>Created</th>
+        <th>Sent</th>
+        <th style="text-align:right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if not emails %}
+        <tr><td colspan="7" class="muted" style="padding:40px;text-align:center">No emails in queue.</td></tr>
+      {% endif %}
+      {% for email in emails %}
+        <tr>
+          <td style="font-weight:600;font-size:13px">{{ email.to_email }}</td>
+          <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ email.subject }}</td>
+          <td style="text-align:center">
+            <span class="badge {% if email.status == 'sent' %}green{% elif email.status == 'failed' %}red{% elif email.status == 'pending' %}yellow{% else %}grey{% endif %}">
+              {{ email.status|title }}
+            </span>
+          </td>
+          <td style="text-align:center;font-size:13px" class="muted">{{ email.attempts }}</td>
+          <td class="muted" style="font-size:13px">{{ email.created_at|date:"M j, g:i A" }}</td>
+          <td class="muted" style="font-size:13px">{{ email.sent_at|date:"M j, g:i A"|default:"--" }}</td>
+          <td style="text-align:right">
+            <div style="display:flex;gap:6px;justify-content:flex-end">
+              {% if email.status == 'failed' %}
+                <form method="POST" action="{% url 'admin_newsletter_queue_retry' pk=email.pk %}" style="display:inline">
+                  {% csrf_token %}
+                  <button type="submit" class="btn light xs">Retry</button>
+                </form>
+              {% endif %}
+              <form method="POST" action="{% url 'admin_newsletter_queue_delete' pk=email.pk %}" style="display:inline"
+                    onsubmit="return ntSubmitConfirm(event, 'Remove this email from the queue?')">
+                {% csrf_token %}
+                <button type="submit" class="btn danger xs">Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% if email.error_message %}
+          <tr>
+            <td colspan="7" style="padding:6px 16px 12px;border-bottom:1px solid var(--adm-border)">
+              <div style="font-size:12px;color:#b91c1c;background:#fef2f2;padding:8px 12px;border-radius:6px;font-family:monospace">
+                {{ email.error_message|truncatewords:50 }}
+              </div>
+            </td>
+          </tr>
+        {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# Pagination #}
+{% if emails.has_other_pages %}
+<div class="pagination">
+  {% if emails.has_previous %}
+    <a class="btn light sm" href="?page={{ emails.previous_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">Prev</a>
+  {% endif %}
+  <span class="muted">Page {{ emails.number }} of {{ emails.paginator.num_pages }}</span>
+  {% if emails.has_next %}
+    <a class="btn light sm" href="?page={{ emails.next_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}">Next</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

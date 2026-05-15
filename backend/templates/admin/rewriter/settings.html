@@ -1,0 +1,115 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Rewriter Settings{% endblock %}
+{% block breadcrumb_title %}Rewriter Settings{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <h1>Rewriter Settings</h1>
+  <button type="submit" form="rewriterSettingsForm" class="btn" style="padding:10px 28px">Save Settings</button>
+</div>
+
+<form method="POST" action="{{ form_action|default:'' }}" id="rewriterSettingsForm">
+  {% csrf_token %}
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:20px">
+    <div class="card" style="padding:24px">
+      <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">OpenAI Configuration</h3>
+
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" name="enabled" {% if settings.enabled %}checked{% endif %} style="width:auto">
+          Rewriter Enabled
+        </label>
+        <div class="form-hint">When enabled, crawled articles will be automatically rewritten.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">OpenAI Model</label>
+        <select name="model" class="form-control">
+          <option value="gpt-4o-mini" {% if settings.model == 'gpt-4o-mini' %}selected{% endif %}>GPT-4o Mini</option>
+          <option value="gpt-4o" {% if settings.model == 'gpt-4o' %}selected{% endif %}>GPT-4o</option>
+          <option value="gpt-4-turbo" {% if settings.model == 'gpt-4-turbo' %}selected{% endif %}>GPT-4 Turbo</option>
+          <option value="gpt-3.5-turbo" {% if settings.model == 'gpt-3.5-turbo' %}selected{% endif %}>GPT-3.5 Turbo</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">API Key</label>
+        <input name="api_key" type="password" value="{{ settings.api_key|default:'' }}" class="form-control" placeholder="sk-...">
+        <div class="form-hint">Leave blank to use the OPENAI_API_KEY environment variable.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Temperature</label>
+        <input name="temperature" type="number" step="0.1" min="0" max="2" value="{{ settings.temperature|default:'0.7' }}" class="form-control">
+        <div class="form-hint">Lower = more deterministic, higher = more creative. Default: 0.7</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Max Tokens</label>
+        <input name="max_tokens" type="number" min="100" max="16000" value="{{ settings.max_tokens|default:'4000' }}" class="form-control">
+      </div>
+    </div>
+
+    <div class="card" style="padding:24px">
+      <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">Rewriting Rules</h3>
+
+      <div class="form-group">
+        <label class="form-label">System Prompt</label>
+        <textarea name="system_prompt" class="form-control" rows="6" style="font-size:13px;line-height:1.5">{{ settings.system_prompt|default:'You are a professional news editor. Rewrite the following article in your own words while preserving all facts, quotes, and key information. Use a neutral journalistic tone.' }}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Minimum Article Length (words)</label>
+        <input name="min_article_length" type="number" min="0" value="{{ settings.min_article_length|default:'100' }}" class="form-control">
+        <div class="form-hint">Articles shorter than this will be skipped.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" name="preserve_quotes" {% if settings.preserve_quotes %}checked{% endif %} style="width:auto">
+          Preserve direct quotes
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" name="auto_publish" {% if settings.auto_publish %}checked{% endif %} style="width:auto">
+          Auto-publish after rewriting
+        </label>
+        <div class="form-hint">When enabled, rewritten articles are published immediately instead of queued as drafts.</div>
+      </div>
+    </div>
+  </div>
+
+  {# Stats #}
+  {% if stats %}
+  <div class="card" style="padding:24px;margin-top:20px">
+    <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">Rewriter Statistics</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px">
+      <div style="text-align:center">
+        <div class="muted" style="font-size:13px;margin-bottom:4px">Rewritten (24h)</div>
+        <div style="font-size:24px;font-weight:700">{{ stats.rewritten_24h|default:"0" }}</div>
+      </div>
+      <div style="text-align:center">
+        <div class="muted" style="font-size:13px;margin-bottom:4px">Rewritten (Total)</div>
+        <div style="font-size:24px;font-weight:700">{{ stats.rewritten_total|default:"0" }}</div>
+      </div>
+      <div style="text-align:center">
+        <div class="muted" style="font-size:13px;margin-bottom:4px">Queue Size</div>
+        <div style="font-size:24px;font-weight:700">{{ stats.queue_size|default:"0" }}</div>
+      </div>
+      <div style="text-align:center">
+        <div class="muted" style="font-size:13px;margin-bottom:4px">Avg Time</div>
+        <div style="font-size:24px;font-weight:700">{{ stats.avg_time|default:"--" }}s</div>
+      </div>
+      <div style="text-align:center">
+        <div class="muted" style="font-size:13px;margin-bottom:4px">Failures (24h)</div>
+        <div style="font-size:24px;font-weight:700;color:#dc2626">{{ stats.failures_24h|default:"0" }}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</form>
+{% endblock %}

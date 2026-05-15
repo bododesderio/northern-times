@@ -1,0 +1,570 @@
+{% load static %}
+<!doctype html>
+<html lang="en" data-adm-theme="{{ admin_theme|default:'light' }}">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="csrf-token" content="{{ csrf_token }}"/>
+  <title>{% block admin_title %}{{ page_title|default:"Admin" }}{% endblock %} — {{ site_title|default:"Northern Times" }} Admin</title>
+
+  {% if favicon_url %}
+    <link rel="icon" type="{{ favicon_mime|default:'image/x-icon' }}" href="{{ favicon_url }}" />
+    <link rel="apple-touch-icon" href="{{ favicon_url }}" />
+  {% else %}
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/icon.svg' %}" />
+    <link rel="apple-touch-icon" href="{% static 'images/icon.svg' %}" />
+  {% endif %}
+
+  <link rel="stylesheet" href="{% static 'fonts/fonts.css' %}"/>
+
+  {% block admin_css %}{% endblock %}
+
+  <style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --sw: 260px;
+    --adm-sb-bg: #1a1b1e;
+    --sborder: rgba(255,255,255,.08);
+    --shover: rgba(255,255,255,.06);
+    --sactive: rgba(255,255,255,.13);
+    --stext: rgba(255,255,255,.82);
+    --smuted: rgba(255,255,255,.38);
+    --adm-bg: #f2f2f3;
+    --adm-surface: #ffffff;
+    --adm-ink: #1a1a1a;
+    --adm-border: #e2e2e2;
+    --adm-muted: #666666;
+    --adm-shadow: 0 4px 18px rgba(0,0,0,.07);
+    --adm-shadow-lg: 0 12px 40px rgba(0,0,0,.10);
+  }
+
+  html[data-adm-theme="dark"] {
+    --adm-sb-bg: #111113;
+    --adm-bg: #111113;
+    --adm-surface: #1c1c1e;
+    --adm-ink: #e8e8ea;
+    --adm-border: #2c2c2e;
+    --adm-muted: #8e8e93;
+    color-scheme: dark;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--adm-bg);
+    color: var(--adm-ink);
+    font-family: 'Libre Franklin', system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    transition: background 220ms ease, color 220ms ease;
+  }
+  a { color: inherit; text-decoration: none; }
+  img { max-width: 100%; display: block; object-fit: cover; }
+  button, input, select, textarea { font: inherit; }
+
+  .nt-shell { display: flex; min-height: 100vh; }
+
+  .nt-sidebar {
+    width: var(--sw);
+    background: var(--adm-sb-bg);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; left: 0;
+    height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    z-index: 200;
+    transition: transform .18s cubic-bezier(.2,.8,.2,1), background 220ms ease;
+    scrollbar-width: none;
+  }
+  .nt-sidebar::-webkit-scrollbar { display: none; }
+
+  .nt-logo { padding: 22px 20px 18px; border-bottom: 1px solid var(--sborder); flex-shrink: 0; }
+  .nt-logo a { display: block; }
+  .nt-logo-text { font-family: 'UnifrakturMaguntia', Georgia, serif; font-size: 19px; color: #fff; line-height: 1; }
+  .nt-logo-sub { margin-top: 5px; font-size: 10px; color: var(--smuted); letter-spacing: .08em; text-transform: uppercase; }
+
+  .nt-nav { flex: 1; padding: 14px 10px; display: flex; flex-direction: column; gap: 1px; }
+  .nt-nav-section { margin: 14px 0 3px; padding: 0 10px; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--smuted); }
+  .nt-nav-divider { height: 1px; background: var(--sborder); margin: 8px 0; }
+  .nt-nav-link { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; color: var(--stext); font-size: 14px; font-weight: 500; transition: background .18s, color .18s; position: relative; overflow: hidden; }
+  .nt-nav-link::before { content: ''; position: absolute; left: 0; top: 18%; bottom: 18%; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent, #cc0000); transform: scaleY(0); transition: transform .18s; }
+  .nt-nav-link:hover { background: var(--shover); color: #fff; }
+  .nt-nav-link:hover::before { transform: scaleY(1); }
+  .nt-nav-link.active { background: var(--sactive); color: #fff; }
+  .nt-nav-link.active::before { transform: scaleY(1); }
+  .nt-nav-icon { display: flex; align-items: center; flex-shrink: 0; opacity: .65; }
+  .nt-nav-link:hover .nt-nav-icon, .nt-nav-link.active .nt-nav-icon { opacity: 1; }
+  .nt-nav-label { flex: 1; }
+  .nt-nav-badge { font-size: 10px; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+  .nt-nav-badge.red { background: #cc000022; color: #cc0000; }
+
+  .nt-nav-group-toggle { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; color: var(--stext); font-size: 14px; font-weight: 500; cursor: pointer; background: none; border: none; width: 100%; text-align: left; transition: background .18s; }
+  .nt-nav-group-toggle:hover { background: var(--shover); color: #fff; }
+  .nt-nav-group-arrow { display: flex; transition: transform .2s ease; }
+  .nt-nav-group.open .nt-nav-group-arrow { transform: rotate(90deg); }
+  .nt-nav-group-items { max-height: 0; overflow: hidden; transition: max-height .3s ease; }
+  .nt-nav-group.open .nt-nav-group-items { max-height: 600px; }
+  .nt-nav-group-items .nt-nav-link { padding-left: 20px; font-size: 13px; }
+  .nt-nav-group-items .nt-nav-link .nt-nav-icon { opacity: .45; }
+  .nt-nav-group-items .nt-nav-link:hover .nt-nav-icon, .nt-nav-group-items .nt-nav-link.active .nt-nav-icon { opacity: .85; }
+
+  .nt-profile-wrap { padding: 12px 10px; border-top: 1px solid var(--sborder); flex-shrink: 0; }
+  .nt-profile-card { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; background: rgba(255,255,255,.04); }
+  .nt-avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; color: #fff; }
+  .nt-profile-name { color: #fff; font-size: 13px; font-weight: 600; }
+  .nt-role-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; margin-top: 2px; }
+  .nt-logout { margin: 6px 10px 18px; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; color: rgba(255,110,110,.65); font-size: 14px; font-weight: 500; transition: background .18s, color .18s; }
+  .nt-logout:hover { background: rgba(200,0,0,.14); color: #ff7070; }
+
+  .nt-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 199; }
+
+  .nt-main { flex: 1; margin-left: var(--sw); display: flex; flex-direction: column; min-height: 100vh; background: var(--adm-bg); }
+
+  .nt-topbar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--adm-surface);
+    border-bottom: 1px solid var(--adm-border);
+    padding: 0 26px; height: 56px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .nt-topbar-left { display: flex; align-items: center; gap: 12px; }
+  .nt-burger { display: none; background: none; border: 1px solid var(--adm-border); border-radius: 8px; padding: 7px; cursor: pointer; color: var(--adm-ink); }
+  .nt-breadcrumb { font-size: 14px; color: var(--adm-muted); }
+  .nt-breadcrumb strong { color: var(--adm-ink); font-weight: 600; }
+  .nt-topbar-right { display: flex; align-items: center; gap: 12px; }
+  .nt-live-btn { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--adm-muted); border: 1px solid var(--adm-border); border-radius: 8px; padding: 6px 12px; }
+  .nt-tb-avatar { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 99px; border: 1px solid var(--adm-border); color: var(--adm-ink); }
+  .nt-tb-av-circle { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .nt-tb-av-name { font-size: 13px; font-weight: 500; }
+
+  .nt-content {
+    flex: 1; padding: 28px 32px;
+    display: flex; flex-direction: column; align-items: center;
+    animation: ntFadeUp .2s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .nt-content > * { width: 100%; max-width: 1200px; }
+  @keyframes ntFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes ntSlideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+  .card { background: var(--adm-surface); border: 1px solid var(--adm-border); border-radius: 12px; padding: 22px; box-shadow: var(--adm-shadow); transition: box-shadow .18s, background 220ms ease; }
+  .card:hover { box-shadow: var(--adm-shadow-lg); }
+
+  .btn { display: inline-flex; align-items: center; gap: 6px; background: var(--adm-ink); color: var(--adm-surface); padding: 9px 16px; border-radius: 9px; border: 1px solid transparent; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .18s; line-height: 1; text-decoration: none; white-space: nowrap; }
+  .btn:hover { opacity: .87; transform: translateY(-1px); }
+  .btn.light { background: var(--adm-surface); color: var(--adm-ink); border-color: var(--adm-border); }
+  .btn.light:hover { background: var(--adm-bg); border-color: var(--adm-muted); opacity: 1; }
+  .btn.danger { background: #c00; border-color: #c00; color: #fff; }
+  .btn.success { background: #16a34a; border-color: #16a34a; color: #fff; }
+  .btn.sm { padding: 6px 12px; font-size: 13px; border-radius: 7px; }
+  .btn.xs { padding: 4px 9px; font-size: 12px; border-radius: 6px; }
+
+  .flash { display: flex; align-items: flex-start; gap: 10px; border-radius: 11px; padding: 13px 16px; margin-bottom: 18px; font-size: 14px; font-weight: 500; animation: ntSlideDown .22s cubic-bezier(.2,.8,.2,1) both; }
+  .flash.ok  { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
+  .flash.bad { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+  .flash.info{ background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
+
+  .form-group { margin-bottom: 18px; }
+  .form-label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--adm-ink); }
+  .form-label .req { color: #cc0000; margin-left: 2px; }
+  .form-control { width: 100%; padding: 10px 13px; border: 1px solid var(--adm-border); border-radius: 9px; font-size: 14px; background: var(--adm-surface); color: var(--adm-ink); outline: none; }
+  .form-control:focus { border-color: #cc0000; box-shadow: 0 0 0 3px rgba(204,0,0,.1); }
+  textarea.form-control { resize: vertical; line-height: 1.6; }
+  .form-hint { margin-top: 4px; font-size: 12px; color: var(--adm-muted); }
+
+  .table-wrap { border: 1px solid var(--adm-border); border-radius: 12px; overflow: hidden; background: var(--adm-surface); box-shadow: var(--adm-shadow); }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { background: var(--adm-bg); }
+  th { padding: 12px 16px; border-bottom: 2px solid var(--adm-border); text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--adm-muted); }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--adm-border); font-size: 14px; vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--adm-bg); }
+
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+  .badge.green  { background: #dcfce7; color: #15803d; }
+  .badge.yellow { background: #fef9c3; color: #854d0e; }
+  .badge.red    { background: #fee2e2; color: #b91c1c; }
+  .badge.blue   { background: #dbeafe; color: #1d4ed8; }
+  .badge.grey   { background: #f3f4f6; color: #4b5563; }
+
+  .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+  .page-header h1 { font-size: 24px; font-weight: 800; letter-spacing: -.3px; margin-bottom: 3px; }
+  .page-header .sub { font-size: 14px; color: var(--adm-muted); }
+  .muted { color: var(--adm-muted); }
+
+  .pagination { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 18px; justify-content: flex-end; }
+
+  .toggle-wrap { display: flex; align-items: center; gap: 10px; }
+  .toggle { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .toggle-track { position: absolute; inset: 0; background: #ddd; border-radius: 99px; cursor: pointer; transition: background .18s; }
+  .toggle input:checked + .toggle-track { background: #cc0000; }
+  .toggle-track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: transform .18s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .toggle input:checked + .toggle-track::after { transform: translateX(16px); }
+
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--adm-muted); }
+  .empty-state h3 { margin: 12px 0 6px; font-size: 18px; color: var(--adm-ink); }
+
+  /* Profile dropdown */
+  .nt-profile-menu { position: relative; }
+  .nt-profile-drop {
+    position: absolute; top: calc(100% + 8px); right: 0; z-index: 300;
+    min-width: 180px; background: var(--adm-surface); border: 1px solid var(--adm-border);
+    border-radius: 10px; box-shadow: var(--adm-shadow-lg); padding: 6px 0;
+    opacity: 0; transform: translateY(-6px); pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+  }
+  .nt-profile-drop.open { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .nt-profile-drop a {
+    display: block; padding: 8px 16px; font-size: 13px; font-weight: 500;
+    color: var(--adm-ink); transition: background .12s;
+  }
+  .nt-profile-drop a:hover { background: var(--adm-bg); }
+
+  /* Custom select styling */
+  select.form-control {
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center;
+    padding-right: 34px;
+  }
+
+  /* Modal overlay */
+  .nt-modal-overlay {
+    position: fixed; inset: 0; z-index: 99999;
+    background: rgba(0,0,0,.45); backdrop-filter: blur(2px);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity .18s ease;
+  }
+  .nt-modal-overlay.show { opacity: 1; }
+  .nt-modal-box {
+    background: var(--adm-surface); border-radius: 14px;
+    padding: 28px 26px 22px; width: 90vw; max-width: 400px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.22);
+    transform: scale(.95) translateY(8px);
+    transition: transform .18s ease;
+  }
+  .nt-modal-overlay.show .nt-modal-box { transform: scale(1) translateY(0); }
+  .nt-modal-title {
+    font-size: 17px; font-weight: 700; margin-bottom: 8px; color: var(--adm-ink);
+  }
+  .nt-modal-msg {
+    font-size: 14px; line-height: 1.6; color: var(--adm-muted); margin-bottom: 18px;
+  }
+  .nt-modal-input {
+    width: 100%; padding: 10px 13px; border: 1px solid var(--adm-border);
+    border-radius: 9px; font-size: 14px; background: var(--adm-surface);
+    color: var(--adm-ink); outline: none; margin-bottom: 18px;
+  }
+  .nt-modal-input:focus { border-color: #cc0000; box-shadow: 0 0 0 3px rgba(204,0,0,.1); }
+  .nt-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .nt-modal-cancel {
+    padding: 9px 18px; border-radius: 9px; border: 1px solid var(--adm-border);
+    background: var(--adm-surface); color: var(--adm-ink); font-size: 14px;
+    font-weight: 600; cursor: pointer; transition: background .12s;
+  }
+  .nt-modal-cancel:hover { background: var(--adm-bg); }
+  .nt-modal-ok {
+    padding: 9px 18px; border-radius: 9px; border: 1px solid transparent;
+    background: #cc0000; color: #fff; font-size: 14px;
+    font-weight: 600; cursor: pointer; transition: opacity .12s;
+  }
+  .nt-modal-ok:hover { opacity: .87; }
+
+  @media (max-width: 900px) {
+    .nt-sidebar { transform: translateX(-100%); }
+    .nt-sidebar.open { transform: translateX(0); box-shadow: 4px 0 36px rgba(0,0,0,.28); }
+    .nt-overlay.open { display: block; opacity: 1; }
+    .nt-main { margin-left: 0; }
+    .nt-burger { display: flex; }
+    .nt-content { padding: 18px; }
+  }
+  </style>
+</head>
+<body>
+
+<div class="nt-shell">
+
+  <div class="nt-overlay" id="ntOverlay"></div>
+
+  <aside class="nt-sidebar" id="ntSidebar" aria-label="Admin navigation">
+    <div class="nt-logo">
+      <a href="{% url 'admin_dashboard' %}">
+        {% if admin_logo %}
+          <img src="{{ admin_logo }}" alt="{{ sidebar_title|default:site_title }}" class="nt-logo-img"/>
+        {% else %}
+          <span class="nt-logo-text">{{ sidebar_title|default:site_title|default:"Northern Times" }}</span>
+        {% endif %}
+        <div class="nt-logo-sub">{{ sidebar_subtitle|default:"NT Newsroom" }}</div>
+      </a>
+    </div>
+
+    <nav class="nt-nav" aria-label="Admin menu">
+      {# Dashboard #}
+      <a href="{% url 'admin_dashboard' %}" class="nt-nav-link {% if active_nav == 'dashboard' %}active{% endif %}">
+        <span class="nt-nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+        <span class="nt-nav-label">Dashboard</span>
+      </a>
+
+      {# Content Group #}
+      <div class="nt-nav-group {% if active_nav == 'articles' or active_nav == 'archive' or active_nav == 'media' or active_nav == 'categories' %}open{% endif %}" data-group="content">
+        <button type="button" class="nt-nav-group-toggle" onclick="ntToggleGroup(this)">
+          <span class="nt-nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+          <span class="nt-nav-label">Content</span>
+          <span class="nt-nav-group-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></span>
+        </button>
+        <div class="nt-nav-group-items">
+          <a href="{% url 'admin_articles' %}" class="nt-nav-link {% if active_nav == 'articles' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
+            <span class="nt-nav-label">Articles</span></a>
+          <a href="{% url 'admin_articles_archive' %}" class="nt-nav-link {% if active_nav == 'archive' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></span>
+            <span class="nt-nav-label">Archive</span></a>
+          <a href="{% url 'admin_media' %}" class="nt-nav-link {% if active_nav == 'media' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+            <span class="nt-nav-label">Media Library</span></a>
+          <a href="{% url 'admin_categories' %}" class="nt-nav-link {% if active_nav == 'categories' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+            <span class="nt-nav-label">Categories</span></a>
+        </div>
+      </div>
+
+      {# Editorial Group #}
+      <div class="nt-nav-group {% if active_nav == 'review' or active_nav == 'comments' or active_nav == 'policies' %}open{% endif %}" data-group="editorial">
+        <button type="button" class="nt-nav-group-toggle" onclick="ntToggleGroup(this)">
+          <span class="nt-nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><path d="M9 15l2 2 4-4"/></svg></span>
+          <span class="nt-nav-label">Editorial</span>
+          {% if review_badge %}<span class="nt-nav-badge red">{{ review_badge }}</span>{% endif %}
+          <span class="nt-nav-group-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></span>
+        </button>
+        <div class="nt-nav-group-items">
+          <a href="{% url 'admin_review' %}" class="nt-nav-link {% if active_nav == 'review' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+            <span class="nt-nav-label">Review Queue</span></a>
+          <a href="{% url 'admin_comments' %}" class="nt-nav-link {% if active_nav == 'comments' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+            <span class="nt-nav-label">Comments</span></a>
+          <a href="{% url 'admin_policies' %}" class="nt-nav-link {% if active_nav == 'policies' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+            <span class="nt-nav-label">Policy Pages</span></a>
+        </div>
+      </div>
+
+      {# Growth Group #}
+      <div class="nt-nav-group {% if active_nav == 'subscribers' or active_nav == 'newsletter' or active_nav == 'analytics' or active_nav == 'ads' or active_nav == 'popups' or active_nav == 'social' %}open{% endif %}" data-group="growth">
+        <button type="button" class="nt-nav-group-toggle" onclick="ntToggleGroup(this)">
+          <span class="nt-nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+          <span class="nt-nav-label">Growth</span>
+          <span class="nt-nav-group-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></span>
+        </button>
+        <div class="nt-nav-group-items">
+          <a href="{% url 'admin_subscribers' %}" class="nt-nav-link {% if active_nav == 'subscribers' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            <span class="nt-nav-label">Subscribers</span></a>
+          <a href="{% url 'admin_newsletter' %}" class="nt-nav-link {% if active_nav == 'newsletter' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
+            <span class="nt-nav-label">Newsletter</span></a>
+          <a href="{% url 'admin_analytics' %}" class="nt-nav-link {% if active_nav == 'analytics' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+            <span class="nt-nav-label">Analytics</span></a>
+          <a href="{% url 'admin_ads' %}" class="nt-nav-link {% if active_nav == 'ads' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>
+            <span class="nt-nav-label">Ad Placements</span></a>
+          <a href="{% url 'admin_popups' %}" class="nt-nav-link {% if active_nav == 'popups' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8"/><path d="M12 8v8"/></svg></span>
+            <span class="nt-nav-label">Popups</span></a>
+          <a href="{% url 'admin_social' %}" class="nt-nav-link {% if active_nav == 'social' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></span>
+            <span class="nt-nav-label">Social</span></a>
+        </div>
+      </div>
+
+      {# Crawler Group #}
+      <div class="nt-nav-group {% if active_nav == 'crawler' or active_nav == 'rewriter' or active_nav == 'seo' %}open{% endif %}" data-group="crawler">
+        <button type="button" class="nt-nav-group-toggle" onclick="ntToggleGroup(this)">
+          <span class="nt-nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+          <span class="nt-nav-label">Crawler</span>
+          <span class="nt-nav-group-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></span>
+        </button>
+        <div class="nt-nav-group-items">
+          <a href="{% url 'admin_crawler' %}" class="nt-nav-link {% if active_nav == 'crawler' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9m-9 9a9 9 0 0 1 9-9"/></svg></span>
+            <span class="nt-nav-label">Sources</span></a>
+          <a href="{% url 'admin_crawler_logs' %}" class="nt-nav-link {% if active_nav == 'crawler-logs' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+            <span class="nt-nav-label">Crawl Logs</span></a>
+          <a href="{% url 'admin_rewriter' %}" class="nt-nav-link {% if active_nav == 'rewriter' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span>
+            <span class="nt-nav-label">AI Rewriter</span></a>
+          <a href="{% url 'admin_seo' %}" class="nt-nav-link {% if active_nav == 'seo' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+            <span class="nt-nav-label">SEO Audit</span></a>
+        </div>
+      </div>
+
+      {# Webhooks #}
+      <a href="{% url 'admin_webhooks' %}" class="nt-nav-link {% if active_nav == 'webhooks' %}active{% endif %}">
+        <span class="nt-nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></span>
+        <span class="nt-nav-label">Webhooks</span>
+      </a>
+
+      <div class="nt-nav-divider"></div>
+
+      {# Admin Group #}
+      <div class="nt-nav-group {% if active_nav == 'settings' or active_nav == 'users' or active_nav == 'roles' or active_nav == 'system' %}open{% endif %}" data-group="admin">
+        <button type="button" class="nt-nav-group-toggle" onclick="ntToggleGroup(this)">
+          <span class="nt-nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+          <span class="nt-nav-label">Admin</span>
+          <span class="nt-nav-group-arrow"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></span>
+        </button>
+        <div class="nt-nav-group-items">
+          <a href="{% url 'admin_settings' %}" class="nt-nav-link {% if active_nav == 'settings' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>
+            <span class="nt-nav-label">Settings</span></a>
+          <a href="{% url 'admin_users' %}" class="nt-nav-link {% if active_nav == 'users' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></span>
+            <span class="nt-nav-label">Users</span></a>
+          <a href="{% url 'admin_roles' %}" class="nt-nav-link {% if active_nav == 'roles' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+            <span class="nt-nav-label">Roles</span></a>
+          <a href="{% url 'admin_system' %}" class="nt-nav-link {% if active_nav == 'system' %}active{% endif %}">
+            <span class="nt-nav-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg></span>
+            <span class="nt-nav-label">System</span></a>
+        </div>
+      </div>
+    </nav>
+
+  </aside>
+
+  <div class="nt-main">
+    <header class="nt-topbar">
+      <div class="nt-topbar-left">
+        <button class="nt-burger" id="ntBurger" aria-label="Toggle menu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="nt-breadcrumb">
+          {% block admin_breadcrumb %}
+            <strong>{% block breadcrumb_title %}{{ page_title|default:"Admin" }}{% endblock %}</strong>
+          {% endblock %}
+        </div>
+      </div>
+      <div class="nt-topbar-right">
+        <a href="/" target="_blank" class="nt-live-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15,3 21,3 21,9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          <span>View Site</span>
+        </a>
+        <div class="nt-profile-menu">
+          <button type="button" class="nt-tb-avatar" onclick="document.getElementById('ntProfileDrop').classList.toggle('open')">
+            <div class="nt-tb-av-circle" style="background: {{ role_color|default:'#2d8a4e' }}">
+              {{ request.user.username|make_list|first|upper }}
+            </div>
+            <span class="nt-tb-av-name">{{ request.user.username }}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="opacity:.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="nt-profile-drop" id="ntProfileDrop">
+            <a href="{% url 'admin_profile' %}">Edit Profile</a>
+            <a href="{% url 'admin_settings' %}">Settings</a>
+            <a href="/" target="_blank">View Site</a>
+            <div style="height:1px;background:var(--adm-border);margin:4px 0"></div>
+            <a href="{% url 'admin_logout' %}" style="color:#dc2626">Sign Out</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="nt-content">
+      {# Flash Messages #}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="flash {% if message.tags == 'success' %}ok{% elif message.tags == 'error' %}bad{% else %}info{% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+
+      {% block admin_content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<script>
+// Sidebar toggle (mobile)
+(function() {
+  var burger = document.getElementById('ntBurger');
+  var sidebar = document.getElementById('ntSidebar');
+  var overlay = document.getElementById('ntOverlay');
+  if (burger) {
+    burger.addEventListener('click', function() {
+      sidebar.classList.toggle('open');
+      overlay.classList.toggle('open');
+    });
+  }
+  if (overlay) {
+    overlay.addEventListener('click', function() {
+      sidebar.classList.remove('open');
+      overlay.classList.remove('open');
+    });
+  }
+})();
+
+// Nav group toggle with localStorage persistence
+var NT_SIDEBAR_KEY = 'nt_sidebar_state';
+function ntGetSidebarState() {
+  try { return JSON.parse(localStorage.getItem(NT_SIDEBAR_KEY)) || {}; } catch(e) { return {}; }
+}
+function ntSaveSidebarState(state) {
+  try { localStorage.setItem(NT_SIDEBAR_KEY, JSON.stringify(state)); } catch(e) {}
+}
+
+function ntToggleGroup(btn) {
+  var group = btn.closest('.nt-nav-group');
+  if (!group) return;
+  group.classList.toggle('open');
+  var key = group.getAttribute('data-group');
+  if (key) {
+    var state = ntGetSidebarState();
+    state[key] = group.classList.contains('open');
+    ntSaveSidebarState(state);
+  }
+}
+
+// Restore sidebar state on load
+(function() {
+  var state = ntGetSidebarState();
+  document.querySelectorAll('.nt-nav-group[data-group]').forEach(function(g) {
+    var key = g.getAttribute('data-group');
+    // If page has an active item, force open; otherwise use stored state
+    if (g.querySelector('.nt-nav-link.active')) {
+      g.classList.add('open');
+      state[key] = true;
+    } else if (key in state) {
+      g.classList.toggle('open', state[key]);
+    }
+  });
+  ntSaveSidebarState(state);
+
+  // Scroll sidebar to active item
+  var activeLink = document.querySelector('.nt-nav-link.active');
+  if (activeLink) {
+    activeLink.scrollIntoView({ block: 'center', behavior: 'instant' });
+  }
+})();
+
+// Profile dropdown close-on-outside-click
+document.addEventListener('click', function(e) {
+  var drop = document.getElementById('ntProfileDrop');
+  if (drop && drop.classList.contains('open')) {
+    var menu = drop.closest('.nt-profile-menu');
+    if (menu && !menu.contains(e.target)) {
+      drop.classList.remove('open');
+    }
+  }
+});
+</script>
+
+<script src="{% static 'js/admin.js' %}"></script>
+{% block admin_scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,47 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Roles & Permissions{% endblock %}
+{% block breadcrumb_title %}Roles & Permissions{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1>Roles &amp; Permissions</h1>
+    <div class="sub">Define what each role can do in the newsroom.</div>
+  </div>
+  <a class="btn" href="{% url 'admin_role_create' %}">+ New Role</a>
+</div>
+
+<div style="display:grid;gap:16px;max-width:960px">
+  {% for role in roles %}
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:14px;height:14px;border-radius:50%;background:{{ role.color|default:'#666' }}"></div>
+          <div>
+            <div style="font-weight:800;font-size:16px">{{ role.name }}</div>
+            {% if role.description %}<div class="muted" style="font-size:13px">{{ role.description }}</div>{% endif %}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <a href="{% url 'admin_role_edit' pk=role.id %}" class="btn light xs">Edit</a>
+          {% if not role.is_system %}
+            <form method="POST" action="{% url 'admin_role_delete' pk=role.id %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete this role?')">
+              {% csrf_token %}
+              <button class="btn danger xs" type="submit">Delete</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        {% for perm in role.permissions %}
+          <span class="badge green" style="font-size:10px">{{ perm }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="muted" style="margin-top:12px;font-size:12px">{{ role.user_count|default:0 }} user{{ role.user_count|pluralize }}</div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

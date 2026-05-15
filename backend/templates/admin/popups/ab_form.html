@@ -1,0 +1,50 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Create A/B Test{% endblock %}
+{% block breadcrumb_title %}Create A/B Test{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1>Create A/B Test</h1>
+    <div class="sub">Create two popup variants to compare performance.</div>
+  </div>
+</div>
+
+<div class="card" style="padding:24px">
+  <form method="post" action="{% url 'admin_ab_test_create' %}">
+    {% csrf_token %}
+
+    <div class="form-group" style="margin-bottom:16px">
+      <label for="name">Test Name</label>
+      <input type="text" id="name" name="name" class="form-control" required placeholder="e.g. Newsletter Signup Test">
+    </div>
+
+    <div class="form-group" style="margin-bottom:16px">
+      <label for="type">Popup Type</label>
+      <select id="type" name="type" class="form-control">
+        {% for value, label in type_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:16px">
+      <div class="form-group">
+        <label for="content_a">Variant A Content</label>
+        <textarea id="content_a" name="content_a" class="form-control" rows="8" placeholder="HTML content for variant A"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="content_b">Variant B Content</label>
+        <textarea id="content_b" name="content_b" class="form-control" rows="8" placeholder="HTML content for variant B"></textarea>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px">
+      <button type="submit" class="btn btn-primary">Create A/B Test</button>
+      <a href="{% url 'admin_ab_tests' %}" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

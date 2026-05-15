@@ -1,0 +1,64 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Social Mentions{% endblock %}
+{% block breadcrumb_title %}Social Mentions{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <h1>Social Mentions</h1>
+  <div style="display:flex;gap:10px;align-items:center">
+    <select id="platformFilter" class="form-control" style="width:auto" onchange="this.form.submit()" form="filterForm">
+      <option value="">All Platforms</option>
+      <option value="twitter" {% if request.GET.platform == 'twitter' %}selected{% endif %}>Twitter / X</option>
+      <option value="facebook" {% if request.GET.platform == 'facebook' %}selected{% endif %}>Facebook</option>
+      <option value="reddit" {% if request.GET.platform == 'reddit' %}selected{% endif %}>Reddit</option>
+    </select>
+    <form id="filterForm" method="GET"></form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Platform</th>
+          <th>Author</th>
+          <th>Content</th>
+          <th>Sentiment</th>
+          <th>Date</th>
+          <th>Link</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mention in mentions %}
+        <tr>
+          <td><span class="badge">{{ mention.platform }}</span></td>
+          <td><strong>{{ mention.author_name|default:"Unknown" }}</strong></td>
+          <td style="max-width:400px;white-space:normal;font-size:13px;line-height:1.5">{{ mention.content|truncatewords:40 }}</td>
+          <td>
+            {% if mention.sentiment == 'positive' %}
+            <span style="color:#16a34a;font-weight:600;font-size:13px">Positive</span>
+            {% elif mention.sentiment == 'negative' %}
+            <span style="color:#dc2626;font-weight:600;font-size:13px">Negative</span>
+            {% else %}
+            <span style="color:var(--adm-muted);font-size:13px">Neutral</span>
+            {% endif %}
+          </td>
+          <td class="muted" style="font-size:13px;white-space:nowrap">{{ mention.created_at|date:"M j, Y g:iA" }}</td>
+          <td>
+            {% if mention.url %}
+            <a href="{{ mention.url }}" target="_blank" class="btn light xs">View</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="muted" style="text-align:center;padding:40px">No social mentions found.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

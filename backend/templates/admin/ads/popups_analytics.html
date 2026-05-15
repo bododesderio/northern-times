@@ -1,0 +1,75 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Popup Analytics{% endblock %}
+{% block breadcrumb_title %}Popup Analytics{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <h1>Popup Analytics</h1>
+  <a class="btn light" href="{% url 'admin_popups' %}">Back to Popups</a>
+</div>
+
+{% if stats %}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:28px">
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Total Impressions</div>
+    <div style="font-size:28px;font-weight:700">{{ total_impressions|default:"0" }}</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Total Clicks</div>
+    <div style="font-size:28px;font-weight:700">{{ total_clicks|default:"0" }}</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Avg CTR</div>
+    <div style="font-size:28px;font-weight:700">{{ avg_ctr|default:"0" }}%</div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Popup Name</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th style="text-align:right">Impressions</th>
+          <th style="text-align:right">Clicks</th>
+          <th style="text-align:right">CTR</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in popups %}
+        <tr>
+          <td><strong>{{ p.name }}</strong></td>
+          <td>
+            <span class="badge" style="font-size:12px">{{ p.popup_type|default:"modal" }}</span>
+          </td>
+          <td>
+            {% if p.is_active %}
+            <span style="color:#16a34a;font-weight:600;font-size:13px">Active</span>
+            {% else %}
+            <span style="color:var(--adm-muted);font-size:13px">Inactive</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right">{{ p.impressions|default:"0" }}</td>
+          <td style="text-align:right">{{ p.clicks|default:"0" }}</td>
+          <td style="text-align:right">
+            {% if p.impressions and p.impressions > 0 %}
+              {{ p.ctr|default:"0" }}%
+            {% else %}
+              --
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="muted" style="text-align:center;padding:40px">No popup data available yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

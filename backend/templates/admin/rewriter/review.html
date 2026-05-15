@@ -1,0 +1,164 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Review Rewrite{% endblock %}
+{% block breadcrumb_title %}Review Rewrite{% endblock %}
+
+{% block admin_css %}
+<style>
+.review-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+@media (max-width: 900px) {
+  .review-grid { grid-template-columns: 1fr; }
+}
+.review-panel {
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-border);
+  border-radius: 12px;
+  padding: 22px;
+  box-shadow: var(--adm-shadow);
+}
+.review-panel h3 {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--adm-muted);
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--adm-border);
+}
+.review-panel .review-title {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-bottom: 16px;
+  color: var(--adm-ink);
+}
+.review-panel .review-excerpt {
+  font-size: 14px;
+  color: var(--adm-muted);
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--adm-bg);
+  border-radius: 8px;
+  font-style: italic;
+}
+.review-panel .review-content {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--adm-ink);
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+.review-panel .review-content p { margin-bottom: 12px; }
+.review-panel.original { border-top: 3px solid var(--adm-muted); }
+.review-panel.rewritten { border-top: 3px solid #16a34a; }
+.review-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.review-status {
+  margin-left: auto;
+}
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1>Review Rewrite</h1>
+    <p class="sub">Compare original and rewritten versions side by side</p>
+  </div>
+  <a href="{% url 'admin_rewriter' %}" class="btn light sm">Back to Rewriter</a>
+</div>
+
+{# Action Buttons #}
+<div class="review-actions">
+  {% if article.rewrite_status == 'completed' %}
+    <form method="POST" action="{% url 'admin_rewriter_approve' pk=article.pk %}" style="display:inline">
+      {% csrf_token %}
+      <button type="submit" class="btn success">Approve Rewrite</button>
+    </form>
+    <form method="POST" action="{% url 'admin_rewriter_reject' pk=article.pk %}" style="display:inline">
+      {% csrf_token %}
+      <button type="submit" class="btn danger">Reject</button>
+    </form>
+  {% elif article.rewrite_status == 'failed' %}
+    <form method="POST" action="{% url 'admin_rewriter_retry' pk=article.pk %}" style="display:inline">
+      {% csrf_token %}
+      <button type="submit" class="btn">Retry</button>
+    </form>
+  {% elif article.rewrite_status == 'approved' %}
+    <form method="POST" action="{% url 'admin_rewriter_revert' pk=article.pk %}" style="display:inline">
+      {% csrf_token %}
+      <button type="submit" class="btn danger">Revert to Original</button>
+    </form>
+  {% endif %}
+  <div class="review-status">
+    <span class="badge {% if article.rewrite_status == 'approved' %}green{% elif article.rewrite_status == 'completed' %}blue{% elif article.rewrite_status == 'failed' %}red{% elif article.rewrite_status == 'processing' %}yellow{% else %}grey{% endif %}">
+      {{ article.rewrite_status|default:"none"|title }}
+    </span>
+  </div>
+</div>
+
+{# Side-by-side comparison #}
+<div class="review-grid">
+  {# Original #}
+  <div class="review-panel original">
+    <h3>Original</h3>
+    <div class="review-title">{{ article.title }}</div>
+    {% if article.excerpt %}
+      <div class="review-excerpt">{{ article.excerpt }}</div>
+    {% endif %}
+    <div class="review-content">{{ article.content|safe }}</div>
+  </div>
+
+  {# Rewritten #}
+  <div class="review-panel rewritten">
+    <h3>Rewritten</h3>
+    {% if article.rewritten_title %}
+      <div class="review-title">{{ article.rewritten_title }}</div>
+    {% else %}
+      <div class="review-title muted" style="font-style:italic">No rewritten title</div>
+    {% endif %}
+    {% if article.rewritten_excerpt %}
+      <div class="review-excerpt">{{ article.rewritten_excerpt }}</div>
+    {% endif %}
+    {% if article.rewritten_content %}
+      <div class="review-content">{{ article.rewritten_content|safe }}</div>
+    {% else %}
+      <div class="review-content muted" style="font-style:italic;padding:40px 0;text-align:center">No rewritten content available.</div>
+    {% endif %}
+  </div>
+</div>
+
+{# Metadata #}
+<div class="card" style="margin-top:12px">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;font-size:13px">
+    <div>
+      <span class="muted">Article ID:</span><br>
+      <span style="font-family:monospace;font-size:12px">{{ article.pk }}</span>
+    </div>
+    <div>
+      <span class="muted">Source:</span><br>
+      {{ article.source_name|default:"Unknown" }}
+    </div>
+    <div>
+      <span class="muted">Created:</span><br>
+      {{ article.created_at|date:"M j, Y g:i A" }}
+    </div>
+    <div>
+      <span class="muted">Category:</span><br>
+      {{ article.category|default:"Uncategorized" }}
+    </div>
+  </div>
+</div>
+{% endblock %}

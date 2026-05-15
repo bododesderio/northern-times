@@ -1,0 +1,74 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Subscribers{% endblock %}
+{% block breadcrumb_title %}Subscribers{% endblock %}
+
+{% block admin_content %}
+<div class="card">
+  <header style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:24px">
+    <div>
+      <h1 style="margin:0 0 6px">Subscribers</h1>
+      <div class="muted">Manage newsletter subscribers.</div>
+    </div>
+    <a class="btn light" href="{% url 'admin_subscribers_export' %}">Export CSV</a>
+  </header>
+
+  {# Stats #}
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px">
+    <div style="text-align:center;padding:14px;background:var(--adm-bg);border-radius:10px">
+      <div style="font-size:26px;font-weight:700">{{ total_count|default:0 }}</div>
+      <div class="muted" style="font-size:12px;text-transform:uppercase">Total</div>
+    </div>
+    <div style="text-align:center;padding:14px;background:#e6f4ea;border-radius:10px">
+      <div style="font-size:26px;font-weight:700;color:#1e7e34">{{ active_count|default:0 }}</div>
+      <div class="muted" style="font-size:12px;text-transform:uppercase">Active</div>
+    </div>
+    <div style="text-align:center;padding:14px;background:#fff8e1;border-radius:10px">
+      <div style="font-size:26px;font-weight:700;color:#e65100">{{ inactive_count|default:0 }}</div>
+      <div class="muted" style="font-size:12px;text-transform:uppercase">Inactive</div>
+    </div>
+  </div>
+
+  {# Search #}
+  <form method="GET" action="{% url 'admin_subscribers' %}" style="display:flex;gap:10px;margin-bottom:20px;background:var(--adm-bg);padding:12px;border-radius:12px">
+    <input name="q" value="{{ q|default:'' }}" placeholder="Search email or name..." class="form-control" style="flex:1;min-width:240px">
+    <button class="btn light" type="submit">Search</button>
+    {% if q %}<a class="btn light" href="{% url 'admin_subscribers' %}">Reset</a>{% endif %}
+  </form>
+
+  {# Table #}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Email</th><th>Status</th><th>Subscribed</th><th style="text-align:right">Actions</th></tr>
+      </thead>
+      <tbody>
+        {% if not subscribers %}
+          <tr><td colspan="4" class="muted" style="text-align:center;padding:40px">No subscribers found.</td></tr>
+        {% endif %}
+        {% for sub in subscribers %}
+          <tr>
+            <td style="font-weight:600">{{ sub.email }}</td>
+            <td><span class="badge {% if sub.status == 'active' %}green{% else %}grey{% endif %}">{{ sub.status|title }}</span></td>
+            <td class="muted" style="font-size:13px">{{ sub.created_at|date:"M j, Y" }}</td>
+            <td style="text-align:right">
+              <form method="POST" action="{% url 'admin_subscriber_delete' pk=sub.id %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Remove this subscriber?')">
+                {% csrf_token %}
+                <button class="btn danger xs" type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if total_pages > 1 %}
+  <div class="pagination">
+    <span class="muted">Page {{ page }} of {{ total_pages }} ({{ filtered_total }} results)</span>
+    {% if page > 1 %}<a class="btn light sm" href="?page={{ page|add:"-1" }}{% if q %}&q={{ q }}{% endif %}">Prev</a>{% endif %}
+    {% if page < total_pages %}<a class="btn light sm" href="?page={{ page|add:"1" }}{% if q %}&q={{ q }}{% endif %}">Next</a>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

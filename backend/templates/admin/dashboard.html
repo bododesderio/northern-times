@@ -1,0 +1,358 @@
+{% extends "admin/layout.html" %}
+{% load static %}
+
+{% block admin_title %}Dashboard{% endblock %}
+{% block breadcrumb_title %}Dashboard{% endblock %}
+
+{% block admin_css %}
+<link rel="stylesheet" href="{% static 'css/admin/dashboard.css' %}"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  #ntVisitorMap .leaflet-popup-content-wrapper { background: var(--adm-surface,#fff); color: var(--adm-ink,#1a1a1a); border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.18); font-family: inherit; }
+  #ntVisitorMap .leaflet-popup-tip { background: var(--adm-surface,#fff); }
+  #ntVisitorMap .leaflet-popup-content { margin: 10px 14px; font-size: 13px; line-height: 1.5; }
+  #ntVisitorMap .leaflet-popup-content strong { font-weight: 700; }
+  .map-marker-pulse { width: 12px; height: 12px; border-radius: 50%; background: #cc0000; box-shadow: 0 0 0 rgba(204,0,0,.4); animation: mapPulse 2s infinite; }
+  @keyframes mapPulse { 0% { box-shadow: 0 0 0 0 rgba(204,0,0,.5); } 70% { box-shadow: 0 0 0 12px rgba(204,0,0,0); } 100% { box-shadow: 0 0 0 0 rgba(204,0,0,0); } }
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div class="dash-bento">
+
+{# Greeting Bar #}
+<div class="dash-greet dcard span-12 anim-item">
+  <div class="dash-greet-text">
+    <h1>{{ greeting }}, {{ request.user.username|default:"Admin" }}</h1>
+    <p>Here's what's happening at <strong>{{ site_title|default:"Northern Times" }}</strong> today.</p>
+  </div>
+  <div class="dash-greet-actions">
+    <div class="live-pulse" title="Live dashboard">
+      <span class="live-dot"></span>
+      <span class="live-label">Live</span>
+      <span class="live-sessions" id="ntActiveSessions">{{ active_sessions|default:0 }} online</span>
+    </div>
+    <a class="btn" href="{% url 'admin_article_create' %}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Article
+    </a>
+    <a class="btn light" href="/" target="_blank" rel="noopener">View Site</a>
+  </div>
+</div>
+
+{# Hero Metrics #}
+<a href="{% url 'admin_dashboard' %}" class="metric-card hero mc-visitors dcard span-4 anim-item">
+  <div class="metric-icon">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+  </div>
+  <div class="metric-body">
+    <span class="metric-value">{{ visitors_total|default:0 }}</span>
+    <span class="metric-label">Site Visitors</span>
+  </div>
+  <div class="metric-footer">
+    {% if visitors_today > 0 %}
+      <span class="metric-badge up">{{ visitors_today }} today</span>
+    {% else %}
+      <span class="metric-sub">{{ visitors_this_week|default:0 }} this week</span>
+    {% endif %}
+  </div>
+</a>
+
+<a href="{% url 'admin_articles' %}" class="metric-card hero mc-views dcard span-4 anim-item">
+  <div class="metric-icon">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+  </div>
+  <div class="metric-body">
+    <span class="metric-value">{{ total_views|default:0 }}</span>
+    <span class="metric-label">Page Views</span>
+  </div>
+  <div class="metric-footer"><span class="metric-sub">total article reads</span></div>
+</a>
+
+<a href="{% url 'admin_articles' %}" class="metric-card hero mc-hours dcard span-4 anim-item">
+  <div class="metric-icon">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+  </div>
+  <div class="metric-body">
+    <span class="metric-value">{{ reader_hours|default:0 }}</span>
+    <span class="metric-label">Reader Hours</span>
+  </div>
+  <div class="metric-footer"><span class="metric-sub">{% if avg_read_min > 0 %}~{{ avg_read_min }} min avg{% else %}No reads yet{% endif %}</span></div>
+</a>
+
+{# Secondary Metrics #}
+<a href="{% url 'admin_articles' %}" class="metric-card compact mc-published dcard span-3 anim-item">
+  <div class="metric-body">
+    <span class="metric-value">{{ published|default:0 }}</span>
+    <span class="metric-label">Published</span>
+  </div>
+  <div class="metric-footer">
+    {% if pub_this_week > 0 %}<span class="metric-badge up">+{{ pub_this_week }} this week</span>
+    {% else %}<span class="metric-sub">{{ drafts|default:0 }} drafts</span>{% endif %}
+  </div>
+</a>
+
+<a href="{% url 'admin_articles' %}?status=draft" class="metric-card compact mc-drafts dcard span-3 anim-item">
+  <div class="metric-body">
+    <span class="metric-value">{{ drafts|default:0 }}</span>
+    <span class="metric-label">Drafts</span>
+  </div>
+  <div class="metric-footer"><span class="metric-sub">{{ archived|default:0 }} archived &middot; {{ total_articles|default:0 }} total</span></div>
+</a>
+
+<a href="{% url 'admin_review' %}" class="metric-card compact mc-review dcard span-3 anim-item">
+  <div class="metric-body">
+    <span class="metric-value">{{ pending_review|default:0 }}</span>
+    <span class="metric-label">Pending Review</span>
+  </div>
+  <div class="metric-footer">
+    {% if pending_review > 0 %}<span class="metric-badge warn">{{ pending_review }} awaiting</span>
+    {% else %}<span class="metric-sub">all clear</span>{% endif %}
+  </div>
+</a>
+
+<a href="{% url 'admin_comments' %}" class="metric-card compact mc-comments dcard span-3 anim-item">
+  <div class="metric-body">
+    <span class="metric-value">{{ comment_total|default:0 }}</span>
+    <span class="metric-label">Comments</span>
+  </div>
+  <div class="metric-footer">
+    {% if comment_pending > 0 %}<span class="metric-badge warn">{{ comment_pending }} pending</span>
+    {% else %}<span class="metric-sub">{% if comment_total > 0 %}all reviewed{% else %}awaiting first comment{% endif %}</span>{% endif %}
+  </div>
+</a>
+
+{# Chart Area #}
+<div class="dcard span-8 anim-item">
+  <div class="card-head">
+    <h3>{{ chart_title|default:"Publishing Activity" }}</h3>
+    <span class="card-head-sub">Last 14 days</span>
+  </div>
+  <div class="velocity-grid">
+    <div class="vel-pill"><strong>{{ pub_this_week|default:0 }}</strong><span>Published / week</span></div>
+    <div class="vel-pill"><strong>{{ pub_this_month|default:0 }}</strong><span>Published / month</span></div>
+    <div class="vel-pill"><strong>{{ drafts|default:0 }}</strong><span>Drafts</span></div>
+    <div class="vel-pill"><strong>{{ pending_review|default:0 }}</strong><span>In review</span></div>
+  </div>
+  <div style="height:220px;position:relative;">
+    <canvas id="ntAreaChart"></canvas>
+  </div>
+</div>
+
+<div class="dcard span-4 anim-item">
+  <div class="card-head">
+    <h3>Categories by Views</h3>
+    <a href="{% url 'admin_categories' %}" class="card-head-link">Manage &rarr;</a>
+  </div>
+  {% if cat_views %}
+    <div class="cat-chart">
+      {% for cv in cat_views %}
+        <div class="cat-row">
+          <span class="cat-name">{{ cv.name }}</span>
+          <div class="cat-track"><div class="cat-fill" style="--cat-w:{{ cv.pct }}%"></div></div>
+          <span class="cat-num">{{ cv.total_views }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">No published articles yet.</div>
+  {% endif %}
+</div>
+
+{# Live Visitor Map #}
+<div class="dcard span-12 anim-item">
+  <div class="card-head">
+    <h3>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:6px"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      Live Reader Map
+    </h3>
+    <span class="card-head-sub" id="mapVisitorCount">Loading...</span>
+  </div>
+  <div id="ntVisitorMap" style="height:380px;border-radius:10px;overflow:hidden;background:#1a1b1e;position:relative;z-index:1;"></div>
+</div>
+
+{# Top Performing Articles #}
+<div class="dcard span-12 anim-item">
+  <div class="card-head">
+    <h3>Top Performing Articles</h3>
+    <a href="{% url 'admin_articles' %}" class="card-head-link">All articles &rarr;</a>
+  </div>
+  {% if top_articles %}
+    <div class="top-list">
+      {% for ta in top_articles %}
+        <a href="{% url 'admin_article_edit' pk=ta.id %}" class="top-row">
+          <span class="top-rank {% if forloop.first %}rank-gold{% endif %}">{{ forloop.counter }}</span>
+          <div class="top-info">
+            <span class="top-title">{{ ta.title }}</span>
+            <span class="top-meta">{{ ta.author|default:"--" }} &middot; {{ ta.category|default:"" }}{% if ta.published_at %} &middot; {{ ta.published_at|date:"M j" }}{% endif %}</span>
+          </div>
+          <div class="top-stat"><strong>{{ ta.views }}</strong><span>views</span></div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">No published articles yet. <a href="{% url 'admin_article_create' %}">Write your first story</a>.</div>
+  {% endif %}
+</div>
+
+{# Quick Actions #}
+<div class="dcard span-12 anim-item">
+  <div class="qa-grid">
+    <a href="{% url 'admin_article_create' %}" class="qa-card"><div class="qa-icon qa-write"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div><span class="qa-title">Write Article</span></a>
+    <a href="{% url 'admin_review' %}" class="qa-card"><div class="qa-icon qa-review"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><path d="M9 15l2 2 4-4"/></svg></div><span class="qa-title">Review Queue</span></a>
+    <a href="{% url 'admin_comments' %}" class="qa-card"><div class="qa-icon qa-comments"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><span class="qa-title">Comments</span></a>
+    <a href="{% url 'admin_media' %}" class="qa-card"><div class="qa-icon qa-media"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div><span class="qa-title">Media</span></a>
+    <a href="{% url 'admin_newsletter_compose' %}" class="qa-card"><div class="qa-icon qa-subs"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div><span class="qa-title">Send Newsletter</span></a>
+    <a href="{% url 'admin_categories' %}" class="qa-card"><div class="qa-icon qa-cat"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div><span class="qa-title">Categories</span></a>
+    <a href="{% url 'admin_subscribers' %}" class="qa-card"><div class="qa-icon qa-subs"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><span class="qa-title">Subscribers</span></a>
+    <a href="{% url 'admin_settings' %}" class="qa-card"><div class="qa-icon qa-settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4"/></svg></div><span class="qa-title">Settings</span></a>
+  </div>
+</div>
+
+{# Recent Activity #}
+<div class="dcard span-8 anim-item">
+  <div class="card-head"><h3>Recent Activity</h3><a href="{% url 'admin_articles' %}" class="card-head-link">View all &rarr;</a></div>
+  {% if recent_articles %}
+    <div class="activity-list" style="max-height:400px;overflow-y:auto">
+      {% for a in recent_articles %}
+        <a href="{% url 'admin_article_edit' pk=a.id %}" class="act-row">
+          <span class="act-dot {% if a.status == 'published' %}dot-green{% elif a.status == 'draft' %}dot-gray{% else %}dot-orange{% endif %}"></span>
+          <div class="act-info">
+            <span class="act-title">{{ a.title }}</span>
+            <span class="act-meta">{{ a.author|default:"--" }} &middot; {{ a.status|title }} &middot; {{ a.updated_at|timesince }} ago{% if a.views > 0 %} &middot; {{ a.views }} views{% endif %}</span>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">No articles yet.</div>
+  {% endif %}
+</div>
+
+<div class="dcard span-4 anim-item">
+  <div class="card-head"><h3>Team Leaderboard</h3><a href="{% url 'admin_users' %}" class="card-head-link">{{ user_count|default:0 }} users &rarr;</a></div>
+  {% if author_stats %}
+    <div class="author-list">
+      {% for as in author_stats %}
+        <div class="auth-row">
+          <span class="auth-rank">{{ forloop.counter }}</span>
+          <div class="auth-info"><span class="auth-name">{{ as.username }}</span><span class="auth-meta">{{ as.articles }} articles &middot; {{ as.total_views }} views</span></div>
+          <span class="auth-role">{{ as.role }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="card-divider"></div>
+  <div class="card-head" style="margin-bottom:10px"><h3>Subscribers</h3><a href="{% url 'admin_subscribers' %}" class="card-head-link">{{ sub_total|default:0 }} total &rarr;</a></div>
+  {% if sub_total > 0 %}
+    <div class="velocity-grid cols-3">
+      <div class="vel-pill"><strong>{{ sub_active|default:0 }}</strong><span>Active</span></div>
+      <div class="vel-pill"><strong>{{ subs_this_week|default:0 }}</strong><span>This week</span></div>
+      <div class="vel-pill"><strong>{{ subs_this_month|default:0 }}</strong><span>This month</span></div>
+    </div>
+  {% else %}
+    <div class="empty-state" style="padding:20px"><p>No subscribers yet</p></div>
+  {% endif %}
+</div>
+
+{# Footer Stats #}
+<a href="{% url 'admin_categories' %}" class="dcard foot-card span-3 anim-item"><span class="foot-num">{{ category_count|default:0 }}</span><span class="foot-label">Categories</span><span class="foot-link">Manage &rarr;</span></a>
+<a href="{% url 'admin_media' %}" class="dcard foot-card span-3 anim-item"><span class="foot-num">{{ media_count|default:0 }}</span><span class="foot-label">Media Files</span><span class="foot-link">Library &rarr;</span></a>
+<div class="dcard foot-card span-3 anim-item"><span class="foot-num">{{ storage_display|default:"0 MB" }}</span><span class="foot-label">Storage Used</span></div>
+<a href="{% url 'admin_users' %}" class="dcard foot-card span-3 anim-item"><span class="foot-num">{{ user_count|default:0 }}</span><span class="foot-label">Active Users</span><span class="foot-link">Team &rarr;</span></a>
+
+</div>
+{% endblock %}
+
+{% block admin_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var areaCtx = document.getElementById('ntAreaChart');
+  if (areaCtx && typeof Chart !== 'undefined') {
+    var labels = {{ chart_labels|safe|default:'[]' }};
+    var views = {{ chart_views|safe|default:'[]' }};
+    var avg7d = {{ chart_avg|safe|default:'[]' }};
+    new Chart(areaCtx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Daily', data: views, borderColor: '#c00', backgroundColor: 'rgba(204,0,0,.08)', fill: true, tension: 0.35, borderWidth: 2.5, pointRadius: 0, pointHitRadius: 12 },
+          { label: '7-Day Average', data: avg7d, borderColor: '#7c3aed', backgroundColor: 'rgba(124,58,237,.06)', fill: true, tension: 0.4, borderWidth: 2, borderDash: [6, 3], pointRadius: 0 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 16, font: { size: 11 } } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 0 } },
+          y: { grid: { color: 'rgba(0,0,0,.04)' }, beginAtZero: true, ticks: { font: { size: 10 } } }
+        }
+      }
+    });
+  }
+});
+
+// Live Visitor Map
+(function() {
+  var mapEl = document.getElementById('ntVisitorMap');
+  if (!mapEl || typeof L === 'undefined') return;
+
+  var map = L.map('ntVisitorMap', {
+    center: [20, 10],
+    zoom: 2,
+    minZoom: 2,
+    maxZoom: 18,
+    zoomControl: true,
+    scrollWheelZoom: true,
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap',
+    maxZoom: 19,
+  }).addTo(map);
+
+  var visitors = {{ visitor_locations_json|safe|default:'[]' }};
+  var countEl = document.getElementById('mapVisitorCount');
+  if (countEl) {
+    countEl.textContent = visitors.length + ' visitor' + (visitors.length !== 1 ? 's' : '') + ' in last 24h';
+  }
+
+  var markerIcon = L.divIcon({
+    className: '',
+    html: '<div class="map-marker-pulse"></div>',
+    iconSize: [12, 12],
+    iconAnchor: [6, 6],
+    popupAnchor: [0, -8],
+  });
+
+  visitors.forEach(function(v) {
+    var lat = parseFloat(v.latitude);
+    var lng = parseFloat(v.longitude);
+    if (isNaN(lat) || isNaN(lng)) return;
+    var label = (v.city || 'Unknown') + (v.country ? ', ' + v.country : '');
+    L.marker([lat, lng], { icon: markerIcon })
+      .addTo(map)
+      .bindPopup('<strong>' + label + '</strong>');
+  });
+
+  if (visitors.length > 0) {
+    var bounds = [];
+    visitors.forEach(function(v) {
+      var lat = parseFloat(v.latitude);
+      var lng = parseFloat(v.longitude);
+      if (!isNaN(lat) && !isNaN(lng)) bounds.push([lat, lng]);
+    });
+    if (bounds.length > 1) {
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 6 });
+    } else if (bounds.length === 1) {
+      map.setView(bounds[0], 6);
+    }
+  }
+})();
+</script>
+{% endblock %}

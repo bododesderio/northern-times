@@ -1,0 +1,119 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Settings{% endblock %}
+{% block breadcrumb_title %}Settings{% endblock %}
+
+{% block admin_content %}
+<div style="max-width:900px">
+  <div class="page-header">
+    <div>
+      <h1>Settings</h1>
+      <div class="sub">Configure your site's branding, theme, social links, and more.</div>
+    </div>
+  </div>
+
+  <form method="POST" action="{% url 'admin_settings' %}">
+    {% csrf_token %}
+
+    {# Branding #}
+    <div class="card" style="margin-bottom:20px">
+      <h3 style="margin:0 0 16px;font-size:16px;font-weight:700;padding-bottom:12px;border-bottom:1px solid var(--adm-border)">Branding</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label class="form-label">Site Title</label>
+          <input name="site_title" value="{{ settings.site_title|default:'' }}" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Site Abbreviation</label>
+          <input name="site_abbreviation" value="{{ settings.site_abbreviation|default:'NT' }}" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Site Logo URL</label>
+          <input name="site_logo_url" value="{{ settings.site_logo_url|default:'' }}" class="form-control" placeholder="https://...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Favicon URL</label>
+          <input name="favicon_url" value="{{ settings.favicon_url|default:'' }}" class="form-control" placeholder="https://...">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Site Description</label>
+          <textarea name="site_description" class="form-control" rows="2">{{ settings.site_description|default:'' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    {# Theme #}
+    <div class="card" style="margin-bottom:20px">
+      <h3 style="margin:0 0 16px;font-size:16px;font-weight:700;padding-bottom:12px;border-bottom:1px solid var(--adm-border)">Theme</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label class="form-label">Theme Mode</label>
+          <select name="theme_mode" class="form-control">
+            <option value="light" {% if settings.theme_mode == 'light' %}selected{% endif %}>Light</option>
+            <option value="dark" {% if settings.theme_mode == 'dark' %}selected{% endif %}>Dark</option>
+            <option value="auto" {% if settings.theme_mode == 'auto' %}selected{% endif %}>Auto (OS)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Accent Color</label>
+          <input type="color" name="theme_accent" value="{{ settings.theme_accent|default:'#cc0000' }}" class="form-control" style="padding:4px;height:42px">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Border Radius</label>
+          <input name="theme_radius" value="{{ settings.theme_radius|default:'16px' }}" class="form-control">
+        </div>
+      </div>
+    </div>
+
+    {# Social Links #}
+    <div class="card" style="margin-bottom:20px">
+      <h3 style="margin:0 0 16px;font-size:16px;font-weight:700;padding-bottom:12px;border-bottom:1px solid var(--adm-border)">Social Links</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label class="form-label">Twitter / X</label>
+          <input name="social_twitter" value="{{ settings.social_twitter|default:'' }}" class="form-control" placeholder="https://x.com/...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Facebook</label>
+          <input name="social_facebook" value="{{ settings.social_facebook|default:'' }}" class="form-control" placeholder="https://facebook.com/...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Instagram</label>
+          <input name="social_instagram" value="{{ settings.social_instagram|default:'' }}" class="form-control" placeholder="https://instagram.com/...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">YouTube</label>
+          <input name="social_youtube" value="{{ settings.social_youtube|default:'' }}" class="form-control" placeholder="https://youtube.com/...">
+        </div>
+      </div>
+    </div>
+
+    {# Email #}
+    <div class="card" style="margin-bottom:20px">
+      <h3 style="margin:0 0 16px;font-size:16px;font-weight:700;padding-bottom:12px;border-bottom:1px solid var(--adm-border)">Email Configuration</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label class="form-label">SMTP Host</label>
+          <input name="smtp_host" value="{{ settings.smtp_host|default:'' }}" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">SMTP Port</label>
+          <input name="smtp_port" value="{{ settings.smtp_port|default:'587' }}" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">SMTP Username</label>
+          <input name="smtp_username" value="{{ settings.smtp_username|default:'' }}" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">From Email</label>
+          <input name="mail_from" value="{{ settings.mail_from|default:'' }}" class="form-control">
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px">
+      <button class="btn" type="submit" style="padding:12px 32px">Save Settings</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

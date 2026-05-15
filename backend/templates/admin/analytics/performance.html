@@ -1,0 +1,114 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Performance Analytics{% endblock %}
+{% block breadcrumb_title %}Performance Analytics{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <h1>Performance Analytics</h1>
+  <form method="GET" style="display:flex;gap:10px;align-items:center">
+    <select name="period" class="form-control" style="width:auto" onchange="this.form.submit()">
+      <option value="7d" {% if request.GET.period == '7d' %}selected{% endif %}>Last 7 Days</option>
+      <option value="30d" {% if request.GET.period == '30d' or not request.GET.period %}selected{% endif %}>Last 30 Days</option>
+      <option value="90d" {% if request.GET.period == '90d' %}selected{% endif %}>Last 90 Days</option>
+    </select>
+  </form>
+</div>
+
+{# KPI Cards #}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:28px">
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Total Views</div>
+    <div style="font-size:28px;font-weight:700">{{ stats.total_views|default:"0" }}</div>
+    {% if stats.views_change %}
+    <div style="font-size:12px;color:{% if stats.views_change > 0 %}#16a34a{% else %}#dc2626{% endif %};margin-top:4px">
+      {% if stats.views_change > 0 %}+{% endif %}{{ stats.views_change }}%
+    </div>
+    {% endif %}
+  </div>
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Unique Visitors</div>
+    <div style="font-size:28px;font-weight:700">{{ stats.unique_visitors|default:"0" }}</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Avg. Time on Page</div>
+    <div style="font-size:28px;font-weight:700">{{ stats.avg_time_on_page|default:"0" }}s</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Bounce Rate</div>
+    <div style="font-size:28px;font-weight:700">{{ stats.bounce_rate|default:"0" }}%</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Articles Published</div>
+    <div style="font-size:28px;font-weight:700">{{ stats.articles_published|default:"0" }}</div>
+  </div>
+</div>
+
+{# Top Articles #}
+<div class="card" style="margin-bottom:20px">
+  <h3 style="font-size:15px;font-weight:600;padding:20px 20px 0">Top Articles by Views</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Article</th>
+          <th>Category</th>
+          <th style="text-align:right">Views</th>
+          <th style="text-align:right">Unique</th>
+          <th style="text-align:right">Avg Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for article in top_articles %}
+        <tr>
+          <td class="muted">{{ forloop.counter }}</td>
+          <td style="max-width:350px">
+            <a href="{% url 'admin_article_edit' pk=article.id %}" style="font-weight:600;color:var(--adm-ink)">{{ article.title|truncatewords:12 }}</a>
+          </td>
+          <td><span class="badge">{{ article.category_name|default:"--" }}</span></td>
+          <td style="text-align:right;font-weight:600">{{ article.view_count|default:"0" }}</td>
+          <td style="text-align:right">{{ article.unique_views|default:"0" }}</td>
+          <td style="text-align:right;color:var(--adm-muted);font-size:13px">{{ article.avg_time|default:"0" }}s</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="muted" style="text-align:center;padding:40px">No article data available yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# Top Categories #}
+<div class="card">
+  <h3 style="font-size:15px;font-weight:600;padding:20px 20px 0">Top Categories</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th style="text-align:right">Articles</th>
+          <th style="text-align:right">Total Views</th>
+          <th style="text-align:right">Avg Views/Article</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cat in top_categories %}
+        <tr>
+          <td><strong>{{ cat.name }}</strong></td>
+          <td style="text-align:right">{{ cat.article_count|default:"0" }}</td>
+          <td style="text-align:right;font-weight:600">{{ cat.total_views|default:"0" }}</td>
+          <td style="text-align:right;color:var(--adm-muted)">{{ cat.avg_views|default:"0" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="4" class="muted" style="text-align:center;padding:40px">No category data available.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

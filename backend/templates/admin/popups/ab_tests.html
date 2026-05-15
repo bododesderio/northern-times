@@ -1,0 +1,66 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}A/B Tests{% endblock %}
+{% block breadcrumb_title %}A/B Tests{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1>A/B Tests</h1>
+    <div class="sub">Popup A/B test variants grouped by test name.</div>
+  </div>
+  <a href="{% url 'admin_ab_test_create' %}" class="btn btn-primary">+ New A/B Test</a>
+</div>
+
+{% if popups %}
+<div class="card" style="overflow-x:auto">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Test Name</th>
+        <th>Variant</th>
+        <th>Type</th>
+        <th>Active</th>
+        <th>Impressions</th>
+        <th>Clicks</th>
+        <th>CTR</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for popup in popups %}
+      <tr>
+        <td>{{ popup.name }}</td>
+        <td><span class="badge">{{ popup.variant }}</span></td>
+        <td>{{ popup.get_type_display }}</td>
+        <td>
+          {% if popup.is_active %}
+            <span style="color:#006400">Active</span>
+          {% else %}
+            <span class="muted">Inactive</span>
+          {% endif %}
+        </td>
+        <td>{{ popup.impressions }}</td>
+        <td>{{ popup.clicks }}</td>
+        <td>
+          {% if popup.impressions > 0 %}
+            {% widthratio popup.clicks popup.impressions 100 %}%
+          {% else %}
+            0%
+          {% endif %}
+        </td>
+        <td>
+          <a href="{% url 'admin_popup_edit' popup.pk %}" class="btn btn-sm">Edit</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card" style="padding:40px;text-align:center">
+  <p class="muted">No A/B tests yet. Create one to start comparing popup variants.</p>
+  <a href="{% url 'admin_ab_test_create' %}" class="btn btn-primary">+ New A/B Test</a>
+</div>
+{% endif %}
+{% endblock %}

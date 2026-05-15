@@ -1,0 +1,99 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Analytics{% endblock %}
+{% block breadcrumb_title %}Analytics{% endblock %}
+
+{% block admin_content %}
+{# Summary Cards #}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:24px">
+  <div class="card" style="padding:18px;background:#e3f2fd">
+    <div style="font-size:24px;font-weight:800">{{ totals_30d.views|default:0 }}</div>
+    <div class="muted" style="font-size:12px">Views (30d)</div>
+  </div>
+  <div class="card" style="padding:18px;background:#e8f5e9">
+    <div style="font-size:24px;font-weight:800">{{ totals_30d.visitors|default:0 }}</div>
+    <div class="muted" style="font-size:12px">Visitors (30d)</div>
+  </div>
+  <div class="card" style="padding:18px;background:#fff3e0">
+    <div style="font-size:24px;font-weight:800">{{ totals_7d.views|default:0 }}</div>
+    <div class="muted" style="font-size:12px">Views (7d)</div>
+  </div>
+  <div class="card" style="padding:18px">
+    <div style="font-size:24px;font-weight:800">{{ totals_30d.articles|default:0 }}</div>
+    <div class="muted" style="font-size:12px">New Articles (30d)</div>
+  </div>
+  <div class="card" style="padding:18px">
+    <div style="font-size:24px;font-weight:800">{{ totals_30d.subscribers|default:0 }}</div>
+    <div class="muted" style="font-size:12px">New Subscribers (30d)</div>
+  </div>
+</div>
+
+{# Chart #}
+<div class="card" style="margin-bottom:24px;padding:20px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <span style="font-weight:700;font-size:15px">Views &amp; Visitors (30 Days)</span>
+    <a href="{% url 'admin_analytics_export' %}" class="btn light xs">Export CSV</a>
+  </div>
+  <canvas id="analyticsChart" height="90"></canvas>
+</div>
+
+{# Daily Stats Table #}
+<div class="card" style="padding:20px">
+  <div style="font-weight:700;font-size:15px;margin-bottom:16px">Daily Breakdown</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th style="text-align:right">Views</th>
+          <th style="text-align:right">Visitors</th>
+          <th style="text-align:right">Articles</th>
+          <th style="text-align:right">Comments</th>
+          <th style="text-align:right">Subscribers</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for stat in daily_stats reversed %}
+          <tr>
+            <td style="font-weight:600">{{ stat.date|date:"M j" }}</td>
+            <td style="text-align:right">{{ stat.total_views }}</td>
+            <td style="text-align:right">{{ stat.unique_visitors }}</td>
+            <td style="text-align:right">{{ stat.new_articles }}</td>
+            <td style="text-align:right">{{ stat.new_comments }}</td>
+            <td style="text-align:right">{{ stat.new_subscribers }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="muted" style="padding:40px;text-align:center">No stats yet. Data aggregates hourly.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div style="display:flex;gap:12px;margin-top:16px">
+  <a href="{% url 'admin_analytics_performance' %}" class="btn light">Performance &rarr;</a>
+  <a href="{% url 'admin_analytics_engagement' %}" class="btn light">Engagement &rarr;</a>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+const ctx = document.getElementById('analyticsChart');
+if (ctx) {
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: {{ chart_labels|safe }},
+      datasets: [
+        { label: 'Views', data: {{ chart_views|safe }}, borderColor: '#1976d2', backgroundColor: 'rgba(25,118,210,.08)', fill: true, tension: .3 },
+        { label: 'Visitors', data: {{ chart_visitors|safe }}, borderColor: '#43a047', backgroundColor: 'rgba(67,160,71,.08)', fill: true, tension: .3 },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top' } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+</script>
+{% endblock %}

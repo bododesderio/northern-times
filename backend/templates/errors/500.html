@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>500 — Something Went Wrong | Northern Times</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Source Sans 3", system-ui, -apple-system, sans-serif;
+    background: #fdfdfd;
+    color: #121212;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='60' height='60' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
+
+  .rule-top { height: 4px; background: #cc0000; width: 100%; position: relative; z-index: 1; }
+  .rule-top::after { content: ''; display: block; height: 1px; background: #cc0000; margin-top: 3px; }
+
+  .err-header { text-align: center; padding: 24px 24px 0; position: relative; z-index: 1; }
+  .err-header a {
+    font-family: Georgia, serif;
+    font-size: 22px; font-weight: 900;
+    color: #121212;
+    text-decoration: none; letter-spacing: 1px; text-transform: uppercase;
+  }
+
+  .err-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #e2e2e2 20%, #e2e2e2 80%, transparent);
+    margin: 20px auto; max-width: 600px;
+  }
+
+  .err-main {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 0 24px 48px; position: relative; z-index: 1;
+  }
+
+  .err-code {
+    font-family: Georgia, serif;
+    font-size: clamp(100px, 20vw, 220px);
+    font-weight: 900; color: #cc0000;
+    line-height: 0.85; letter-spacing: -6px;
+    opacity: 0.10; position: absolute;
+    top: 50%; transform: translateY(-65%);
+    user-select: none;
+  }
+
+  .err-content {
+    position: relative; text-align: center; max-width: 520px;
+    animation: fadeUp 0.6s ease-out;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .err-badge {
+    display: inline-block;
+    background: #cc0000; color: #fff;
+    font-size: 11px; font-weight: 700;
+    padding: 4px 14px; border-radius: 2px;
+    text-transform: uppercase; letter-spacing: 2px;
+    margin-bottom: 20px;
+  }
+
+  .err-headline {
+    font-family: Georgia, serif;
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 900; line-height: 1.1;
+    margin-bottom: 16px;
+    color: #121212;
+  }
+
+  .err-body { font-size: 17px; line-height: 1.7; color: #666666; margin-bottom: 32px; }
+
+  .err-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+  .err-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 28px; border-radius: 6px;
+    font-size: 14px; font-weight: 600; text-decoration: none;
+    transition: all 0.2s; border: none; cursor: pointer; font-family: inherit;
+  }
+  .err-btn-primary {
+    background: #cc0000; color: #fff;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  }
+  .err-btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  .err-btn-secondary {
+    background: #ffffff;
+    color: #121212;
+    border: 1px solid #e2e2e2;
+  }
+  .err-btn-secondary:hover { background: #fdfdfd; border-color: #666666; }
+  .err-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  .err-footer {
+    text-align: center; padding: 20px;
+    font-size: 12px; color: #666666; position: relative; z-index: 1;
+  }
+
+  .err-main::before, .err-main::after {
+    content: ''; position: absolute; top: 20%; height: 60%;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, #e2e2e2 30%, #e2e2e2 70%, transparent);
+  }
+  .err-main::before { left: 5%; }
+  .err-main::after  { right: 5%; }
+
+  @media (prefers-color-scheme: dark) {
+    body { background: #1a1a1a; color: #e0e0e0; }
+    .err-header a { color: #e0e0e0; }
+    .err-headline { color: #e0e0e0; }
+    .err-body { color: #999; }
+    .err-divider { background: linear-gradient(90deg, transparent, #3a3a3a 20%, #3a3a3a 80%, transparent); }
+    .err-main::before, .err-main::after {
+      background: linear-gradient(180deg, transparent, #3a3a3a 30%, #3a3a3a 70%, transparent);
+    }
+    .err-btn-secondary { background: #242424; border-color: #3a3a3a; color: #e0e0e0; }
+    .err-btn-secondary:hover { background: #1a1a1a; border-color: #666; }
+    .err-footer { color: #999; }
+  }
+
+  @media (max-width: 640px) {
+    .err-main::before, .err-main::after { display: none; }
+    .err-code { font-size: 120px; letter-spacing: -3px; }
+  }
+</style>
+</head>
+<body>
+  <div class="rule-top"></div>
+
+  <div class="err-header">
+    <a href="/">Northern Times</a>
+  </div>
+
+  <div class="err-divider"></div>
+
+  <main class="err-main">
+    <div class="err-code">500</div>
+    <div class="err-content">
+      <span class="err-badge">Error 500</span>
+      <h1 class="err-headline">Something Went Wrong</h1>
+      <p class="err-body">We're experiencing a technical difficulty. Our team has been notified and is working on it. Please try again in a few moments.</p>
+      <div class="err-actions">
+        <a href="/" class="err-btn err-btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Front Page
+        </a>
+        <a href="javascript:location.reload()" class="err-btn err-btn-secondary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Try Again
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <div class="err-footer">
+    &copy; Northern Times. All rights reserved.
+  </div>
+</body>
+</html>

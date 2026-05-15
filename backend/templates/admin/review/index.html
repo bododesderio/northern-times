@@ -1,0 +1,64 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Review Queue{% endblock %}
+{% block breadcrumb_title %}Review Queue{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1>Review Queue</h1>
+    <p class="muted">Articles submitted for editorial review</p>
+  </div>
+</div>
+
+{% if not articles %}
+  <div class="empty-state">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:.4">
+      <path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/>
+    </svg>
+    <h3>All clear!</h3>
+    <p>No articles pending review right now.</p>
+  </div>
+{% else %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Article</th>
+          <th>Author</th>
+          <th>Category</th>
+          <th>Submitted</th>
+          <th style="width:200px">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in articles %}
+        <tr>
+          <td><a href="{% url 'admin_review_show' pk=a.id %}" style="font-weight:700;color:var(--adm-ink)">{{ a.title }}</a></td>
+          <td>{{ a.author_name|default:"Staff" }}</td>
+          <td><span class="badge grey">{{ a.category|default:"--" }}</span></td>
+          <td><time>{% if a.updated_at %}{{ a.updated_at|date:"M j, g:i A" }}{% else %}--{% endif %}</time></td>
+          <td>
+            <div style="display:flex;gap:6px">
+              <a href="{% url 'admin_review_show' pk=a.id %}" class="btn sm light">Review</a>
+              <form method="POST" action="{% url 'admin_review_approve' pk=a.id %}" style="display:inline">
+                {% csrf_token %}
+                <button type="submit" class="btn sm success">Approve</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if total_pages > 1 %}
+  <div class="pagination">
+    {% if page > 1 %}<a class="btn light sm" href="?page={{ page|add:"-1" }}">Prev</a>{% endif %}
+    <span class="muted">Page {{ page }} of {{ total_pages }}</span>
+    {% if page < total_pages %}<a class="btn light sm" href="?page={{ page|add:"1" }}">Next</a>{% endif %}
+  </div>
+  {% endif %}
+{% endif %}
+{% endblock %}

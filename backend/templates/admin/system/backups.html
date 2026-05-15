@@ -1,0 +1,85 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Database Backups{% endblock %}
+{% block breadcrumb_title %}Database Backups{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <h1>Database Backups</h1>
+  <form method="POST" action="{{ create_backup_action|default:'' }}">
+    {% csrf_token %}
+    <button type="submit" class="btn" style="padding:10px 24px">Create Backup Now</button>
+  </form>
+</div>
+
+{% if last_backup %}
+<div class="card" style="padding:20px;margin-bottom:20px;display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+  <div>
+    <div class="muted" style="font-size:13px">Last Backup</div>
+    <div style="font-size:15px;font-weight:600">{{ last_backup.created_at|date:"M j, Y g:iA" }}</div>
+  </div>
+  <div>
+    <div class="muted" style="font-size:13px">Size</div>
+    <div style="font-size:15px;font-weight:600">{{ last_backup.size_display|default:"--" }}</div>
+  </div>
+  <div>
+    <div class="muted" style="font-size:13px">Status</div>
+    <div style="font-size:15px;font-weight:600;color:#16a34a">{{ last_backup.status|default:"completed" }}</div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Filename</th>
+          <th>Size</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for backup in backups %}
+        <tr>
+          <td><strong>{{ backup.filename }}</strong></td>
+          <td class="muted">{{ backup.size_display|default:"--" }}</td>
+          <td>
+            {% if backup.status == 'completed' %}
+            <span style="color:#16a34a;font-weight:600;font-size:13px">Completed</span>
+            {% elif backup.status == 'failed' %}
+            <span style="color:#dc2626;font-weight:600;font-size:13px">Failed</span>
+            {% else %}
+            <span style="color:#d97706;font-weight:600;font-size:13px">{{ backup.status }}</span>
+            {% endif %}
+          </td>
+          <td class="muted" style="font-size:13px;white-space:nowrap">{{ backup.created_at|date:"M j, Y g:iA" }}</td>
+          <td style="display:flex;gap:6px">
+            {% if backup.status == 'completed' %}
+            <a href="{{ backup.download_url|default:'#' }}" class="btn light xs">Download</a>
+            <form method="POST" action="{{ restore_action|default:'' }}" style="display:inline" onsubmit="return confirm('Restore this backup? This will overwrite current data.')">
+              {% csrf_token %}
+              <input type="hidden" name="backup_id" value="{{ backup.id }}">
+              <button type="submit" class="btn light xs" style="color:#d97706">Restore</button>
+            </form>
+            {% endif %}
+            <form method="POST" action="{{ delete_action|default:'' }}" style="display:inline" onsubmit="return confirm('Delete this backup?')">
+              {% csrf_token %}
+              <input type="hidden" name="backup_id" value="{{ backup.id }}">
+              <input type="hidden" name="_method" value="DELETE">
+              <button type="submit" class="btn light xs" style="color:#dc2626">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5" class="muted" style="text-align:center;padding:40px">No backups found. Create one to get started.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

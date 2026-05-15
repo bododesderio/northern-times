@@ -1,0 +1,105 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Comments{% endblock %}
+{% block breadcrumb_title %}Comments{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+  <div><h1>Comments</h1><p class="muted">Manage reader comments across all articles.</p></div>
+  <div style="display:flex;gap:8px">
+    <span class="badge grey">{{ counts.all|default:0 }} total</span>
+    <span class="badge green">{{ counts.visible|default:0 }} visible</span>
+    {% if counts.hidden > 0 %}<span class="badge yellow">{{ counts.hidden }} hidden</span>{% endif %}
+    {% if counts.deleted > 0 %}<span class="badge red">{{ counts.deleted }} deleted</span>{% endif %}
+  </div>
+</div>
+
+{# Filter Tabs #}
+<div style="display:flex;gap:2px;margin-bottom:20px;border-bottom:2px solid var(--adm-border)">
+  <a href="{% url 'admin_comments' %}" class="btn light sm {% if filter == 'all' %}active{% endif %}" style="border-radius:8px 8px 0 0">All</a>
+  <a href="{% url 'admin_comments' %}?filter=visible" class="btn light sm {% if filter == 'visible' %}active{% endif %}" style="border-radius:8px 8px 0 0">Visible</a>
+  <a href="{% url 'admin_comments' %}?filter=hidden" class="btn light sm {% if filter == 'hidden' %}active{% endif %}" style="border-radius:8px 8px 0 0">Hidden</a>
+  <a href="{% url 'admin_comments' %}?filter=deleted" class="btn light sm {% if filter == 'deleted' %}active{% endif %}" style="border-radius:8px 8px 0 0">Deleted</a>
+</div>
+
+{# Search #}
+<form style="display:flex;gap:8px;margin-bottom:16px" method="GET" action="{% url 'admin_comments' %}">
+  {% if filter and filter != 'all' %}<input type="hidden" name="filter" value="{{ filter }}">{% endif %}
+  <input type="text" name="q" value="{{ search|default:'' }}" placeholder="Search comments, authors, articles..." class="form-control" style="flex:1">
+  <button type="submit" class="btn sm">Search</button>
+  {% if search %}<a href="{% url 'admin_comments' %}{% if filter and filter != 'all' %}?filter={{ filter }}{% endif %}" class="btn sm light">Clear</a>{% endif %}
+</form>
+
+{% if comments %}
+<form method="POST" action="{% url 'admin_comments_bulk' %}" id="bulkForm">
+  {% csrf_token %}
+
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:10px 16px;background:var(--adm-bg);border-radius:10px;flex-wrap:wrap">
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+      <input type="checkbox" id="checkAll" onchange="document.querySelectorAll('.cm-chk').forEach(c=>c.checked=this.checked)"> Select all
+    </label>
+    <select name="bulk_action" class="form-control" style="width:auto;padding:6px 12px;font-size:13px">
+      <option value="">Bulk action...</option>
+      <option value="hide">Hide from readers</option>
+      <option value="restore">Restore to visible</option>
+      <option value="delete">Soft delete</option>
+      <option value="destroy">Permanently delete</option>
+    </select>
+    <button type="submit" class="btn sm light" onclick="return ntBulkConfirm(event, 'bulk_action')">Apply</button>
+    <span class="muted" style="margin-left:auto;font-size:13px">{{ total }} result{{ total|pluralize }}</span>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    {% for c in comments %}
+      <div class="card" style="display:flex;gap:14px;padding:18px 20px;border-left:4px solid {% if c.status == 'visible' %}#22c55e{% elif c.status == 'hidden' %}#f59e0b{% else %}#ef4444{% endif %}">
+        <input type="checkbox" name="comment_ids[]" value="{{ c.id }}" class="cm-chk" style="width:16px;height:16px;margin-top:4px">
+        <div style="width:40px;height:40px;border-radius:50%;background:#cc0000;color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;flex-shrink:0">{{ c.author_name|make_list|first|upper }}</div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            <strong>{{ c.author_name }}</strong>
+            <span class="muted" style="font-size:12px">{{ c.author_email }}</span>
+            <span class="badge {% if c.status == 'visible' %}green{% elif c.status == 'hidden' %}yellow{% else %}red{% endif %}">{{ c.status|title }}</span>
+            <time class="muted" style="font-size:12px;margin-left:auto">{{ c.created_at|date:"M j, Y g:ia" }}</time>
+          </div>
+          <p style="font-size:14px;line-height:1.65;margin:0 0 8px">{{ c.content|linebreaksbr }}</p>
+          <div style="font-size:12px;color:var(--adm-muted);margin-bottom:12px">on <a href="/article/{{ c.article_slug }}" target="_blank" style="color:#cc0000;font-weight:600">{{ c.article_title }}</a></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            {% if c.status == 'visible' %}
+              <form method="POST" action="{% url 'admin_comment_hide' pk=c.id %}" style="display:inline">{% csrf_token %}<button class="btn light xs">Hide</button></form>
+            {% else %}
+              <form method="POST" action="{% url 'admin_comment_show' pk=c.id %}" style="display:inline">{% csrf_token %}<button class="btn light xs" style="background:#ecfdf5;color:#059669">Restore</button></form>
+            {% endif %}
+            {% if c.status != 'deleted' %}
+              <form method="POST" action="{% url 'admin_comment_delete' pk=c.id %}" style="display:inline">{% csrf_token %}<button class="btn light xs">Delete</button></form>
+            {% endif %}
+            {% if c.status == 'deleted' %}
+              <form method="POST" action="{% url 'admin_comment_destroy' pk=c.id %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Permanently remove this comment?')">{% csrf_token %}<button class="btn danger xs">Remove forever</button></form>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</form>
+
+{% if pages > 1 %}
+  <div class="pagination" style="justify-content:center;margin-top:24px">
+    {% for p in page_range %}
+      <a href="{% url 'admin_comments' %}?page={{ p }}{% if filter and filter != 'all' %}&filter={{ filter }}{% endif %}{% if search %}&q={{ search }}{% endif %}" class="btn {% if p == page %}{% else %}light{% endif %} sm">{{ p }}</a>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% else %}
+  <div class="empty-state">
+    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="opacity:.25;margin-bottom:16px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    {% if search or filter and filter != 'all' %}
+      <p>No comments match your filters.</p>
+      <a href="{% url 'admin_comments' %}" class="btn sm light" style="margin-top:10px">Clear filters</a>
+    {% else %}
+      <p>No comments yet.</p>
+      <p class="muted" style="font-size:13px;margin-top:4px">Comments will appear here once readers start engaging.</p>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

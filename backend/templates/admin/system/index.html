@@ -1,0 +1,228 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}System Administration{% endblock %}
+{% block breadcrumb_title %}System{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1>System Administration</h1>
+    <div class="sub">Database, cache, backups, and maintenance tools.</div>
+  </div>
+</div>
+
+{# Health Overview #}
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;margin-bottom:28px">
+  <div class="card" style="text-align:center;padding:18px">
+    <div style="font-size:24px;font-weight:700;color:{% if health.db %}#22c55e{% else %}#ef4444{% endif %}">{{ health.db_status|default:"OK" }}</div>
+    <div class="muted" style="font-size:12px;text-transform:uppercase">Database</div>
+  </div>
+  <div class="card" style="text-align:center;padding:18px">
+    <div style="font-size:24px;font-weight:700;color:{% if health.redis %}#22c55e{% else %}#ef4444{% endif %}">{{ health.redis_status|default:"OK" }}</div>
+    <div class="muted" style="font-size:12px;text-transform:uppercase">Redis Cache</div>
+  </div>
+  <div class="card" style="text-align:center;padding:18px">
+    <div style="font-size:24px;font-weight:700">{{ health.disk_usage|default:"--" }}</div>
+    <div class="muted" style="font-size:12px;text-transform:uppercase">Disk Usage</div>
+  </div>
+  <div class="card" style="text-align:center;padding:18px">
+    <div style="font-size:24px;font-weight:700">{{ health.last_crawl|default:"--" }}</div>
+    <div class="muted" style="font-size:12px;text-transform:uppercase">Last Crawl</div>
+  </div>
+</div>
+
+{# Database Stats #}
+<div class="card" style="margin-bottom:20px">
+  <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Database Statistics</h3>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">
+    {% for stat in db_stats %}
+      <div style="padding:12px;background:var(--adm-bg);border-radius:10px;text-align:center">
+        <div style="font-size:20px;font-weight:700">{{ stat.count }}</div>
+        <div class="muted" style="font-size:12px">{{ stat.label }}</div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+{# Maintenance Actions #}
+<div class="card" style="margin-bottom:20px">
+  <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Maintenance Actions</h3>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <form method="POST" action="{% url 'admin_system_clear_cache' %}" style="display:inline">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#dcfce7;color:#166534">Clear Cache</button>
+    </form>
+    <form method="POST" action="{% url 'admin_system_backup' %}" style="display:inline">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#fef9c3;color:#854d0e">Create Backup</button>
+    </form>
+    <form method="POST" action="{% url 'admin_system_purge_logs' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Purge old logs?')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#ffedd5;color:#9a3412">Purge Old Logs</button>
+    </form>
+  </div>
+</div>
+
+{# Recent Backups #}
+{% if backups %}
+<div class="card" style="margin-bottom:20px">
+  <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Recent Backups</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Filename</th><th>Size</th><th>Created</th></tr></thead>
+      <tbody>
+        {% for b in backups %}
+          <tr>
+            <td style="font-weight:600">{{ b.filename }}</td>
+            <td class="muted">{{ b.size_display }}</td>
+            <td class="muted" style="font-size:13px">{{ b.created_at|date:"M j, Y g:i A" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# AI Tools #}
+<div class="card" style="margin-bottom:20px">
+  <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">AI Tools</h3>
+  <p class="muted" style="font-size:13px;margin-bottom:14px">Run AI-powered content maintenance tasks on demand.</p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <form method="POST" action="{% url 'admin_ai_reclassify' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Run AI reclassification on articles from the last 24 hours?')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#ede9fe;color:#5b21b6">AI Reclassify Articles</button>
+    </form>
+    <form method="POST" action="{% url 'admin_cleanup_duplicates' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Archive near-duplicate articles from the last 48 hours?')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#ede9fe;color:#5b21b6">Cleanup Duplicates</button>
+    </form>
+  </div>
+</div>
+
+{# Data Resets #}
+<div class="card" style="margin-bottom:20px">
+  <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Data Resets</h3>
+  <p class="muted" style="font-size:13px;margin-bottom:14px">Reset counters and statistics without deleting content.</p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <form method="POST" action="{% url 'admin_reset_article_views' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Reset all article view counts?')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#dcfce7;color:#166534">Reset Article Views</button>
+    </form>
+    <form method="POST" action="{% url 'admin_reset_site_visitors' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete all visitor records and daily stats?')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#dcfce7;color:#166534">Reset Site Visitors</button>
+    </form>
+    <form method="POST" action="{% url 'admin_reset_ad_stats' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Reset all ad impression and click counts to zero?')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#dcfce7;color:#166534">Reset Ad Stats</button>
+    </form>
+    <form method="POST" action="{% url 'admin_reset_newsletter_stats' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Reset all newsletter recipient counts?')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#dcfce7;color:#166534">Reset Newsletter Stats</button>
+    </form>
+    <form method="POST" action="{% url 'admin_reset_crawler_stats' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Reset all crawler failure counts and last-crawled timestamps?')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#dcfce7;color:#166534">Reset Crawler Stats</button>
+    </form>
+    <form method="POST" action="{% url 'admin_reset_all_analytics' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Reset ALL analytics data? This combines all resets above.')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#fef9c3;color:#854d0e">Reset All Analytics</button>
+    </form>
+  </div>
+</div>
+
+{# Content Purges #}
+<div class="card" style="margin-bottom:20px">
+  <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Content Purges</h3>
+  <p class="muted" style="font-size:13px;margin-bottom:14px">Permanently delete specific content types.</p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <form method="POST" action="{% url 'admin_purge_comments' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete ALL comments? This cannot be undone.')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#ffedd5;color:#9a3412">Purge Comments</button>
+    </form>
+    <form method="POST" action="{% url 'admin_purge_subscribers' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete ALL newsletter subscribers? This cannot be undone.')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#ffedd5;color:#9a3412">Purge Subscribers</button>
+    </form>
+    <form method="POST" action="{% url 'admin_purge_notifications' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete ALL notifications? This cannot be undone.')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#ffedd5;color:#9a3412">Purge Notifications</button>
+    </form>
+    <form method="POST" action="{% url 'admin_purge_email_queue' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete ALL email queue entries? This cannot be undone.')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#ffedd5;color:#9a3412">Purge Email Queue</button>
+    </form>
+    <form method="POST" action="{% url 'admin_purge_crawl_history' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete ALL crawl log history? This cannot be undone.')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#ffedd5;color:#9a3412">Purge Crawl History</button>
+    </form>
+    <form method="POST" action="{% url 'admin_purge_seo_history' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete ALL SEO audit history? This cannot be undone.')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#ffedd5;color:#9a3412">Purge SEO History</button>
+    </form>
+    <form method="POST" action="{% url 'admin_purge_social_mentions' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete ALL social mentions? This cannot be undone.')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#ffedd5;color:#9a3412">Purge Social Mentions</button>
+    </form>
+  </div>
+</div>
+
+{# Database & Infrastructure #}
+<div class="card" style="margin-bottom:20px">
+  <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Database & Infrastructure</h3>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <form method="POST" action="{% url 'admin_vacuum_db' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Run VACUUM ANALYZE? This may take a moment.')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#dbeafe;color:#1e40af">Vacuum Database</button>
+    </form>
+    <a href="{% url 'admin_table_sizes' %}" class="btn" style="background:#dbeafe;color:#1e40af;text-decoration:none">Table Sizes (JSON)</a>
+    <a href="{% url 'admin_environment_api' %}" class="btn" style="background:#dbeafe;color:#1e40af;text-decoration:none">Environment Info (JSON)</a>
+    <a href="{% url 'admin_cron_history' %}" class="btn" style="background:#dbeafe;color:#1e40af;text-decoration:none">Cron History</a>
+    <form method="POST" action="{% url 'admin_clean_sessions' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete all sessions older than 24 hours?')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#dbeafe;color:#1e40af">Clean Stale Sessions</button>
+    </form>
+  </div>
+</div>
+
+{# Danger Zone #}
+<div class="card" style="margin-bottom:20px;border:2px solid #ef4444">
+  <h3 style="margin:0 0 6px;font-size:16px;font-weight:700;color:#ef4444">Danger Zone</h3>
+  <p class="muted" style="font-size:13px;margin-bottom:14px">These actions are destructive and cannot be undone. Use with extreme caution.</p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <form method="POST" action="{% url 'admin_delete_crawled_articles' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'DELETE all crawled articles? This CANNOT be undone!')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#fecaca;color:#991b1b">Delete Crawled Articles</button>
+    </form>
+    <form method="POST" action="{% url 'admin_delete_all_articles' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'DELETE ALL articles? This CANNOT be undone!')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#fecaca;color:#991b1b">Delete All Articles</button>
+    </form>
+    <form method="POST" action="{% url 'admin_reset_all_popups' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'DELETE all popups? This CANNOT be undone!')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#fecaca;color:#991b1b">Delete All Popups</button>
+    </form>
+    <form method="POST" action="{% url 'admin_reset_crawler_system' %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'DELETE all crawl sources and logs? This CANNOT be undone!')">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#fecaca;color:#991b1b">Reset Crawler System</button>
+    </form>
+    <form method="POST" action="{% url 'admin_factory_reset' %}" style="display:inline" onsubmit="return ntFactoryReset(event)">
+      {% csrf_token %}
+      <button type="submit" class="btn" style="background:#7f1d1d;color:#fff">Factory Reset</button>
+    </form>
+  </div>
+</div>
+
+{# System Logs #}
+{% if logs %}
+<div class="card">
+  <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Recent System Logs</h3>
+  <div style="background:#0a0a14;color:#b8b8c8;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.7;padding:16px;border-radius:10px;max-height:300px;overflow-y:auto">
+    {% for line in logs %}
+      <div>{{ line }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

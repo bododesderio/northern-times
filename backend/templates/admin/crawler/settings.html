@@ -1,0 +1,55 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Crawler Settings{% endblock %}
+{% block breadcrumb_title %}Crawler Settings{% endblock %}
+
+{% block admin_content %}
+<form method="POST" action="{% url 'admin_crawler_settings' %}">
+  {% csrf_token %}
+
+  <div style="max-width:800px;display:flex;flex-direction:column;gap:20px">
+
+    <div class="card">
+      <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Fetch Settings</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group">
+          <label class="form-label">Fetch Timeout (seconds)</label>
+          <input type="number" name="fetch_timeout" value="{{ fetch_timeout }}" min="5" max="120" class="form-control">
+          <div class="form-hint">Maximum time to wait when fetching a feed or page.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Max Articles per Source</label>
+          <input type="number" name="max_articles" value="{{ max_articles }}" min="1" max="200" class="form-control">
+          <div class="form-hint">Maximum number of articles to process per source per crawl.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Deduplication</h3>
+      <div class="form-group">
+        <label class="form-label">Dedup Threshold</label>
+        <input type="number" name="dedup_threshold" value="{{ dedup_threshold }}" min="0.5" max="1.0" step="0.01" class="form-control" style="max-width:200px">
+        <div class="form-hint">Cosine similarity threshold for semantic deduplication. Higher = stricter (0.82 recommended).</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Image Handling</h3>
+      <div class="form-group">
+        <label class="form-label">Download Images</label>
+        <select name="download_images" class="form-control" style="max-width:200px">
+          <option value="true" {% if download_images == 'true' or download_images == True %}selected{% endif %}>Yes</option>
+          <option value="false" {% if download_images == 'false' or download_images == False %}selected{% endif %}>No</option>
+        </select>
+        <div class="form-hint">Whether to download and store article images locally.</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center">
+      <button class="btn" type="submit">Save Settings</button>
+      <a class="btn light" href="{% url 'admin_crawler' %}">Back to Sources</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

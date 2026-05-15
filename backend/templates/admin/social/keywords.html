@@ -1,0 +1,75 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Social Keywords{% endblock %}
+{% block breadcrumb_title %}Social Keywords{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <h1>Tracked Keywords</h1>
+  <button type="button" class="btn" style="padding:10px 24px" onclick="document.getElementById('addKeywordForm').style.display='block'">Add Keyword</button>
+</div>
+
+<div class="card" id="addKeywordForm" style="padding:24px;margin-bottom:20px;display:none">
+  <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">Add New Keyword</h3>
+  <form method="POST" action="{{ form_action|default:'' }}" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+    {% csrf_token %}
+    <div class="form-group" style="flex:1;min-width:200px">
+      <label class="form-label">Keyword or Phrase</label>
+      <input name="keyword" required class="form-control" placeholder="e.g. Northern Times, breaking news">
+    </div>
+    <div class="form-group" style="min-width:160px">
+      <label class="form-label">Platform</label>
+      <select name="platform" class="form-control">
+        <option value="all">All Platforms</option>
+        <option value="twitter">Twitter / X</option>
+        <option value="facebook">Facebook</option>
+        <option value="reddit">Reddit</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button type="submit" class="btn" style="padding:10px 24px">Add</button>
+      <button type="button" class="btn light" style="padding:10px 24px" onclick="this.closest('.card').style.display='none'">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Keyword</th>
+          <th>Platform</th>
+          <th>Mentions (24h)</th>
+          <th>Mentions (7d)</th>
+          <th>Last Seen</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for kw in keywords %}
+        <tr>
+          <td><strong>{{ kw.keyword }}</strong></td>
+          <td><span class="badge">{{ kw.platform|default:"all" }}</span></td>
+          <td>{{ kw.mentions_24h|default:"0" }}</td>
+          <td>{{ kw.mentions_7d|default:"0" }}</td>
+          <td class="muted" style="font-size:13px">{{ kw.last_seen_at|date:"M j, Y g:iA"|default:"Never" }}</td>
+          <td>
+            <form method="POST" action="{{ delete_action|default:'' }}" style="display:inline" onsubmit="return confirm('Delete this keyword?')">
+              {% csrf_token %}
+              <input type="hidden" name="keyword_id" value="{{ kw.id }}">
+              <input type="hidden" name="_method" value="DELETE">
+              <button type="submit" class="btn light xs" style="color:#dc2626">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="muted" style="text-align:center;padding:40px">No keywords tracked yet. Add one above.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

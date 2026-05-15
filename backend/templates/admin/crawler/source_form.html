@@ -1,0 +1,99 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}{% if is_edit %}Edit{% else %}New{% endif %} Crawl Source{% endblock %}
+{% block breadcrumb_title %}{% if is_edit %}Edit{% else %}New{% endif %} Crawl Source{% endblock %}
+
+{% block admin_content %}
+<form method="POST" action="{% if is_edit %}{% url 'admin_crawler_edit' pk=source.id %}{% else %}{% url 'admin_crawler_create' %}{% endif %}" id="sourceForm">
+  {% csrf_token %}
+
+  <div style="max-width:800px;display:flex;flex-direction:column;gap:20px">
+
+    <div class="card">
+      <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Source Details</h3>
+      <div style="display:grid;gap:14px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="form-group">
+            <label class="form-label">Source Name <span class="req">*</span></label>
+            <input name="name" value="{{ source.name|default:'' }}" required placeholder="e.g. Daily Monitor" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Feed Type</label>
+            <select name="source_type" class="form-control">
+              <option value="rss" {% if source.source_type == 'rss' %}selected{% endif %}>RSS 2.0</option>
+              <option value="atom" {% if source.source_type == 'atom' %}selected{% endif %}>Atom</option>
+              <option value="html" {% if source.source_type == 'html' %}selected{% endif %}>HTML (Experimental)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Feed URL <span class="req">*</span></label>
+          <input name="feed_url" value="{{ source.feed_url|default:'' }}" required placeholder="https://example.com/rss/feed.xml" class="form-control">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="form-group">
+            <label class="form-label">Website URL</label>
+            <input name="website_url" value="{{ source.website_url|default:'' }}" placeholder="https://example.com" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Logo URL</label>
+            <input name="logo_url" value="{{ source.logo_url|default:'' }}" placeholder="https://example.com/logo.png" class="form-control">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Crawl Settings</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px">
+        <div class="form-group">
+          <label class="form-label">Interval (minutes)</label>
+          <input type="number" name="crawl_interval" value="{{ source.crawl_interval|default:30 }}" min="5" max="1440" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Max Articles/Crawl</label>
+          <input type="number" name="max_articles" value="{{ source.max_articles|default:20 }}" min="1" max="100" class="form-control">
+        </div>
+        <div class="form-group" style="padding-top:28px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" name="is_active" value="1" {% if source.is_active %}checked{% endif %} style="width:18px;height:18px">
+            <span style="font-weight:600;font-size:14px">Active</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Category Mapping</h3>
+      <div class="form-group">
+        <label class="form-label">Default Category</label>
+        <select name="default_category_id" class="form-control">
+          <option value="">-- None --</option>
+          {% for c in categories %}
+            <option value="{{ c.id }}" {% if source.default_category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Content Selectors</h3>
+      <div class="form-group">
+        <label class="form-label">Content CSS Selector</label>
+        <input name="content_selector" value="{{ source.content_selector|default:'' }}" placeholder="article .entry-content" class="form-control">
+        <div class="form-hint">CSS selector for the main content container.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Strip Selectors</label>
+        <input name="strip_selectors" value="{{ source.strip_selectors|default:'' }}" placeholder=".ad-banner, .social-share, .related-posts" class="form-control">
+        <div class="form-hint">CSS selectors of elements to remove from extracted content.</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center">
+      <button class="btn" type="submit">{% if is_edit %}Update Source{% else %}Create Source{% endif %}</button>
+      <a class="btn light" href="{% url 'admin_crawler' %}">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

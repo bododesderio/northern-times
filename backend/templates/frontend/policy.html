@@ -1,0 +1,25 @@
+{% extends "frontend/layout.html" %}
+{% load core_tags %}
+
+{% block title %}{{ page.title }} - {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="np-page-wrap">
+  <article class="np-policy">
+
+    <header class="np-policy-header">
+      <div class="np-cat-accent-line"></div>
+      <span class="np-cat-tag">Policy</span>
+      <h1 class="np-policy-title">{{ page.title }}</h1>
+      <div class="np-policy-meta">
+        Last updated {{ page.updated_at|date:"F j, Y" }}
+      </div>
+    </header>
+
+    <div class="np-policy-body">
+      {{ page.content|safe }}
+    </div>
+
+  </article>
+</div>
+{% endblock %}

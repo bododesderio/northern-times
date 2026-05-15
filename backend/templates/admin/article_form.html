@@ -1,0 +1,611 @@
+{% extends "admin/layout.html" %}
+{% load static %}
+
+{% block admin_title %}{% if is_edit %}Edit Article{% else %}New Article{% endif %}{% endblock %}
+{% block breadcrumb_title %}{% if is_edit %}Edit Article{% else %}New Article{% endif %}{% endblock %}
+
+{% block admin_css %}
+<link rel="stylesheet" href="https://cdn.ckeditor.com/ckeditor5/43.3.1/ckeditor5.css"/>
+<style>
+.nt-editor-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 28px;
+  align-items: start;
+}
+@media (max-width: 1024px) {
+  .nt-editor-grid { grid-template-columns: 1fr; }
+}
+
+.nt-editor-grid .nt-title-input {
+  width: 100%;
+  font-size: 22px;
+  font-weight: 700;
+  padding: 14px 18px;
+  border: 1px solid var(--adm-border);
+  border-radius: 12px;
+  background: var(--adm-surface);
+  color: var(--adm-ink);
+  outline: none;
+  transition: border-color .2s;
+}
+.nt-editor-grid .nt-title-input:focus {
+  border-color: #cc0000;
+}
+
+.nt-slug-display {
+  font-size: 13px;
+  color: var(--adm-muted);
+  margin-top: 6px;
+}
+.nt-slug-display code {
+  background: var(--adm-bg);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.nt-alert-banner {
+  padding: 14px 20px;
+  border-radius: 12px;
+  margin: 16px 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.nt-alert-banner.rejected {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  color: #7f1d1d;
+}
+.nt-alert-banner.rejected strong { color: #b91c1c; }
+.nt-alert-banner.pending {
+  background: #fef9c3;
+  border: 1px solid #fde68a;
+  color: #854d0e;
+  font-weight: 600;
+}
+
+.nt-editor-grid .ck-editor__editable {
+  min-height: 450px;
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.nt-word-count {
+  text-align: right;
+  font-size: 13px;
+  color: var(--adm-muted);
+  margin-top: 6px;
+}
+
+/* Sidebar cards */
+.nt-editor-sidebar .card {
+  margin-bottom: 20px;
+  padding: 20px;
+}
+.nt-editor-sidebar .card h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--adm-ink);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+/* Tags */
+.nt-tag-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--adm-border);
+  border-radius: 12px;
+  min-height: 46px;
+  align-items: center;
+  background: var(--adm-surface);
+  cursor: text;
+}
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: #fef2f2;
+  color: #cc0000;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid #fecaca;
+}
+.tag-chip button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  opacity: .7;
+  color: inherit;
+}
+#tagInput {
+  border: none;
+  outline: none;
+  font-size: 14px;
+  flex: 1;
+  min-width: 120px;
+  background: transparent;
+  color: var(--adm-ink);
+}
+
+/* Featured image */
+.nt-featured-preview {
+  margin-top: 10px;
+  max-height: 160px;
+  border-radius: 8px;
+  border: 1px solid var(--adm-border);
+  object-fit: cover;
+}
+.nt-featured-upload-area {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Revision history */
+.nt-revision-list {
+  max-height: 240px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+.nt-revision-list table { width: 100%; }
+.nt-revision-list td, .nt-revision-list th {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+/* Schedule box */
+.nt-schedule-box {
+  margin-top: 10px;
+  padding: 12px;
+  background: #fffbea;
+  border: 1px solid #ffe082;
+  border-radius: 12px;
+}
+
+/* Media modal */
+.nt-media-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+}
+.nt-media-modal-overlay.active { display: flex; }
+.nt-media-modal {
+  background: var(--adm-surface);
+  border-radius: 16px;
+  width: 90vw;
+  max-width: 1000px;
+  height: 80vh;
+  overflow: hidden;
+  box-shadow: var(--adm-shadow-lg);
+  display: flex;
+  flex-direction: column;
+}
+.nt-media-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--adm-border);
+}
+.nt-media-modal-header h3 { margin: 0; font-size: 16px; }
+.nt-media-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--adm-muted);
+  padding: 4px 8px;
+}
+.nt-media-modal iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+}
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<form method="POST" action="{% if is_edit %}{% url 'admin_article_edit' pk=article.id %}{% else %}{% url 'admin_article_create' %}{% endif %}" id="articleForm" enctype="multipart/form-data">
+  {% csrf_token %}
+
+  <div class="nt-editor-grid">
+    {# ============ LEFT COLUMN ============ #}
+    <div class="nt-editor-main">
+      {# Title #}
+      <input type="text" name="title" id="title" required
+             value="{{ article.title|default:'' }}"
+             class="nt-title-input"
+             placeholder="Article title...">
+
+      {# Slug (edit mode) #}
+      {% if is_edit %}
+      <div class="nt-slug-display">
+        Slug: <code>{{ article.slug }}</code>
+      </div>
+      {% endif %}
+
+      {# Alert banners #}
+      {% if was_rejected %}
+      <div class="nt-alert-banner rejected">
+        <strong>Revision Requested</strong>
+        <p style="margin:8px 0 0">{{ article.review_notes }}</p>
+      </div>
+      {% endif %}
+
+      {% if is_edit and article.status == 'pending_review' %}
+      <div class="nt-alert-banner pending">
+        This article is awaiting editorial review.
+      </div>
+      {% endif %}
+
+      {# Excerpt #}
+      <div class="form-group" style="margin-top:20px">
+        <label class="form-label">Excerpt <span style="font-weight:400;color:var(--adm-muted);font-size:13px">(optional)</span></label>
+        <textarea name="excerpt" id="excerpt" class="form-control" rows="3" style="resize:vertical">{{ article.excerpt|default:'' }}</textarea>
+      </div>
+
+      {# Content (CKEditor) #}
+      <div class="form-group" style="margin-top:20px">
+        <label class="form-label">Content <span class="req">*</span></label>
+        <div id="editor">{{ article.content|default:'' }}</div>
+        <textarea name="content" id="contentHidden" required style="display:none">{{ article.content|default:'' }}</textarea>
+      </div>
+
+      <div class="nt-word-count">
+        <span id="wordCount">0</span> words
+      </div>
+
+      {# Action buttons #}
+      <div style="display:flex;gap:16px;margin-top:28px;flex-wrap:wrap;align-items:center">
+        <button class="btn" type="submit" style="padding:12px 32px;font-size:16px">
+          {% if is_edit %}Update Article{% else %}Create Article{% endif %}
+        </button>
+
+        {% if not is_editor and article.status == 'draft' or not is_edit %}
+        <button type="submit" class="btn success" style="padding:12px 32px;font-size:16px"
+                onclick="document.getElementById('status').value='pending_review'">
+          {% if was_rejected %}Resubmit for Review{% else %}Submit for Review{% endif %}
+        </button>
+        {% endif %}
+
+        <a class="btn light" href="{% url 'admin_articles' %}" style="padding:12px 32px;font-size:16px">Cancel</a>
+      </div>
+    </div>
+
+    {# ============ RIGHT COLUMN ============ #}
+    <div class="nt-editor-sidebar">
+      {# Publish card #}
+      <div class="card">
+        <h3>Publish</h3>
+
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          {% if is_editor %}
+          <select name="status" id="status" class="form-control">
+            {% for s in status_choices %}
+            <option value="{{ s.0 }}" {% if article.status == s.0 %}selected{% endif %}>{{ s.1 }}</option>
+            {% endfor %}
+          </select>
+          {% else %}
+          <select name="status" id="status" class="form-control">
+            <option value="draft" {% if article.status == 'draft' %}selected{% endif %}>Draft</option>
+            <option value="pending_review" {% if article.status == 'pending_review' %}selected{% endif %}>Submit for Review</option>
+          </select>
+          <div class="form-hint">Articles must be reviewed by an editor before publishing.</div>
+          {% endif %}
+        </div>
+
+        <div id="scheduleBox" class="nt-schedule-box" style="display:none">
+          <label class="form-label">Schedule Date &amp; Time</label>
+          <input type="datetime-local" name="scheduled_at" id="scheduled_at" class="form-control"
+                 value="{{ scheduled_at|default:'' }}"/>
+          <div class="form-hint">Article will auto-publish at this date/time.</div>
+        </div>
+
+        <div class="form-group" style="margin-top:14px">
+          <label class="form-label">Category <span class="req">*</span></label>
+          <select name="category_id" id="category_id" required class="form-control">
+            <option value="">Select category</option>
+            {% for c in categories %}
+            <option value="{{ c.id }}" {% if article.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-top:14px">
+          <label class="form-label">Display Author</label>
+          <input name="author_name" id="author_name" placeholder="Admin or custom name"
+                 value="{{ article.author_name|default:'Admin' }}" class="form-control">
+        </div>
+
+        {% if is_edit %}
+        <div style="margin-top:14px">
+          <label class="form-label">Published Date</label>
+          <div style="padding:10px;background:var(--adm-bg);border-radius:8px;font-size:14px;color:var(--adm-muted)">
+            {{ published_at_label|default:"-- (auto when published)" }}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      {# Featured Image card #}
+      <div class="card">
+        <h3>Featured Image</h3>
+        <div class="nt-featured-upload-area">
+          <input type="file" name="featured_image_file" id="featuredFile" accept="image/*" class="form-control" style="flex:1">
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button type="button" class="btn light xs" id="insertMediaBtn" onclick="openFeaturedPicker()">Media Library</button>
+        </div>
+        <div style="margin-top:10px">
+          <input name="featured_image" id="featured_image" placeholder="/uploads/Articles/..." value="{{ article.featured_image|default:'' }}" class="form-control" style="font-size:13px">
+        </div>
+        {% if article.featured_image %}
+        <img src="{{ article.featured_image }}" alt="" id="featuredPreview" class="nt-featured-preview">
+        {% else %}
+        <img src="" alt="" id="featuredPreview" class="nt-featured-preview" style="display:none">
+        {% endif %}
+      </div>
+
+      {# Tags card #}
+      <div class="card">
+        <h3>Tags</h3>
+        <div class="nt-tag-container" id="tagContainer" onclick="document.getElementById('tagInput').focus()">
+          {% for t in tags %}
+          <span class="tag-chip" data-name="{{ t.name }}">#{{ t.name }}
+            <button type="button" onclick="this.parentElement.remove();syncTags()">&times;</button>
+          </span>
+          {% endfor %}
+          <input type="text" id="tagInput" placeholder="Type a tag...">
+        </div>
+        <input type="hidden" name="tags" id="tagsHidden" value="{{ tags_csv|default:'' }}">
+      </div>
+
+      {# Revision History card (edit mode) #}
+      {% if is_edit and revisions %}
+      <div class="card">
+        <h3>Revision History ({{ revisions|length }})</h3>
+        <div class="nt-revision-list">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Editor</th><th>Words</th><th>Date</th><th></th></tr>
+            </thead>
+            <tbody>
+              {% for rev in revisions %}
+              <tr>
+                <td><strong>{{ rev.revision_number }}</strong></td>
+                <td>{{ rev.editor_name }}</td>
+                <td>{{ rev.word_count }}</td>
+                <td>{{ rev.created_at|date:"M j, g:iA" }}</td>
+                <td>
+                  {% if not forloop.first %}
+                  <form method="POST" action="{% url 'admin_article_revision_restore' pk=article.id rev_id=rev.id %}" style="display:inline" onsubmit="return confirm('Restore this revision?')">
+                    {% csrf_token %}
+                    <button type="submit" class="btn light xs">Restore</button>
+                  </form>
+                  {% else %}
+                  <span class="muted" style="font-size:11px;font-style:italic">current</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</form>
+
+{# Media Picker Modal #}
+<div class="nt-media-modal-overlay" id="mediaModal">
+  <div class="nt-media-modal">
+    <div class="nt-media-modal-header">
+      <h3>Media Library</h3>
+      <button class="nt-media-modal-close" onclick="closeMediaModal()">&times;</button>
+    </div>
+    <iframe id="mediaPickerFrame" src=""></iframe>
+  </div>
+</div>
+{% endblock %}
+
+{% block admin_scripts %}
+<script src="https://cdn.ckeditor.com/ckeditor5/43.3.1/super-build/ckeditor.js"></script>
+<script src="{% static 'js/ckeditor-adapter.js' %}"></script>
+<script>
+(function() {
+  let editorInstance = null;
+
+  // --- CKEditor init ---
+  CKEDITOR.ClassicEditor.create(document.getElementById('editor'), {
+    extraPlugins: [NTUploadAdapterPlugin],
+    toolbar: {
+      items: [
+        'heading', '|',
+        'bold', 'italic', 'strikethrough', 'underline', 'subscript', 'superscript', '|',
+        'bulletedList', 'numberedList', 'todoList', '|',
+        'outdent', 'indent', '|',
+        'undo', 'redo', '|',
+        'fontSize', 'fontColor', 'fontBackgroundColor', 'highlight', '|',
+        'alignment', '|',
+        'link', 'uploadImage', 'blockQuote', 'insertTable', 'mediaEmbed', '|',
+        'codeBlock', 'code', 'htmlEmbed', '|',
+        'horizontalLine', 'pageBreak', '|',
+        'removeFormat', 'findAndReplace', '|',
+        'sourceEditing'
+      ],
+      shouldNotGroupWhenFull: true
+    },
+    list: {
+      properties: { styles: true, startIndex: true, reversed: true }
+    },
+    heading: {
+      options: [
+        { model: 'paragraph', title: 'Paragraph', class: 'ck-heading_paragraph' },
+        { model: 'heading2', view: 'h2', title: 'Heading 2', class: 'ck-heading_heading2' },
+        { model: 'heading3', view: 'h3', title: 'Heading 3', class: 'ck-heading_heading3' },
+        { model: 'heading4', view: 'h4', title: 'Heading 4', class: 'ck-heading_heading4' }
+      ]
+    },
+    image: {
+      toolbar: [
+        'imageTextAlternative', 'toggleImageCaption', 'imageStyle:inline',
+        'imageStyle:block', 'imageStyle:side'
+      ]
+    },
+    table: {
+      contentToolbar: ['tableColumn', 'tableRow', 'mergeTableCells', 'tableProperties', 'tableCellProperties']
+    },
+    mediaEmbed: { previewsInData: true },
+    htmlSupport: {
+      allow: [{ name: /.*/, attributes: true, classes: true, styles: true }]
+    },
+    removePlugins: [
+      'CKBox', 'CKFinder', 'EasyImage', 'RealTimeCollaborativeComments',
+      'RealTimeCollaborativeTrackChanges', 'RealTimeCollaborativeRevisionHistory',
+      'PresenceList', 'Comments', 'TrackChanges', 'TrackChangesData',
+      'RevisionHistory', 'Pagination', 'WProofreader', 'MathType',
+      'SlashCommand', 'Template', 'DocumentOutline', 'FormatPainter',
+      'TableOfContents', 'PasteFromOfficeEnhanced', 'CaseChange'
+    ]
+  }).then(editor => {
+    editorInstance = editor;
+    window._ntEditorInstance = editor;
+
+    // Word count
+    function updateWordCount() {
+      const text = editor.getData().replace(/<[^>]*>/g, '').trim();
+      const words = text ? text.split(/\s+/).length : 0;
+      document.getElementById('wordCount').textContent = words;
+    }
+    editor.model.document.on('change:data', updateWordCount);
+    updateWordCount();
+
+    // Sync to hidden textarea on form submit
+    document.getElementById('articleForm').addEventListener('submit', function() {
+      document.getElementById('contentHidden').value = editor.getData();
+    });
+  }).catch(err => {
+    console.error('CKEditor init error:', err);
+  });
+
+  // --- Schedule toggle ---
+  function toggleScheduleUI() {
+    var box = document.getElementById('scheduleBox');
+    var sel = document.getElementById('status');
+    if (box && sel) box.style.display = (sel.value === 'scheduled') ? 'block' : 'none';
+  }
+  var statusSel = document.getElementById('status');
+  if (statusSel) {
+    statusSel.addEventListener('change', toggleScheduleUI);
+    toggleScheduleUI();
+  }
+
+  // --- Tag input ---
+  var tagInput = document.getElementById('tagInput');
+  if (tagInput) {
+    tagInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        var val = this.value.trim().replace(/^#/, '');
+        if (!val) return;
+        // Check duplicate
+        var existing = document.querySelectorAll('.tag-chip');
+        for (var i = 0; i < existing.length; i++) {
+          if (existing[i].dataset.name.toLowerCase() === val.toLowerCase()) {
+            this.value = '';
+            return;
+          }
+        }
+        var chip = document.createElement('span');
+        chip.className = 'tag-chip';
+        chip.dataset.name = val;
+        chip.innerHTML = '#' + val + ' <button type="button" onclick="this.parentElement.remove();syncTags()">&times;</button>';
+        document.getElementById('tagContainer').insertBefore(chip, this);
+        this.value = '';
+        syncTags();
+      }
+    });
+  }
+
+  window.syncTags = function() {
+    var chips = document.querySelectorAll('.tag-chip');
+    var names = [];
+    chips.forEach(function(c) { names.push(c.dataset.name); });
+    document.getElementById('tagsHidden').value = names.join(',');
+  };
+
+  // --- Featured image upload preview ---
+  var featuredFile = document.getElementById('featuredFile');
+  if (featuredFile) {
+    featuredFile.addEventListener('change', function() {
+      if (this.files && this.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var preview = document.getElementById('featuredPreview');
+          preview.src = e.target.result;
+          preview.style.display = 'block';
+        };
+        reader.readAsDataURL(this.files[0]);
+      }
+    });
+  }
+
+  // --- Featured image URL preview ---
+  var featuredUrl = document.getElementById('featured_image');
+  if (featuredUrl) {
+    featuredUrl.addEventListener('change', function() {
+      var preview = document.getElementById('featuredPreview');
+      if (this.value) {
+        preview.src = this.value;
+        preview.style.display = 'block';
+      } else {
+        preview.style.display = 'none';
+      }
+    });
+  }
+
+  // --- Media picker modal ---
+  window.openFeaturedPicker = function() {
+    document.getElementById('mediaPickerFrame').src = '{% url "admin_media_picker" %}?mode=featured';
+    document.getElementById('mediaModal').classList.add('active');
+  };
+
+  window.closeMediaModal = function() {
+    document.getElementById('mediaModal').classList.remove('active');
+    document.getElementById('mediaPickerFrame').src = '';
+  };
+
+  // Listen for postMessage from media picker
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'media-selected') {
+      var url = e.data.url;
+      if (e.data.mode === 'featured' || !editorInstance) {
+        document.getElementById('featured_image').value = url;
+        var preview = document.getElementById('featuredPreview');
+        preview.src = url;
+        preview.style.display = 'block';
+      } else {
+        ntInsertImageIntoEditor(editorInstance, url, e.data.alt || '', 'full', 'center', '', '');
+      }
+      closeMediaModal();
+    }
+  });
+})();
+</script>
+{% endblock %}

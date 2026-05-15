@@ -1,0 +1,90 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Newsletter Preview{% endblock %}
+{% block breadcrumb_title %}Newsletter Preview{% endblock %}
+
+{% block admin_css %}
+<style>
+.nt-newsletter-preview-frame {
+  background: #fff;
+  border: 1px solid var(--adm-border);
+  border-radius: 12px;
+  max-width: 640px;
+  margin: 0 auto;
+  overflow: hidden;
+}
+.nt-newsletter-preview-frame iframe {
+  width: 100%;
+  min-height: 600px;
+  border: none;
+}
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <div>
+    <h1>Newsletter Preview</h1>
+    {% if newsletter %}
+    <div class="muted" style="font-size:14px;margin-top:4px">{{ newsletter.subject|default:"Untitled" }}</div>
+    {% endif %}
+  </div>
+  <div style="display:flex;gap:10px">
+    <form method="POST" action="{{ send_test_action|default:'' }}" style="display:inline">
+      {% csrf_token %}
+      <input type="hidden" name="newsletter_id" value="{{ newsletter.id|default:'' }}">
+      <button type="submit" class="btn light" style="padding:10px 24px">Send Test Email</button>
+    </form>
+    <a class="btn" href="{% url 'admin_newsletters' %}" style="padding:10px 24px">Back to Newsletters</a>
+  </div>
+</div>
+
+{% if newsletter %}
+<div class="card" style="padding:20px;margin-bottom:20px;display:flex;gap:24px;flex-wrap:wrap">
+  <div>
+    <div class="muted" style="font-size:13px">Subject</div>
+    <div style="font-size:15px;font-weight:600">{{ newsletter.subject }}</div>
+  </div>
+  <div>
+    <div class="muted" style="font-size:13px">Status</div>
+    <div style="font-size:15px;font-weight:600">{{ newsletter.status|default:"draft" }}</div>
+  </div>
+  <div>
+    <div class="muted" style="font-size:13px">Recipients</div>
+    <div style="font-size:15px;font-weight:600">{{ newsletter.recipient_count|default:"0" }}</div>
+  </div>
+  {% if newsletter.scheduled_at %}
+  <div>
+    <div class="muted" style="font-size:13px">Scheduled For</div>
+    <div style="font-size:15px;font-weight:600">{{ newsletter.scheduled_at|date:"M j, Y g:iA" }}</div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="nt-newsletter-preview-frame">
+  {% if preview_html %}
+  <iframe srcdoc="{{ preview_html|escapejs }}" id="previewIframe"></iframe>
+  {% elif newsletter.html_content %}
+  <iframe srcdoc="{{ newsletter.html_content|escapejs }}" id="previewIframe"></iframe>
+  {% else %}
+  <div style="padding:60px;text-align:center;color:var(--adm-muted)">
+    No preview content available.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block admin_scripts %}
+<script>
+// Auto-resize iframe to content
+var iframe = document.getElementById('previewIframe');
+if (iframe) {
+  iframe.addEventListener('load', function() {
+    try {
+      this.style.height = this.contentDocument.body.scrollHeight + 40 + 'px';
+    } catch(e) {}
+  });
+}
+</script>
+{% endblock %}

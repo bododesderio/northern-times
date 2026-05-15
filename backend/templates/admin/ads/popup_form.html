@@ -1,0 +1,286 @@
+{% extends "admin/layout.html" %}
+{% load static %}
+
+{% block admin_title %}{{ page_title|default:"Edit Popup" }}{% endblock %}
+{% block breadcrumb_title %}{{ page_title|default:"Edit Popup" }}{% endblock %}
+
+{% block admin_css %}
+<link rel="stylesheet" href="https://cdn.ckeditor.com/ckeditor5/43.3.1/ckeditor5.css"/>
+<style>
+.nt-popup-grid {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 28px;
+  align-items: start;
+}
+@media (max-width: 1024px) {
+  .nt-popup-grid { grid-template-columns: 1fr; }
+}
+.nt-popup-preview-panel {
+  position: sticky;
+  top: 20px;
+}
+.nt-popup-preview-frame {
+  background: var(--adm-bg);
+  border: 1px solid var(--adm-border);
+  border-radius: 12px;
+  padding: 24px;
+  min-height: 300px;
+}
+.nt-popup-preview-frame .preview-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--adm-ink);
+}
+.nt-popup-preview-frame .preview-body {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--adm-ink);
+}
+.nt-popup-preview-frame .preview-image {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 12px 0;
+}
+.nt-popup-preview-frame .preview-buttons {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+}
+.nt-popup-preview-frame .preview-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: default;
+}
+.nt-popup-preview-frame .preview-btn.primary {
+  background: #cc0000;
+  color: #fff;
+}
+.nt-popup-preview-frame .preview-btn.secondary {
+  background: var(--adm-border);
+  color: var(--adm-ink);
+}
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<h1 style="margin-bottom:24px">{% if popup.id %}Edit Popup{% else %}New Popup{% endif %}</h1>
+
+<form method="POST" action="{{ form_action|default:'' }}" id="popupForm" enctype="multipart/form-data">
+  {% csrf_token %}
+
+  <div class="nt-popup-grid">
+    {# Left column: form fields #}
+    <div>
+      <div class="card" style="padding:24px;margin-bottom:20px">
+        <h3 style="font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:16px">General</h3>
+
+        <div class="form-group">
+          <label class="form-label">Name <span class="req">*</span></label>
+          <input name="name" id="popupName" required value="{{ popup.name|default:'' }}" class="form-control">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="form-group">
+            <label class="form-label">Type</label>
+            <select name="popup_type" id="popupType" class="form-control">
+              <option value="modal" {% if popup.popup_type == 'modal' %}selected{% endif %}>Modal</option>
+              <option value="banner" {% if popup.popup_type == 'banner' %}selected{% endif %}>Banner</option>
+              <option value="slide_in" {% if popup.popup_type == 'slide_in' %}selected{% endif %}>Slide-in</option>
+              <option value="fullscreen" {% if popup.popup_type == 'fullscreen' %}selected{% endif %}>Fullscreen</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" style="display:flex;align-items:center;gap:10px">
+              <input type="checkbox" name="is_active" id="isActive" {% if popup.is_active %}checked{% endif %} style="width:auto">
+              Active
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:24px;margin-bottom:20px">
+        <h3 style="font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:16px">Content</h3>
+
+        <div class="form-group">
+          <label class="form-label">Title</label>
+          <input name="title" id="popupTitle" value="{{ popup.title|default:'' }}" class="form-control" oninput="updatePreview()">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Body</label>
+          <div id="popupBodyEditor">{{ popup.body|default:'' }}</div>
+          <textarea name="body" id="popupBodyHidden" style="display:none">{{ popup.body|default:'' }}</textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">HTML Content <span style="font-weight:400;color:var(--adm-muted);font-size:13px">(advanced)</span></label>
+          <textarea name="html_content" id="popupHtml" class="form-control" rows="6" style="font-family:monospace;font-size:13px">{{ popup.html_content|default:'' }}</textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Image</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="file" name="image_file" id="popupImageFile" accept="image/*" class="form-control" style="flex:1">
+          </div>
+          <input name="image_url" id="popupImageUrl" value="{{ popup.image_url|default:'' }}" class="form-control" placeholder="Or enter image URL..." style="margin-top:8px" oninput="updatePreview()">
+        </div>
+      </div>
+
+      <div class="card" style="padding:24px;margin-bottom:20px">
+        <h3 style="font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:16px">Buttons</h3>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="form-group">
+            <label class="form-label">Primary Button Text</label>
+            <input name="primary_button_text" id="primaryBtnText" value="{{ popup.primary_button_text|default:'' }}" class="form-control" oninput="updatePreview()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Primary Button URL</label>
+            <input name="primary_button_url" value="{{ popup.primary_button_url|default:'' }}" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Secondary Button Text</label>
+            <input name="secondary_button_text" id="secondaryBtnText" value="{{ popup.secondary_button_text|default:'' }}" class="form-control" oninput="updatePreview()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Secondary Button URL</label>
+            <input name="secondary_button_url" value="{{ popup.secondary_button_url|default:'' }}" class="form-control">
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:24px;margin-bottom:20px">
+        <h3 style="font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:16px">Trigger &amp; Targeting</h3>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="form-group">
+            <label class="form-label">Trigger</label>
+            <select name="trigger_type" class="form-control">
+              <option value="immediate" {% if popup.trigger_type == 'immediate' %}selected{% endif %}>Immediate</option>
+              <option value="exit_intent" {% if popup.trigger_type == 'exit_intent' %}selected{% endif %}>Exit Intent</option>
+              <option value="scroll" {% if popup.trigger_type == 'scroll' %}selected{% endif %}>Scroll %</option>
+              <option value="delay" {% if popup.trigger_type == 'delay' %}selected{% endif %}>Time Delay</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Trigger Value</label>
+            <input name="trigger_value" value="{{ popup.trigger_value|default:'' }}" class="form-control" placeholder="e.g. 50 (%), 5 (seconds)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Device Targeting</label>
+            <select name="device_targeting" class="form-control">
+              <option value="all" {% if popup.device_targeting == 'all' %}selected{% endif %}>All Devices</option>
+              <option value="desktop" {% if popup.device_targeting == 'desktop' %}selected{% endif %}>Desktop Only</option>
+              <option value="mobile" {% if popup.device_targeting == 'mobile' %}selected{% endif %}>Mobile Only</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">A/B Variant</label>
+            <input name="ab_variant" value="{{ popup.ab_variant|default:'' }}" class="form-control" placeholder="e.g. A, B, control">
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:16px;margin-top:8px">
+        <button class="btn" type="submit" style="padding:12px 32px">{% if popup.id %}Update Popup{% else %}Create Popup{% endif %}</button>
+        <a class="btn light" href="{% url 'admin_popups' %}" style="padding:12px 32px">Cancel</a>
+      </div>
+    </div>
+
+    {# Right column: live preview #}
+    <div class="nt-popup-preview-panel">
+      <div class="card" style="padding:20px">
+        <h3 style="font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:16px">Live Preview</h3>
+        <div class="nt-popup-preview-frame" id="previewFrame">
+          <div class="preview-title" id="previewTitle">{{ popup.title|default:'Popup Title' }}</div>
+          <div class="preview-body" id="previewBody">{{ popup.body|default:'Popup content will appear here.' }}</div>
+          {% if popup.image_url %}
+          <img class="preview-image" id="previewImage" src="{{ popup.image_url }}" alt="">
+          {% else %}
+          <img class="preview-image" id="previewImage" src="" alt="" style="display:none">
+          {% endif %}
+          <div class="preview-buttons" id="previewButtons">
+            {% if popup.primary_button_text %}
+            <span class="preview-btn primary" id="previewPrimaryBtn">{{ popup.primary_button_text }}</span>
+            {% endif %}
+            {% if popup.secondary_button_text %}
+            <span class="preview-btn secondary" id="previewSecondaryBtn">{{ popup.secondary_button_text }}</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block admin_scripts %}
+<script src="https://cdn.ckeditor.com/ckeditor5/43.3.1/super-build/ckeditor.js"></script>
+<script>
+(function() {
+  // CKEditor for body
+  var bodyEditorInstance = null;
+  CKEDITOR.ClassicEditor.create(document.getElementById('popupBodyEditor'), {
+    toolbar: {
+      items: ['bold', 'italic', 'link', '|', 'bulletedList', 'numberedList', '|', 'undo', 'redo'],
+      shouldNotGroupWhenFull: false
+    },
+    removePlugins: [
+      'CKBox', 'CKFinder', 'EasyImage', 'RealTimeCollaborativeComments',
+      'RealTimeCollaborativeTrackChanges', 'RealTimeCollaborativeRevisionHistory',
+      'PresenceList', 'Comments', 'TrackChanges', 'TrackChangesData',
+      'RevisionHistory', 'Pagination', 'WProofreader', 'MathType',
+      'SlashCommand', 'Template', 'DocumentOutline', 'FormatPainter',
+      'TableOfContents', 'PasteFromOfficeEnhanced', 'CaseChange'
+    ]
+  }).then(function(editor) {
+    bodyEditorInstance = editor;
+    editor.model.document.on('change:data', function() {
+      updatePreview();
+    });
+  }).catch(function(err) { console.error('CKEditor popup body init error:', err); });
+
+  // Sync body on submit
+  document.getElementById('popupForm').addEventListener('submit', function() {
+    if (bodyEditorInstance) {
+      document.getElementById('popupBodyHidden').value = bodyEditorInstance.getData();
+    }
+  });
+
+  // Live preview update
+  window.updatePreview = function() {
+    var title = document.getElementById('popupTitle').value || 'Popup Title';
+    var previewTitle = document.getElementById('previewTitle');
+    if (previewTitle) previewTitle.textContent = title;
+
+    if (bodyEditorInstance) {
+      var previewBody = document.getElementById('previewBody');
+      if (previewBody) previewBody.innerHTML = bodyEditorInstance.getData() || 'Popup content will appear here.';
+    }
+
+    var imgUrl = document.getElementById('popupImageUrl').value;
+    var previewImg = document.getElementById('previewImage');
+    if (previewImg) {
+      if (imgUrl) { previewImg.src = imgUrl; previewImg.style.display = 'block'; }
+      else { previewImg.style.display = 'none'; }
+    }
+
+    var primaryText = document.getElementById('primaryBtnText').value;
+    var secondaryText = document.getElementById('secondaryBtnText').value;
+    var btnContainer = document.getElementById('previewButtons');
+    if (btnContainer) {
+      var html = '';
+      if (primaryText) html += '<span class="preview-btn primary">' + primaryText + '</span>';
+      if (secondaryText) html += '<span class="preview-btn secondary">' + secondaryText + '</span>';
+      btnContainer.innerHTML = html;
+    }
+  };
+})();
+</script>
+{% endblock %}

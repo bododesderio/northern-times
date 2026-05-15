@@ -1,0 +1,695 @@
+{% extends "frontend/layout.html" %}
+{% load core_tags %}
+
+{% block content %}
+
+<article class="article" itemscope itemtype="https://schema.org/NewsArticle">
+
+  <!-- Full-Bleed Hero -->
+  {% if article.featured_image %}
+  <div class="np-hero">
+    <div class="np-hero-image">
+      <img src="{{ article.featured_image }}" alt="{{ article.title }}" loading="eager" fetchpriority="high" />
+    </div>
+    <div class="np-hero-overlay">
+      <div class="np-hero-content">
+        {% if article.category_slug %}
+          <a href="{% url 'articles_frontend:category' slug=article.category_slug %}" class="np-badge-feature">{{ article.category }}</a>
+        {% endif %}
+        <h1 class="np-hero-title" itemprop="headline">{{ article.title }}</h1>
+        <div class="np-hero-meta">
+          <div class="np-hero-meta-inner">
+            <div class="np-hero-author">
+              <span itemprop="author" itemscope itemtype="https://schema.org/Person">
+                <span itemprop="name">{{ author_name }}</span>
+              </span>
+              {% if article.is_crawled and article.source_name %}
+                <span class="np-hero-role">via {{ article.source_name }}</span>
+              {% endif %}
+            </div>
+            <div class="np-hero-date">
+              <time datetime="{{ article.published_at|date:'c' }}" itemprop="datePublished" title="{{ pub_date }}{% if pub_time %} at {{ pub_time }}{% endif %}">
+                {{ pub_date }}
+              </time>
+              <span class="dot">&middot;</span>
+              <span>{{ read_mins }} min read</span>
+            </div>
+          </div>
+        </div>
+        <div class="np-hero-share">
+          {% share_buttons article_url article.title article.excerpt %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <!-- No hero image fallback -->
+  <header class="np-header-no-hero">
+    {% if article.category_slug %}
+      <a href="{% url 'articles_frontend:category' slug=article.category_slug %}" class="np-badge-feature">{{ article.category }}</a>
+    {% endif %}
+    <h1 class="np-hero-title" itemprop="headline">{{ article.title }}</h1>
+    <div class="np-hero-meta">
+      <div class="np-hero-meta-inner">
+        <div class="np-hero-author">
+          <span itemprop="author" itemscope itemtype="https://schema.org/Person">
+            {% if not article.is_crawled and author.username %}
+              <a href="{% url 'articles_frontend:author' username=author.username %}" class="np-hero-author-link" itemprop="url">
+                <span itemprop="name">{{ author_name }}</span>
+              </a>
+            {% else %}
+              <span itemprop="name">{{ author_name }}</span>
+            {% endif %}
+          </span>
+          {% if article.is_crawled and article.source_url %}
+            <button
+              class="src-info-btn"
+              type="button"
+              aria-label="View original source"
+              data-src-url="{{ article.source_url }}"
+              data-src-name="{{ article.source_name|default:'Original article' }}"
+              data-tip="View original source"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            </button>
+          {% endif %}
+          <span class="np-hero-role">{{ author_role }}</span>
+        </div>
+        <div class="np-hero-date">
+          <time datetime="{{ article.published_at|date:'c' }}" itemprop="datePublished" title="{{ pub_date }}{% if pub_time %} at {{ pub_time }}{% endif %}">
+            {{ pub_date }}
+          </time>
+          {% if article.published_at %}
+            {% if time_ago_label %}
+            <span class="np-time-ago">({{ time_ago_label }})</span>
+            {% endif %}
+          {% endif %}
+          <span class="dot">&middot;</span>
+          <span>{{ read_mins }} min read</span>
+          {% if article.views > 50 %}
+            <span class="dot">&middot;</span>
+            <span>{{ article.views|floatformat:"0g" }} views</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </header>
+  {% endif %}
+
+  <!-- Excerpt -->
+  {% if article.excerpt %}
+  <div class="article-excerpt">
+    <p>{{ article.excerpt }}</p>
+  </div>
+  {% endif %}
+
+  <!-- Article Layout -->
+  <div class="np-article-layout">
+
+    <!-- Article Body -->
+    <div class="np-article-center">
+
+      <div class="article-body np-article-body np-drop-cap" itemprop="articleBody">
+        {{ article_content|safe }}
+      </div>
+
+      <!-- Tag Pills -->
+      {% if article_tags %}
+      <div class="np-article-tags">
+        <span class="np-tags-label">Tags</span>
+        {% for t in article_tags %}
+          <a href="{% url 'articles_frontend:tag' slug=t.slug %}" class="article-tag-pill">#{{ t.name }}</a>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <footer class="np-article-footer">
+        {% share_buttons article_url article.title article.excerpt %}
+      </footer>
+
+      {% render_ad ads 'below-article' 'ad-below-article' %}
+
+      <!-- Author Card -->
+      <div class="np-author-card">
+        <div class="np-cat-tag">About the Author</div>
+        <div class="np-author-card-top">
+          <div class="np-author-card-avatar">
+            {% if author.avatar_url %}
+              <img src="{{ author.avatar_url }}" alt="{{ author_name }}" loading="lazy" decoding="async" />
+            {% else %}
+              <div class="np-avatar-initials">{{ author_name|first|upper }}</div>
+            {% endif %}
+          </div>
+          <div class="np-author-card-info">
+            {% if author.username %}
+              <a href="{% url 'articles_frontend:author' username=author.username %}" class="np-author-card-name">{{ author_name }}</a>
+            {% else %}
+              <span class="np-author-card-name">{{ author_name }}</span>
+            {% endif %}
+            <span class="np-author-card-role">{{ author_role }}</span>
+          </div>
+        </div>
+
+        {% if author.bio %}
+          <div class="np-author-card-bio"><p>{{ author.bio }}</p></div>
+        {% endif %}
+
+        {% if author.twitter_handle or author.facebook_url or author.instagram_handle or author.linkedin_url or author.whatsapp_number or author.website_url %}
+          <div class="np-author-card-socials">
+            {% if author.twitter_handle %}
+              <a href="https://twitter.com/{{ author.twitter_handle }}" target="_blank" rel="noopener" class="np-social-icon" title="@{{ author.twitter_handle }}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              </a>
+            {% endif %}
+            {% if author.facebook_url %}
+              <a href="{{ author.facebook_url }}" target="_blank" rel="noopener" class="np-social-icon" title="Facebook">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+              </a>
+            {% endif %}
+            {% if author.instagram_handle %}
+              <a href="https://instagram.com/{{ author.instagram_handle }}" target="_blank" rel="noopener" class="np-social-icon" title="@{{ author.instagram_handle }}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+              </a>
+            {% endif %}
+            {% if author.linkedin_url %}
+              <a href="{{ author.linkedin_url }}" target="_blank" rel="noopener" class="np-social-icon" title="LinkedIn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+              </a>
+            {% endif %}
+            {% if author.whatsapp_number %}
+              <a href="https://wa.me/{{ author.whatsapp_number }}" target="_blank" rel="noopener" class="np-social-icon" title="WhatsApp">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+              </a>
+            {% endif %}
+            {% if author.website_url %}
+              <a href="{{ author.website_url }}" target="_blank" rel="noopener" class="np-social-icon" title="{{ author.website_url }}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              </a>
+            {% endif %}
+          </div>
+        {% endif %}
+
+        {% if author.username and not article.is_crawled %}
+          <div class="np-author-card-more">
+            <a href="{% url 'articles_frontend:author' username=author.username %}">
+              View all articles by {{ author_name }}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </a>
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Story Thread -->
+      {% if thread_articles %}
+        <div class="thread-banner">
+          <div class="thread-label">More in this story</div>
+          <div class="thread-links">
+            {% for t in thread_articles %}
+              <a href="{% url 'articles_frontend:article' slug=t.slug %}">
+                {{ t.title }}
+                {% if t.published_at %}
+                  <span class="muted tiny">{{ t.published_at|date:"M j" }}</span>
+                {% endif %}
+              </a>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Comments Section -->
+      <div class="np-comments-section">
+        <h3 class="np-comments-heading">
+          {% if comments %}
+            {{ comments|length }} Comment{{ comments|length|pluralize }}
+          {% else %}
+            Join the Conversation
+          {% endif %}
+        </h3>
+
+        <!-- Existing comments -->
+        {% if comments %}
+          <div id="commentsList">
+            {% for c in comments %}
+              <div class="comment-item np-comment-item">
+                <div class="np-comment-avatar">
+                  {{ c.author_name|default:"A"|first|upper }}
+                </div>
+                <div class="np-comment-body">
+                  <div class="np-comment-meta">
+                    <strong>{{ c.author_name|default:"Anonymous" }}</strong>
+                    {% if c.created_at %}
+                      <span class="np-comment-time">{{ c.created_at|date:"M j, Y \a\t g:i A" }}</span>
+                    {% endif %}
+                  </div>
+                  <div class="np-comment-text">
+                    {{ c.content|linebreaksbr }}
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div id="commentsList"></div>
+          <p class="np-no-comments" id="noCommentsMsg">Be the first to comment on this article.</p>
+        {% endif %}
+
+        <!-- Comment form -->
+        <div id="commentForm" class="np-comment-form">
+          <div class="np-comment-form-heading">Leave a Comment</div>
+          <div class="np-comment-form-grid">
+            <div>
+              <label class="np-form-label">Name <span class="np-required">*</span></label>
+              <input type="text" id="commentName" class="np-form-input" placeholder="Your name" required maxlength="100" />
+            </div>
+            <div>
+              <label class="np-form-label">Email <span class="np-form-optional">(optional, not shown)</span></label>
+              <input type="email" id="commentEmail" class="np-form-input" placeholder="your@email.com" maxlength="255" />
+            </div>
+          </div>
+          <div class="np-comment-form-textarea">
+            <label class="np-form-label">Comment <span class="np-required">*</span></label>
+            <textarea id="commentBody" class="np-form-input" rows="4" placeholder="Share your thoughts..." required maxlength="5000"></textarea>
+          </div>
+          <div class="np-comment-form-actions">
+            <label class="np-subscribe-label">
+              <input type="checkbox" id="commentSubscribe" class="np-checkbox" />
+              Subscribe me to the newsletter
+            </label>
+            <button type="button" id="commentSubmitBtn" class="np-comment-submit">
+              Post Comment
+            </button>
+            <span id="commentStatus" class="np-comment-status" style="display:none"></span>
+          </div>
+        </div>
+      </div>
+    </div><!-- /np-article-center -->
+
+    <!-- Related Sidebar (right, desktop) -->
+    <aside class="np-related-sidebar">
+      <div class="np-related-sidebar-inner">
+        {% render_ad ads 'article-sidebar' 'ad-sidebar-slot' %}
+        {% if related %}
+        <div class="np-cat-tag np-related-heading">Related Analysis</div>
+        {% for r in related|slice:":4" %}
+          <a class="np-related-card" href="{% url 'articles_frontend:article' slug=r.slug %}">
+            {% if r.featured_image %}
+              <div class="np-related-thumb">
+                <img src="{{ r.featured_image|thumbnail_url }}" alt="{{ r.title }}" loading="lazy" decoding="async" />
+              </div>
+            {% else %}
+              <div class="np-related-placeholder">{{ site_abbr }}</div>
+            {% endif %}
+            {% if r.category %}
+              <span class="np-related-cat">{{ r.category }}</span>
+            {% endif %}
+            <span class="np-related-title">{{ r.title }}</span>
+          </a>
+        {% endfor %}
+        {% endif %}
+
+        <!-- Newsletter CTA -->
+        <div class="np-newsletter-cta">
+          <div class="np-newsletter-title">Stay Informed</div>
+          <p class="np-newsletter-desc">Get the latest analysis and breaking stories delivered to your inbox.</p>
+          <form class="np-newsletter-form" data-newsletter-form>
+            {% csrf_token %}
+            <input type="email" name="email" class="np-newsletter-input" placeholder="your@email.com" required />
+            <button type="submit" class="np-newsletter-btn">Subscribe</button>
+          </form>
+          <div class="np-newsletter-msg" style="font-size:13px;margin-top:6px;"></div>
+        </div>
+        {% render_ad ads 'sidebar' 'ad-sidebar-slot' %}
+      </div>
+    </aside>
+
+  </div><!-- /np-article-layout -->
+
+</article>
+
+{% if article.is_crawled and article.source_url %}
+<style>
+.src-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--np-text-low);
+  vertical-align: middle;
+  margin-left: 4px;
+  transition: color .15s, transform .15s;
+  flex-shrink: 0;
+}
+.src-info-btn:hover { color: var(--np-accent); transform: scale(1.15); }
+.src-popup-overlay {
+  position: fixed; inset: 0; z-index: 8000;
+  display: none;
+}
+.src-popup-overlay.open { display: block; }
+.src-popup {
+  position: fixed;
+  background: var(--np-surface-1);
+  border: 1px solid var(--np-border);
+  box-shadow: 0 8px 32px rgba(0,0,0,.4);
+  padding: 14px 16px;
+  max-width: 300px;
+  width: max-content;
+  z-index: 8001;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--np-text-high);
+  animation: srcPopIn .15s ease both;
+}
+@keyframes srcPopIn {
+  from { opacity:0; transform: translateY(-4px) scale(.97); }
+  to   { opacity:1; transform: translateY(0) scale(1); }
+}
+.src-popup-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--np-text-low);
+  margin-bottom: 6px;
+}
+.src-popup-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--np-accent);
+  font-weight: 600;
+  text-decoration: none;
+  word-break: break-all;
+}
+.src-popup-link:hover { text-decoration: underline; }
+.src-popup-link svg { width: 12px; height: 12px; flex-shrink: 0; }
+</style>
+
+<div class="src-popup-overlay" id="srcPopupOverlay"></div>
+<div class="src-popup" id="srcPopup" style="display:none" role="tooltip">
+  <div class="src-popup-label">Original Source</div>
+  <a class="src-popup-link" id="srcPopupLink" href="{{ article.source_url }}" target="_blank" rel="nofollow noopener">
+    {{ article.source_name|default:article.source_url }}
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+    </svg>
+  </a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if article.is_crawled and article.source_url %}
+<script>
+(function () {
+  'use strict';
+  var btn      = document.querySelector('.src-info-btn');
+  var overlay  = document.getElementById('srcPopupOverlay');
+  var popup    = document.getElementById('srcPopup');
+  if (!btn || !popup) return;
+
+  var open = false;
+
+  function openPopup() {
+    var rect = btn.getBoundingClientRect();
+    var top  = rect.bottom + window.scrollY + 6;
+    var left = rect.left + window.scrollX;
+
+    popup.style.display = 'block';
+    popup.style.top  = top + 'px';
+    popup.style.left = left + 'px';
+
+    var popW = popup.offsetWidth;
+    if (left + popW > window.innerWidth - 16) {
+      popup.style.left = Math.max(8, window.innerWidth - popW - 16) + 'px';
+    }
+
+    overlay.classList.add('open');
+    open = true;
+  }
+
+  function closePopup() {
+    popup.style.display = 'none';
+    overlay.classList.remove('open');
+    open = false;
+  }
+
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    open ? closePopup() : openPopup();
+  });
+
+  overlay.addEventListener('click', closePopup);
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && open) closePopup();
+  });
+
+  window.addEventListener('scroll', function () { if (open) closePopup(); }, { passive: true });
+  window.addEventListener('resize', function () { if (open) closePopup(); }, { passive: true });
+})();
+</script>
+{% endif %}
+
+<!-- Comment submission JS -->
+<script>
+(function() {
+  var articleId = '{{ article.id }}';
+  var submitBtn = document.getElementById('commentSubmitBtn');
+  var statusEl  = document.getElementById('commentStatus');
+  var listEl    = document.getElementById('commentsList');
+  var noMsg     = document.getElementById('noCommentsMsg');
+
+  if (!submitBtn) return;
+
+  submitBtn.addEventListener('click', function() {
+    var name  = document.getElementById('commentName').value.trim();
+    var email = document.getElementById('commentEmail').value.trim();
+    var body  = document.getElementById('commentBody').value.trim();
+
+    if (!name || !body) {
+      statusEl.style.display = 'inline';
+      statusEl.style.color = '#D32F2F';
+      statusEl.textContent = 'Name and comment are required.';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.6';
+    statusEl.style.display = 'inline';
+    statusEl.style.color = 'var(--np-text-low)';
+    statusEl.textContent = 'Posting...';
+
+    var csrfMeta = document.querySelector('meta[name="x-csrf-token"]');
+    var csrfToken = csrfMeta ? csrfMeta.content : '';
+    fetch('/api/comment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'article_id=' + encodeURIComponent(articleId)
+          + '&author_name=' + encodeURIComponent(name)
+          + '&author_email=' + encodeURIComponent(email)
+          + '&content=' + encodeURIComponent(body)
+          + '&subscribe_newsletter=' + (document.getElementById('commentSubscribe').checked ? '1' : '0')
+          + '&_csrf=' + encodeURIComponent(csrfToken)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+
+      if (data.ok) {
+        statusEl.style.color = '#4caf50';
+        statusEl.textContent = 'Comment posted!';
+
+        if (noMsg) noMsg.style.display = 'none';
+        var c = data.comment;
+        var initial = (c.author_name || 'A').charAt(0).toUpperCase();
+        function escComment(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+        var safeName = escComment(c.author_name || 'Anonymous');
+        var safeContent = escComment(c.content || '').replace(/\n/g, '<br>');
+        var safeTime = escComment(c.time_label || '');
+        var html = '<div class="comment-item np-comment-item">'
+          + '<div class="np-comment-avatar">' + initial + '</div>'
+          + '<div class="np-comment-body">'
+          + '<div class="np-comment-meta"><strong>' + safeName + '</strong><span class="np-comment-time">' + safeTime + '</span></div>'
+          + '<div class="np-comment-text">' + safeContent + '</div>'
+          + '</div></div>';
+        listEl.insertAdjacentHTML('beforeend', html);
+
+        document.getElementById('commentBody').value = '';
+        setTimeout(function() { statusEl.style.display = 'none'; }, 3000);
+
+        var heading = document.querySelector('.np-comments-heading');
+        var items = listEl.querySelectorAll('.comment-item');
+        if (heading && items.length) {
+          heading.textContent = items.length + ' Comment' + (items.length !== 1 ? 's' : '');
+        }
+      } else {
+        statusEl.style.color = '#c00';
+        statusEl.textContent = data.message || 'Failed to post comment.';
+      }
+    })
+    .catch(function() {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+      statusEl.style.color = '#c00';
+      statusEl.textContent = 'Network error. Please try again.';
+    });
+  });
+})();
+</script>
+
+<!-- Copy link handler -->
+<script>
+document.querySelectorAll('.share-copy-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var url = this.getAttribute('data-url');
+    var el = this;
+    var originalHTML = el.innerHTML;
+    navigator.clipboard.writeText(url).then(function() {
+      el.textContent = 'Copied!';
+      setTimeout(function() { el.innerHTML = originalHTML; }, 1500);
+    }).catch(function() {
+      var ta = document.createElement('textarea');
+      ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+      document.body.removeChild(ta);
+      el.textContent = 'Copied!';
+      setTimeout(function() { el.innerHTML = originalHTML; }, 1500);
+    });
+  });
+});
+</script>
+
+<!-- JSON-LD -->
+{% if article_ld_json %}
+<script type="application/ld+json">{{ article_ld_json|safe }}</script>
+{% endif %}
+
+<script>
+(function() {
+  // Bookmark logic
+  var KEY = 'nt_bookmarks';
+  function getBookmarks() {
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch(e) { return []; }
+  }
+  function saveBookmarks(bm) {
+    try { localStorage.setItem(KEY, JSON.stringify(bm)); } catch(e) {}
+  }
+
+  document.querySelectorAll('.bookmark-btn').forEach(function(btn) {
+    var slug = btn.getAttribute('data-slug');
+
+    function isBookmarked() {
+      return getBookmarks().some(function(b) { return b.slug === slug; });
+    }
+    function updateUI() {
+      var icon = btn.querySelector('.bookmark-icon');
+      if (isBookmarked()) {
+        btn.classList.add('saved');
+        btn.title = 'Remove from saved';
+        if (icon) icon.setAttribute('fill', 'currentColor');
+      } else {
+        btn.classList.remove('saved');
+        btn.title = 'Save for later';
+        if (icon) icon.setAttribute('fill', 'none');
+      }
+    }
+    btn.addEventListener('click', function() {
+      var bm = getBookmarks();
+      if (isBookmarked()) {
+        bm = bm.filter(function(b) { return b.slug !== slug; });
+      } else {
+        bm.unshift({
+          slug: slug,
+          title: btn.getAttribute('data-title'),
+          image: btn.getAttribute('data-image'),
+          category: btn.getAttribute('data-category'),
+          date: btn.getAttribute('data-date'),
+          savedAt: new Date().toISOString()
+        });
+        if (bm.length > 50) bm = bm.slice(0, 50);
+      }
+      saveBookmarks(bm);
+      document.querySelectorAll('.bookmark-btn').forEach(function(b) {
+        if (b.getAttribute('data-slug') === slug) {
+          if (isBookmarked()) { b.classList.add('saved'); b.title = 'Remove from saved'; var i = b.querySelector('.bookmark-icon'); if(i) i.setAttribute('fill','currentColor'); }
+          else { b.classList.remove('saved'); b.title = 'Save for later'; var i = b.querySelector('.bookmark-icon'); if(i) i.setAttribute('fill','none'); }
+        }
+      });
+      updateUI();
+    });
+    updateUI();
+  });
+
+})();
+</script>
+
+<script>
+(function() {
+  var articleId = '{{ article.id }}';
+  if (!articleId) return;
+
+  // Share tracking
+  document.querySelectorAll('.share-btn, [data-share]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var platform = btn.getAttribute('data-share') || btn.getAttribute('data-platform') || 'unknown';
+      try {
+        navigator.sendBeacon('/api/share-track', JSON.stringify({article_id: articleId, platform: platform}));
+      } catch(e) {}
+    });
+  });
+
+  // Engagement tracking
+  var maxScroll = 0;
+  var startTime = Date.now();
+  var tracked = false;
+
+  function getScrollPct() {
+    var docH = document.documentElement.scrollHeight - window.innerHeight;
+    if (docH <= 0) return 100;
+    return Math.round((window.scrollY / docH) * 100);
+  }
+
+  window.addEventListener('scroll', function() {
+    var pct = getScrollPct();
+    if (pct > maxScroll) maxScroll = pct;
+  }, {passive: true});
+
+  function sendEngagement() {
+    if (tracked) return;
+    tracked = true;
+    var timeOnPage = Math.round((Date.now() - startTime) / 1000);
+    try {
+      navigator.sendBeacon('/api/engagement', JSON.stringify({
+        article_id: articleId,
+        scroll_depth: maxScroll,
+        time_on_page: timeOnPage
+      }));
+    } catch(e) {}
+  }
+
+  window.addEventListener('beforeunload', sendEngagement);
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') sendEngagement();
+  });
+  setTimeout(sendEngagement, 300000);
+})();
+</script>
+
+<button class="scroll-top" id="scrollTopBtn" data-tip="Back to top" aria-label="Scroll to top">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+<script>
+(function(){
+  const btn = document.getElementById('scrollTopBtn');
+  if (!btn) return;
+  window.addEventListener('scroll', () => btn.classList.toggle('visible', scrollY > 400), {passive:true});
+  btn.addEventListener('click', () => window.scrollTo({top:0,behavior:'smooth'}));
+})();
+</script>
+{% endblock %}

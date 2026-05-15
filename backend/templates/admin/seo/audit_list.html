@@ -1,0 +1,55 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}SEO Audits{% endblock %}
+{% block breadcrumb_title %}SEO Audits{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <h1>SEO Audits</h1>
+  <form method="POST" action="{{ run_audit_action|default:'' }}">
+    {% csrf_token %}
+    <button type="submit" class="btn" style="padding:10px 24px">Run New Audit</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Score</th>
+          <th>Issues</th>
+          <th>Pages Scanned</th>
+          <th>Duration</th>
+          <th>Date</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for audit in audits %}
+        <tr>
+          <td><strong>{{ audit.id }}</strong></td>
+          <td>
+            <span style="font-weight:700;color:{% if audit.score >= 80 %}#16a34a{% elif audit.score >= 50 %}#d97706{% else %}#dc2626{% endif %}">
+              {{ audit.score|default:"--" }}
+            </span>
+          </td>
+          <td>{{ audit.issues_count|default:"0" }}</td>
+          <td>{{ audit.pages_scanned|default:"0" }}</td>
+          <td class="muted">{{ audit.duration_seconds|default:"0" }}s</td>
+          <td class="muted" style="font-size:13px;white-space:nowrap">{{ audit.created_at|date:"M j, Y g:iA" }}</td>
+          <td>
+            <a href="{% url 'admin_seo_audit_detail' pk=audit.id %}" class="btn light xs">View</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="muted" style="text-align:center;padding:40px">No audits run yet. Click "Run New Audit" to start.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

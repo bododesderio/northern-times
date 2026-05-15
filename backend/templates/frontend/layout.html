@@ -1,0 +1,575 @@
+{% load static core_tags %}
+<!doctype html>
+<html lang="en" data-theme="{% site_setting 'theme_mode' 'system' %}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>{% block title %}{{ meta.title|default:site_name }}{% endblock %}</title>
+  <meta name="description"  content="{% block meta_description %}{{ meta.description|default:site_tagline }}{% endblock %}" />
+  <meta name="robots"       content="index,follow,max-image-preview:large" />
+  <link rel="canonical"     href="{% block canonical %}{{ meta.canonical|default:app_url }}{% endblock %}" />
+
+  <!-- Security meta tags -->
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+  <!-- Favicon -->
+  {% if favicon_url %}
+    <link rel="icon"             type="{{ favicon_mime }}" href="{{ favicon_url }}" />
+    <link rel="apple-touch-icon"                           href="{{ favicon_url }}" />
+  {% else %}
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/icon.svg' %}" />
+    <link rel="apple-touch-icon" href="{% static 'images/icon.svg' %}" />
+  {% endif %}
+
+  <!-- Open Graph -->
+  <meta property="og:site_name"   content="{{ site_name }}" />
+  <meta property="og:title"       content="{{ meta.title|default:site_name }}" />
+  <meta property="og:description" content="{{ meta.description|default:site_tagline }}" />
+  <meta property="og:type"        content="{{ meta.type|default:'website' }}" />
+  <meta property="og:url"         content="{{ meta.canonical|default:app_url }}" />
+  <meta property="og:image"       content="{{ meta.og_image|default:og_default_image }}" />
+  <meta property="og:locale"      content="{% site_setting 'og_locale' 'en_US' %}" />
+
+  {% if meta.published_time %}
+    <meta property="article:published_time" content="{{ meta.published_time }}" />
+  {% endif %}
+  {% if meta.modified_time %}
+    <meta property="article:modified_time"  content="{{ meta.modified_time }}" />
+  {% endif %}
+  {% if meta.section %}
+    <meta property="article:section"        content="{{ meta.section }}" />
+  {% endif %}
+  {% if meta.tags %}
+    {% for t in meta.tags %}
+      <meta property="article:tag" content="{{ t }}" />
+    {% endfor %}
+  {% endif %}
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card"        content="summary_large_image" />
+  {% if twitter_handle %}<meta name="twitter:site" content="{{ twitter_handle }}" />{% endif %}
+  <meta name="twitter:title"       content="{{ meta.title|default:site_name }}" />
+  <meta name="twitter:description" content="{{ meta.description|default:site_tagline }}" />
+  <meta name="twitter:image"       content="{{ meta.og_image|default:og_default_image }}" />
+
+  <!-- Feeds -->
+  <link rel="alternate" type="application/rss+xml" title="{{ site_name }} RSS" href="/rss.xml" />
+
+  <!-- App config -->
+  <meta name="theme-color"  content="{% site_setting 'theme_accent' '#0c0a09' %}" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="x-csrf-token" content="{{ csrf_token }}" />
+  <meta name="x-app-url"    content="{{ app_url }}" />
+
+  <!-- Fonts -->
+  <link rel="stylesheet" href="{% static 'fonts/fonts.css' %}" />
+
+  <!-- Theme CSS variables -->
+  {% theme_css %}
+
+  <!-- Main stylesheet -->
+  <link rel="preload" href="{% static 'css/app.css' %}" as="style" />
+  <link rel="stylesheet" href="{% static 'css/app.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/responsive.css' %}" />
+
+  <!-- Article image styles -->
+  <link rel="stylesheet" href="{% static 'css/article.css' %}" />
+
+  <!-- Dark mode -->
+  <link rel="stylesheet" href="{% static 'css/dark-mode.css' %}" />
+  <script src="{% static 'js/dark-mode.js' %}"></script>
+
+  <!-- Popups -->
+  <link rel="stylesheet" href="{% static 'css/popups.css' %}" />
+
+  <!-- Critical inline styles -->
+  <style>
+    html,body{background:var(--color-bg-primary,#0c0a09);color:var(--color-text-primary,#fafafa)}
+    html:not(.dark) body{background:var(--color-bg-primary,#fafaf9);color:var(--color-text-primary,#1c1917)}
+    .skip{position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden}
+    .skip:focus{left:18px;top:18px;width:auto;height:auto;background:var(--np-surface-1,#1c1917);border:1px solid var(--np-border,#292524);padding:10px 12px;z-index:99999}
+    .header-logo{max-height:40px;width:auto;display:block}
+    .header-title{font-family:'Newsreader',Georgia,serif;font-size:24px;font-weight:900;line-height:1;text-transform:uppercase;letter-spacing:-.03em}
+    img{max-width:100%;height:auto}
+    img[loading="lazy"]{content-visibility:auto}
+    .img-placeholder{background:linear-gradient(110deg,var(--np-surface-1,#1c1917) 8%,var(--np-surface-2,#282a2b) 18%,var(--np-surface-1,#1c1917) 33%);background-size:200% 100%;animation:shimmer 1.5s linear infinite}
+    @keyframes shimmer{to{background-position:-200% 0}}
+    @media(max-width:767px){.ad-desktop-only{display:none!important}}
+    @media(min-width:768px){.ad-mobile-only{display:none!important}}
+  </style>
+
+  <!-- JSON-LD structured data -->
+  {{ ld_website_json|json_script:"ld-website" }}
+  {{ ld_org_json|json_script:"ld-org" }}
+  {% if ld_article_json %}
+    {{ ld_article_json|json_script:"ld-article" }}
+  {% endif %}
+  <script>
+    // Move JSON-LD from script[type=application/json] to ld+json
+    document.querySelectorAll('#ld-website,#ld-org,#ld-article').forEach(function(el){
+      if(!el) return;
+      var s=document.createElement('script');
+      s.type='application/ld+json';
+      s.textContent=el.textContent;
+      el.parentNode.replaceChild(s,el);
+    });
+  </script>
+
+  {% if push_enabled and push_vapid_public %}
+  <meta name="vapid-public-key" content="{{ push_vapid_public }}">
+  <meta name="site-title" content="{{ site_name }}">
+  <script src="{% static 'js/push-prompt.js' %}" defer></script>
+  {% endif %}
+  {% if analytics_id %}
+  <script async src="https://www.googletagmanager.com/gtag/js?id={{ analytics_id }}"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','{{ analytics_id }}');</script>
+  {% endif %}
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<!-- Reading progress bar -->
+<div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
+
+<a class="skip" href="#content">Skip to content</a>
+
+<header class="site-header" id="siteHeader">
+  <!-- Tier 1: Utility bar -->
+  <div class="header-utility">
+    <div class="header-utility-inner container">
+      <div class="header-utility-left">
+        <time class="header-date" id="headerDate"></time>
+        <span class="header-dot">&middot;</span>
+        <span class="header-edition">{% site_setting 'edition_label' 'East Africa Edition' %}</span>
+      </div>
+      <div class="header-utility-right">
+        <a href="#newsletter" class="header-util-link">Newsletter</a>
+        <a href="{% url 'articles_frontend:contact' %}" class="header-util-link">Tips</a>
+        <a href="/rss.xml" class="header-util-link">RSS</a>
+        <div class="header-util-social">
+          {% site_setting 'social_twitter' '' as sx %} {% if sx %}<a href="{{ sx }}" target="_blank" rel="noopener" aria-label="X"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>{% endif %}
+          {% site_setting 'social_facebook' '' as sfb %} {% if sfb %}<a href="{{ sfb }}" target="_blank" rel="noopener" aria-label="Facebook"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>{% endif %}
+          {% site_setting 'social_instagram' '' as sig %} {% if sig %}<a href="{{ sig }}" target="_blank" rel="noopener" aria-label="Instagram"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tier 2: Masthead -->
+  <div class="header-masthead">
+    <div class="header-masthead-inner container">
+      <div class="header-masthead-side">
+        <button class="burger" id="openDrawer" type="button" aria-label="Open menu" aria-controls="drawer" aria-expanded="false">
+          <span class="burger-lines" aria-hidden="true"><span></span><span></span><span></span></span>
+        </button>
+      </div>
+      <a class="header-brand" href="/">
+        {% if site_logo_url %}
+          <img src="{{ site_logo_url }}" alt="{{ site_name }}" class="header-logo" fetchpriority="high" decoding="async" />
+        {% else %}
+          <span class="header-title">{{ site_name }}</span>
+        {% endif %}
+      </a>
+      <div class="header-masthead-side header-masthead-right">
+        <button type="button" class="header-icon-btn" id="searchToggle" aria-label="Toggle search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        </button>
+        <a href="{% url 'admin_login' %}" class="header-subscribe-btn">Sign In</a>
+      </div>
+    </div>
+    <div class="header-accent-rule"></div>
+  </div>
+
+  <!-- Tier 3: Category nav (sticks on scroll) -->
+  <nav class="header-nav-bar" id="headerNavBar" aria-label="Primary">
+    <div class="header-nav-inner container">
+      {% for cat in nav_categories|slice:":8" %}
+        {% url 'articles_frontend:category' slug=cat.slug as cat_url %}
+        <a href="{{ cat_url }}" class="header-nav-link{% if request.path == cat_url %} active{% endif %}">{{ cat.name }}</a>
+      {% endfor %}
+    </div>
+  </nav>
+
+  <!-- Expandable search bar (mobile) -->
+  <div class="search-expand" id="searchExpand" hidden>
+    <form class="search-expand-inner container" action="{% url 'articles_frontend:search' %}" method="GET" role="search">
+      <input type="search" name="q" placeholder="Search {{ site_name }}..." value="{{ q|default:'' }}" autofocus />
+      <button type="submit" aria-label="Search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      </button>
+      <button type="button" class="search-close" id="searchClose" aria-label="Close search">&times;</button>
+    </form>
+  </div>
+</header>
+
+{% block ticker %}{% endblock %}
+
+<!-- Editorial sidebar (desktop only) -->
+<aside class="editorial-sidebar" id="editorialSidebar">
+  <div class="sidebar-brand">
+    <h3 class="sidebar-edition-label">EDITORIAL</h3>
+    <p class="sidebar-edition-sub">Global Edition</p>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="/" class="sidebar-nav-item{% if request.path == '/' %} active{% endif %}">
+      <span class="sidebar-nav-label">Home</span>
+    </a>
+    <div class="sidebar-section-title">Categories</div>
+    {% for cat in sidebar_categories %}
+      {% url 'articles_frontend:category' slug=cat.slug as cat_url %}
+      <a href="{{ cat_url }}" class="sidebar-nav-item{% if cat_url and request.path == cat_url %} active{% endif %}">
+        <span class="sidebar-nav-label">{{ cat.name }}</span>
+        {% if cat.today_count > 0 %}
+          <span class="sidebar-nav-badge">{{ cat.today_count }}</span>
+        {% endif %}
+      </a>
+    {% endfor %}
+  </nav>
+</aside>
+
+<div id="drawerBackdrop" class="drawer-backdrop"></div>
+
+<!-- Mobile drawer -->
+<aside class="drawer" id="drawer" aria-label="Mobile menu" aria-hidden="true">
+  <div class="drawer-head">
+    {% if site_logo_url %}
+      <img src="{{ site_logo_url }}"
+           alt="{{ site_name }}"
+           style="max-height:36px;width:auto"
+           decoding="async" />
+    {% else %}
+      <div class="drawer-title">{{ site_name }}</div>
+    {% endif %}
+    <button class="drawer-close" id="closeDrawer" type="button" aria-label="Close menu">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+
+  <form class="drawer-search" action="{% url 'articles_frontend:search' %}" method="GET" role="search">
+    <input type="search" name="q" placeholder="Search..." value="{{ q|default:'' }}" />
+  </form>
+
+  <a href="/" {% if request.path == '/' %}aria-current="page"{% endif %}>Home</a>
+  {% for cat in nav_categories %}
+    {% url 'articles_frontend:category' slug=cat.slug as cat_url %}
+    <a href="{{ cat_url }}"
+       {% if request.path == cat_url %}aria-current="page"{% endif %}>{{ cat.name }}</a>
+  {% endfor %}
+
+  <div class="drawer-foot">
+    <div class="footer-tiny">Quick links</div>
+    <div class="footer-links">
+      <a href="/rss.xml">RSS</a>
+      <a href="/sitemap.xml">Sitemap</a>
+      <a href="{% url 'admin:index' %}">Admin</a>
+    </div>
+  </div>
+</aside>
+
+<main id="content" class="main-content{% if not is_full_width %} container{% endif %}">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="site-footer">
+  <!-- Newsletter banner -->
+  {% site_setting 'newsletter_enabled' '1' as newsletter_enabled %}
+  {% if newsletter_enabled == '1' %}
+  {% site_setting 'newsletter_bg_color' '' as nl_bg %}
+  <div id="newsletter" class="footer-newsletter"{% if nl_bg %} style="background:{{ nl_bg }}"{% endif %}>
+    <div class="container footer-nl-inner">
+      <div class="footer-nl-text">
+        <div class="footer-nl-title">{% site_setting 'newsletter_title' 'Stay informed' %}</div>
+        <p>{% site_setting 'newsletter_intro' 'Get the best stories in your inbox. No spam. No circus.' %}</p>
+      </div>
+      <form id="newsletterForm" method="POST" action="{% url 'articles_frontend:newsletter_subscribe' %}" class="footer-nl-form" novalidate>
+        {% csrf_token %}
+        {% site_setting 'newsletter_show_name' '1' as show_name %}
+        {% if show_name == '1' %}
+        <input name="name" placeholder="Your name" autocomplete="name">
+        {% endif %}
+        <input name="email" placeholder="Email address" required autocomplete="email">
+        <button type="submit">{% site_setting 'newsletter_button' 'Subscribe' %}</button>
+      </form>
+      <div id="newsletterMsg" style="font-size:13px;margin-top:4px"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Multi-column footer grid -->
+  <div class="footer-main">
+    <div class="container footer-grid">
+      <div class="footer-col footer-brand-col">
+        {% if site_logo_url %}
+          <a href="/" class="footer-logo"><img src="{{ site_logo_url }}" alt="{{ site_name }}" loading="lazy" decoding="async" /></a>
+        {% else %}
+          <a href="/" class="footer-masthead">{{ site_name }}</a>
+        {% endif %}
+        <p class="footer-tagline">{{ site_tagline }}</p>
+      </div>
+
+      <div class="footer-col">
+        <h4 class="footer-col-title">Sections</h4>
+        <nav class="footer-col-links">
+          {% for cat in nav_categories %}
+            <a href="{% url 'articles_frontend:category' slug=cat.slug %}">{{ cat.name }}</a>
+          {% endfor %}
+        </nav>
+      </div>
+
+      <div class="footer-col">
+        <h4 class="footer-col-title">Company</h4>
+        <nav class="footer-col-links">
+          <a href="{% url 'articles_frontend:about' %}">About Us</a>
+          <a href="{% url 'articles_frontend:contact' %}">Contact</a>
+          {% if footer_policies %}
+            {% for fp in footer_policies %}
+              <a href="{% url 'articles_frontend:policy' slug=fp.slug %}">{{ fp.title }}</a>
+            {% endfor %}
+          {% else %}
+            <a href="{% url 'articles_frontend:policy' slug='editorial-standards' %}">Ethics Policy</a>
+            <a href="{% url 'articles_frontend:policy' slug='terms' %}">Terms of Service</a>
+            <a href="{% url 'articles_frontend:policy' slug='privacy' %}">Privacy</a>
+          {% endif %}
+        </nav>
+      </div>
+
+      <div class="footer-col">
+        <h4 class="footer-col-title">Connect</h4>
+        <div class="footer-social-row">
+          {% site_setting 'social_twitter' '' as sx %} {% if sx %}<a href="{{ sx }}" class="footer-social-btn" target="_blank" rel="noopener" aria-label="X"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>{% endif %}
+          {% site_setting 'social_facebook' '' as sfb %} {% if sfb %}<a href="{{ sfb }}" class="footer-social-btn" target="_blank" rel="noopener" aria-label="Facebook"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></a>{% endif %}
+          {% site_setting 'social_instagram' '' as sig %} {% if sig %}<a href="{{ sig }}" class="footer-social-btn" target="_blank" rel="noopener" aria-label="Instagram"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg></a>{% endif %}
+          {% site_setting 'social_youtube' '' as syt %} {% if syt %}<a href="{{ syt }}" class="footer-social-btn" target="_blank" rel="noopener" aria-label="YouTube"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></a>{% endif %}
+          {% if contact_email %}<a href="mailto:{{ contact_email }}" class="footer-social-btn" aria-label="Email"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></a>{% endif %}
+          <a href="/rss.xml" class="footer-social-btn" aria-label="RSS"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="6.18" cy="17.82" r="2.18"/><path d="M4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83c0-8.59-6.97-15.56-15.56-15.56zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"/></svg></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom legal bar -->
+  <div class="footer-bottom-bar">
+    <div class="container footer-bottom-inner">
+      <span>&copy; <span id="footerYear"></span> {{ site_name }}. All rights reserved.</span>
+      <span class="footer-bottom-sep">&middot;</span>
+      <a href="/sitemap.xml">Sitemap</a>
+      <span class="footer-bottom-sep">&middot;</span>
+      <a href="{% url 'admin:index' %}">Admin</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  window.NT = {
+    csrf: '{{ csrf_token }}',
+    appUrl: '{{ app_url }}',
+    locationMode: '{{ location_mode|default:"off" }}',
+    siteTitle: '{{ site_name|escapejs }}',
+    siteAbbr: '{{ site_abbr|escapejs }}'
+  };
+  // Header date + footer year
+  (function(){
+    var hd=document.getElementById('headerDate');
+    if(hd) hd.textContent=new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    var fy=document.getElementById('footerYear');
+    if(fy) fy.textContent=new Date().getFullYear();
+  })();
+  // Sticky nav shadow on scroll
+  (function(){
+    var masthead=document.querySelector('.header-masthead');
+    var navBar=document.getElementById('headerNavBar');
+    if(!masthead||!navBar)return;
+    var obs=new IntersectionObserver(function(e){navBar.classList.toggle('nav-stuck',!e[0].isIntersecting);},{threshold:0});
+    obs.observe(masthead);
+  })();
+</script>
+
+<script>
+(function () {
+  'use strict';
+
+  // Drawer
+  const drawer  = document.getElementById('drawer');
+  const openBtn = document.getElementById('openDrawer');
+  const closeBtn = document.getElementById('closeDrawer');
+
+  if (drawer && openBtn && closeBtn) {
+    let lastFocus = null;
+
+    function openDrawer() {
+      lastFocus = document.activeElement;
+      drawer.setAttribute('aria-hidden', 'false');
+      openBtn.setAttribute('aria-expanded', 'true');
+      drawer.classList.add('open');
+      document.body.classList.add('drawer-open');
+      closeBtn.focus();
+    }
+
+    function closeDrawer() {
+      drawer.setAttribute('aria-hidden', 'true');
+      openBtn.setAttribute('aria-expanded', 'false');
+      drawer.classList.remove('open');
+      document.body.classList.remove('drawer-open');
+      if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+    }
+
+    openBtn.addEventListener('click', openDrawer);
+    closeBtn.addEventListener('click', closeDrawer);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && drawer.getAttribute('aria-hidden') === 'false') {
+        closeDrawer();
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (drawer.getAttribute('aria-hidden') === 'false') {
+        if (!drawer.contains(e.target) && !openBtn.contains(e.target)) {
+          closeDrawer();
+        }
+      }
+    });
+  }
+
+  // Search toggle
+  const searchToggle = document.getElementById('searchToggle');
+  const searchExpand = document.getElementById('searchExpand');
+  const searchClose = document.getElementById('searchClose');
+  const headerSearchInput = document.getElementById('headerSearchInput');
+
+  if (headerSearchInput) {
+    headerSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && headerSearchInput.value.trim()) {
+        window.location.href = '/search?q=' + encodeURIComponent(headerSearchInput.value.trim());
+      }
+    });
+  }
+
+  if (searchToggle && searchExpand) {
+    searchToggle.addEventListener('click', () => {
+      const open = !searchExpand.hidden;
+      searchExpand.hidden = open;
+      if (!open) searchExpand.querySelector('input')?.focus();
+    });
+    searchClose?.addEventListener('click', () => { searchExpand.hidden = true; });
+  }
+
+  // Location label
+  const locationMode = (window.NT && window.NT.locationMode) || 'off';
+  const labelEl = document.getElementById('locationLabel');
+
+  if (locationMode === 'auto' && labelEl) {
+    function countryFlag(code) {
+      if (!code || code.length !== 2) return '';
+      const base = 0x1F1E6;
+      return String.fromCodePoint(
+        base + code.charCodeAt(0) - 65,
+        base + code.charCodeAt(1) - 65
+      );
+    }
+
+    fetch('/api/geo', { credentials: 'same-origin' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.city && data.country_name) {
+          const flag = data.country ? countryFlag(data.country) + ' ' : '';
+          labelEl.textContent = flag + data.city + ', ' + data.country_name;
+        }
+      })
+      .catch(() => {});
+  }
+})();
+</script>
+
+<link rel="preload" href="{% static 'js/app.js' %}" as="script" />
+<script src="{% static 'js/app.js' %}" defer></script>
+<script src="{% static 'js/popups.js' %}" defer></script>
+<script>
+// Lazy image fade-in
+document.addEventListener('DOMContentLoaded',function(){
+  document.querySelectorAll('.article-body img[loading="lazy"]').forEach(function(img){
+    if(img.complete){img.classList.add('loaded')}
+    else{img.addEventListener('load',function(){this.classList.add('loaded')})}
+  });
+});
+
+// Global broken image handler
+(function(){
+  var abbr=(window.NT&&window.NT.siteAbbr)||'';
+  var svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#1a1a2e"/><stop offset="100%" style="stop-color:#16213e"/></linearGradient></defs><rect fill="url(#g)" width="800" height="450"/><text x="400" y="225" fill="#555" font-family="system-ui,sans-serif" font-size="36" text-anchor="middle" font-weight="700">'+abbr+'</text></svg>';
+  var placeholder='data:image/svg+xml,'+encodeURIComponent(svg);
+  document.addEventListener('error',function(e){
+    var t=e.target;
+    if(t.tagName==='IMG'&&!t.dataset.fallback){
+      t.dataset.fallback='1';
+      t.src=placeholder;
+      t.style.objectFit='cover';
+    }
+  },true);
+})();
+</script>
+<script>
+(function(){
+  if(!window.IntersectionObserver)return;
+  var tracked={};
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(!e.isIntersecting)return;
+      var id=e.target.dataset.adId;
+      if(!id||tracked[id])return;
+      tracked[id]=true;
+      navigator.sendBeacon('/api/ad-impression',JSON.stringify({ad_id:id,page:location.pathname}));
+    });
+  },{threshold:0.5});
+  document.querySelectorAll('.ad-slot[data-ad-id]').forEach(function(el){
+    if(el.dataset.adId)obs.observe(el);
+  });
+})();
+</script>
+<script>
+(function(){
+  if(!navigator.geolocation||sessionStorage.getItem('_geo_sent'))return;
+  navigator.geolocation.getCurrentPosition(function(pos){
+    sessionStorage.setItem('_geo_sent','1');
+    var ct = document.querySelector('meta[name="x-csrf-token"]');
+    fetch('/api/visitor-location',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRF-Token':ct?ct.content:''},
+      body:JSON.stringify({lat:pos.coords.latitude,lon:pos.coords.longitude})
+    }).catch(function(){});
+  },function(err){
+    console.log('Geolocation denied or unavailable:',err.message);
+    sessionStorage.setItem('_geo_sent','1');
+  },{enableHighAccuracy:true,timeout:10000,maximumAge:300000});
+})();
+</script>
+<script>
+(function(){
+  document.querySelectorAll('.follow-form').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      var email = form.querySelector('input[type="email"]').value;
+      var type = form.getAttribute('data-type');
+      var id = form.getAttribute('data-id');
+      var msg = form.querySelector('.follow-msg');
+      var csrf = document.querySelector('meta[name="x-csrf-token"]');
+      fetch('/api/follow-topic', {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':csrf?csrf.content:''},
+        body: 'email='+encodeURIComponent(email)+'&type='+encodeURIComponent(type)+'&id='+encodeURIComponent(id)+'&_csrf='+(csrf?encodeURIComponent(csrf.content):'')
+      }).then(function(r){return r.json()}).then(function(d){
+        msg.textContent = d.message || 'Subscribed!';
+        msg.style.color = d.ok ? 'green' : '#c00';
+        if(d.ok) form.querySelector('input[type="email"]').value = '';
+      }).catch(function(){msg.textContent='Network error';msg.style.color='#c00'});
+    });
+  });
+})();
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

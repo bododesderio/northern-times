@@ -1,0 +1,251 @@
+{% extends "frontend/layout.html" %}
+{% load core_tags %}
+
+{% block content %}
+{% render_ad ads 'top-banner' 'ad-leaderboard' %}
+
+{% if breaking %}
+<div class="ticker-bar{% if not has_manual_breaking %} ticker-bar-trending{% endif %}">
+  <span class="ticker-badge{% if not has_manual_breaking %} ticker-trending{% endif %}">
+    <span class="ticker-pulse"></span>{% if has_manual_breaking %}BREAKING{% else %}TRENDING{% endif %}
+  </span>
+  <div class="ticker-track">
+    <div class="ticker-scroll">
+      {% for b in breaking_doubled %}
+        <a class="ticker-item" href="{% url 'articles_frontend:article' slug=b.slug %}">
+          {{ b.breaking_headline|default:b.title }}
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="np-home">
+
+<!-- HERO SECTION -->
+<section class="np-hero-section">
+
+  <!-- Major Hero Article -->
+  {% if hero %}
+  <article class="np-hero-major">
+    <a href="{% url 'articles_frontend:article' slug=hero.slug %}" class="np-hero-link">
+      <div class="np-hero-img">
+        {% if hero.featured_image %}
+          <img src="{{ hero.featured_image }}" alt="{{ hero.title }}" loading="eager" onerror="this.parentElement.innerHTML='<div class=\'np-hero-placeholder\'></div>'">
+        {% else %}
+          <div class="np-hero-placeholder"></div>
+        {% endif %}
+        <span class="np-badge-feature">Main Feature</span>
+      </div>
+      <h1 class="np-hero-title">{{ hero.title }}</h1>
+      <p class="np-hero-excerpt">{{ hero.excerpt|default:hero.content|striptags|truncatewords:30 }}</p>
+      <div class="np-meta">
+        <span>By {{ hero.author_name|default:"Staff" }}</span>
+        <span class="np-meta-dot">&bull;</span>
+        {% if hero.reading_time %}
+          <span>{{ hero.reading_time }} Min Read</span>
+        {% endif %}
+      </div>
+    </a>
+
+    {% render_ad ads 'hero-banner' 'ad-hero-banner' %}
+  </article>
+  {% endif %}
+
+  <!-- Latest Stories Sidebar -->
+  <div class="np-latest-sidebar">
+    <h2 class="np-sidebar-heading">
+      Latest Stories
+      <svg class="np-arrow-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </h2>
+    <div class="np-latest-list">
+      {% for la in latest_sidebar|slice:":5" %}
+      <article class="np-latest-item{% if not forloop.first %} np-latest-bordered{% endif %}">
+        <a href="{% url 'articles_frontend:article' slug=la.slug %}" class="np-latest-link">
+          <span class="np-cat-tag">{{ la.category|default:"" }}</span>
+          <h3 class="np-latest-title">{{ la.title }}</h3>
+        </a>
+      </article>
+      {% endfor %}
+    </div>
+    {% render_ad ads 'sidebar' 'ad-sidebar-slot' %}
+  </div>
+
+</section>
+
+
+{% render_ad ads 'in-article' 'ad-in-article' %}
+
+<!-- CATEGORY SECTIONS -->
+{% for section in sections %}
+  {% if section.articles %}
+  {% with section_idx=forloop.counter %}
+
+  {% if section_idx == 3 %}
+    {% render_ad ads 'in-feed' 'ad-in-feed' %}
+  {% elif section_idx == 5 %}
+    {% render_ad ads 'below-article' 'ad-below-article' %}
+  {% elif section_idx == 7 %}
+    {% render_ad ads 'sidebar' 'ad-sidebar-slot' %}
+  {% endif %}
+
+  {% if section_idx == 2 %}
+    {% site_setting 'newsletter_enabled' '1' as nl_enabled %}
+    {% if nl_enabled == '1' %}
+    <!-- Inline newsletter CTA -->
+    <div class="np-newsletter-banner">
+      <div class="np-newsletter-banner-inner">
+        <div class="np-newsletter-banner-text">
+          <strong>{% site_setting 'newsletter_title' 'Stay informed' %}</strong>
+          <span>{% site_setting 'newsletter_intro' 'Get the best stories in your inbox. No spam.' %}</span>
+        </div>
+        <form class="np-newsletter-banner-form" data-newsletter-form>
+          {% csrf_token %}
+          <input type="email" name="email" placeholder="Email address" required>
+          <button type="submit">{% site_setting 'newsletter_button' 'Subscribe' %}</button>
+        </form>
+        <div class="np-newsletter-msg" style="font-size:13px;margin-top:4px;"></div>
+      </div>
+    </div>
+    {% endif %}
+  {% endif %}
+
+  <section class="np-category-section" id="section-{{ section.slug }}">
+
+    <!-- Section Header -->
+    <div class="np-section-header">
+      <div>
+        <h2 class="np-section-title">{{ section.name }}</h2>
+      </div>
+      <a href="{% url 'articles_frontend:category' slug=section.slug %}" class="np-view-all">View All {{ section.name }}</a>
+    </div>
+
+    {% with variant=section.layout_variant %}
+
+    {% if variant == 'thumbnail' %}
+    <!-- THUMBNAIL GRID -->
+    <div class="np-thumbnail-grid">
+      {% for ga in section.articles|slice:":9" %}
+      <a href="{% url 'articles_frontend:article' slug=ga.slug %}" class="np-thumb-card{% if forloop.counter > 3 %} np-thumb-bordered{% endif %}">
+        <div class="np-thumb-img">
+          {% if ga.featured_image %}
+            <img src="{{ ga.featured_image }}" alt="{{ ga.title }}" loading="lazy" onerror="this.style.display='none'">
+          {% else %}
+            <div class="np-thumb-placeholder"></div>
+          {% endif %}
+        </div>
+        <div class="np-thumb-text">
+          <span class="np-cat-tag">{{ ga.category|default:section.name }}</span>
+          <h4 class="np-thumb-title">{{ ga.title }}</h4>
+          <span class="np-thumb-author">By {{ ga.author_name|default:"Staff" }}</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+
+    {% elif variant == 'bento' %}
+    <!-- BENTO GRID -->
+    <div class="np-bento-grid">
+      {% with bento_lead=section.articles.0 %}
+
+      <!-- Large hero card -->
+      <a href="{% url 'articles_frontend:article' slug=bento_lead.slug %}" class="np-bento-hero">
+        {% if bento_lead.featured_image %}
+          <img src="{{ bento_lead.featured_image }}" alt="{{ bento_lead.title }}" loading="lazy" onerror="this.style.display='none'">
+        {% endif %}
+        <div class="np-bento-overlay">
+          <span class="np-badge-feature">Special Report</span>
+          <h3 class="np-bento-title">{{ bento_lead.title }}</h3>
+        </div>
+      </a>
+
+      <!-- Small cards -->
+      {% for bs in section.articles|slice:"1:3" %}
+      <a href="{% url 'articles_frontend:article' slug=bs.slug %}" class="np-bento-small">
+        <span class="np-cat-tag">{{ bs.category|default:section.name }}</span>
+        <h4 class="np-bento-small-title">{{ bs.title }}</h4>
+        <span class="np-read-more">Read Article <svg class="np-arrow-sm" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
+      </a>
+      {% endfor %}
+
+      <!-- Text row -->
+      {% with bento_text=section.articles|slice:"3:5" %}
+      {% if bento_text %}
+      <div class="np-bento-text-row">
+        {% for bt in bento_text %}
+        <a href="{% url 'articles_frontend:article' slug=bt.slug %}" class="np-bento-text-item">
+          <span class="np-bento-num">{{ forloop.counter|stringformat:"02d" }} / {{ bt.category|default:section.name|upper }}</span>
+          <h5 class="np-bento-text-title">{{ bt.title }}</h5>
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% endwith %}
+
+      {% endwith %}
+    </div>
+
+    {% else %}
+    <!-- CARD GRID -->
+    <div class="np-cards-section">
+      <!-- Top 3 image cards -->
+      <div class="np-card-grid">
+        {% for ca in section.articles|slice:":3" %}
+        <a href="{% url 'articles_frontend:article' slug=ca.slug %}" class="np-image-card">
+          <div class="np-image-card-img">
+            {% if ca.featured_image %}
+              <img src="{{ ca.featured_image }}" alt="{{ ca.title }}" loading="lazy" onerror="this.style.display='none'">
+            {% else %}
+              <div class="np-thumb-placeholder np-aspect-video"></div>
+            {% endif %}
+          </div>
+          <h3 class="np-image-card-title">{{ ca.title }}</h3>
+          <p class="np-image-card-excerpt">{{ ca.excerpt|default:ca.content|striptags|truncatewords:18 }}</p>
+        </a>
+        {% endfor %}
+      </div>
+
+      <!-- Bottom text-only list -->
+      {% with text_items=section.articles|slice:"3:9" %}
+      {% if text_items %}
+      <div class="np-text-list">
+        {% for ti in text_items %}
+        <a href="{% url 'articles_frontend:article' slug=ti.slug %}" class="np-text-item">
+          <span class="np-text-cat">{{ ti.category|default:section.name|upper }}</span>
+          <h4 class="np-text-title">{{ ti.title }}</h4>
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% endwith %}
+    </div>
+    {% endif %}
+
+    {% endwith %}
+
+  </section>
+
+  {% endwith %}
+  {% endif %}
+{% endfor %}
+
+{% render_ad ads 'footer' 'ad-footer' %}
+
+</div><!-- .np-home -->
+
+<button class="scroll-top" id="scrollTopBtn" data-tip="Back to top" aria-label="Scroll to top">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  const btn = document.getElementById('scrollTopBtn');
+  if (!btn) return;
+  window.addEventListener('scroll', () => btn.classList.toggle('visible', scrollY > 400), {passive:true});
+  btn.addEventListener('click', () => window.scrollTo({top:0,behavior:'smooth'}));
+})();
+</script>
+{% endblock %}

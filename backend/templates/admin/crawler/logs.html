@@ -1,0 +1,73 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Crawl Logs{% endblock %}
+{% block breadcrumb_title %}Crawl Logs{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+  <a href="{% url 'admin_crawler' %}" class="muted" style="font-size:14px">&larr; Back to Sources</a>
+  <form method="GET" style="display:flex;gap:8px;align-items:center">
+    <select name="source" onchange="this.form.submit()" class="form-control" style="min-width:180px">
+      <option value="">All Sources</option>
+      {% for s in sources %}
+        <option value="{{ s.id }}" {% if source_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Source</th>
+        <th style="text-align:center">Status</th>
+        <th style="text-align:center">Found</th>
+        <th style="text-align:center">New</th>
+        <th style="text-align:center">Dupes</th>
+        <th>Started</th>
+        <th>Duration</th>
+        <th style="text-align:center">Details</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if not logs %}
+        <tr><td colspan="8" class="muted" style="padding:40px;text-align:center">No crawl logs yet.</td></tr>
+      {% endif %}
+      {% for log in logs %}
+        <tr>
+          <td style="font-weight:600">{{ log.source.name }}</td>
+          <td style="text-align:center">
+            <span class="badge {% if log.status == 'ok' %}green{% elif log.status == 'partial' %}yellow{% elif log.status == 'failed' %}red{% else %}blue{% endif %}">
+              {{ log.get_status_display }}
+            </span>
+          </td>
+          <td style="text-align:center">{{ log.found_count }}</td>
+          <td style="text-align:center;font-weight:700;color:#28a745">{{ log.new_count }}</td>
+          <td style="text-align:center" class="muted">{{ log.duplicate_count }}</td>
+          <td style="font-size:13px">{{ log.created_at|date:"M j, g:i:s A" }}</td>
+          <td style="font-size:13px">{% if log.duration_ms %}{{ log.duration_ms }}ms{% else %}--{% endif %}</td>
+          <td style="text-align:center">
+            {% if log.error_message %}
+              <button type="button" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'" class="btn light xs">Show</button>
+              <div style="display:none;position:absolute;background:var(--adm-surface);border:1px solid var(--adm-border);border-radius:8px;padding:12px;font-size:12px;max-width:400px;z-index:10;box-shadow:var(--adm-shadow-lg)">
+                <strong>Error:</strong> {{ log.error_message }}
+              </div>
+            {% else %}
+              <span class="muted">--</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+  {% if page > 1 %}<a class="btn light sm" href="?page={{ page|add:"-1" }}{% if source_id %}&source={{ source_id }}{% endif %}">Prev</a>{% endif %}
+  <span class="muted">Page {{ page }} of {{ total_pages }}</span>
+  {% if page < total_pages %}<a class="btn light sm" href="?page={{ page|add:"1" }}{% if source_id %}&source={{ source_id }}{% endif %}">Next</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

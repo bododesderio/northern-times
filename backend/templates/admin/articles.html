@@ -1,0 +1,172 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Articles{% endblock %}
+{% block breadcrumb_title %}Articles{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+  <div>
+    <h1 style="margin:0 0 6px;">Articles</h1>
+    <div class="muted" style="font-size:14px">Manage all stories -- full CRUD, filters, pagination.</div>
+  </div>
+  <a class="btn" href="{% url 'admin_article_create' %}">+ New Article</a>
+</div>
+
+{# Filters #}
+<form class="card" method="GET" action="{% url 'admin_articles' %}" style="margin:16px 0;padding:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;background:var(--adm-bg)">
+  <input name="q" value="{{ query|default:'' }}" placeholder="Search title or content..." class="form-control" style="flex:1;min-width:220px">
+  <select name="status" class="form-control" style="min-width:140px">
+    <option value="">All statuses</option>
+    <option value="published" {% if current_status == 'published' %}selected{% endif %}>Published</option>
+    <option value="draft" {% if current_status == 'draft' %}selected{% endif %}>Draft</option>
+    <option value="pending_review" {% if current_status == 'pending_review' %}selected{% endif %}>Pending Review</option>
+    <option value="scheduled" {% if current_status == 'scheduled' %}selected{% endif %}>Scheduled</option>
+  </select>
+  <select name="category" class="form-control" style="min-width:180px">
+    <option value="">All categories</option>
+    {% for c in categories %}
+      <option value="{{ c.id }}" {% if current_category == c.id|slugify %}selected{% endif %}>{{ c.name }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn" type="submit">Filter</button>
+  <a class="btn light" href="{% url 'admin_articles' %}">Reset</a>
+</form>
+
+{# Articles Table #}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="min-width:250px">Title</th>
+        <th style="text-align:center">Status</th>
+        <th>Category</th>
+        <th style="text-align:center">Sentiment</th>
+        <th style="text-align:center">Quality</th>
+        <th style="text-align:center">Words</th>
+        <th style="text-align:center">Read</th>
+        <th style="text-align:center">Rewrite</th>
+        <th style="text-align:right">Cost</th>
+        <th style="text-align:right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if not articles %}
+        <tr><td colspan="10" class="muted" style="padding:24px;text-align:center">No articles match your filters.</td></tr>
+      {% endif %}
+      {% for a in articles %}
+        <tr{% if a.deleted_at %} style="opacity:0.5"{% endif %}>
+          <td>
+            <div style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700">{{ a.title }}</div>
+            <div class="muted" style="font-size:11px">{{ a.display_author|default:a.author|default:"--" }} &middot; {{ a.published_at|date:"M j" }}</div>
+          </td>
+          <td style="text-align:center">
+            {% if a.deleted_at %}
+              <span class="badge grey">Deleted</span>
+            {% elif a.status == 'published' %}
+              <span class="badge green">Published</span>
+            {% elif a.status == 'draft' %}
+              <span class="badge yellow">Draft</span>
+            {% elif a.status == 'scheduled' %}
+              <span class="badge blue">Scheduled</span>
+            {% elif a.status == 'pending_review' %}
+              <span class="badge grey">Pending</span>
+            {% else %}
+              <span class="badge grey">{{ a.status }}</span>
+            {% endif %}
+          </td>
+          <td style="font-size:12px">{{ a.category.name|default:"--" }}</td>
+
+          {# Sentiment — color-coded #}
+          <td style="text-align:center">
+            {% if a.sentiment == 'positive' %}
+              <span style="color:#28a745;font-weight:600;font-size:12px">Positive</span>
+            {% elif a.sentiment == 'negative' %}
+              <span style="color:#dc3545;font-weight:600;font-size:12px">Negative</span>
+            {% elif a.sentiment == 'neutral' %}
+              <span style="color:#6c757d;font-weight:600;font-size:12px">Neutral</span>
+            {% else %}
+              <span class="muted" style="font-size:12px">--</span>
+            {% endif %}
+          </td>
+
+          {# Quality Score — color-coded bar #}
+          <td style="text-align:center">
+            {% if a.quality_score != None %}
+              {% with qs=a.quality_score|floatformat:0 %}
+                <div style="display:inline-flex;align-items:center;gap:4px">
+                  <div style="width:40px;height:6px;background:#e9ecef;border-radius:3px;overflow:hidden">
+                    <div style="width:{{ a.quality_score }}%;height:100%;background:{% if a.quality_score >= 70 %}#28a745{% elif a.quality_score >= 40 %}#ffc107{% else %}#dc3545{% endif %};border-radius:3px"></div>
+                  </div>
+                  <span style="font-size:11px;font-weight:600;color:{% if a.quality_score >= 70 %}#28a745{% elif a.quality_score >= 40 %}#856404{% else %}#dc3545{% endif %}">{{ qs }}</span>
+                </div>
+              {% endwith %}
+            {% else %}
+              <span class="muted" style="font-size:12px">--</span>
+            {% endif %}
+          </td>
+
+          {# Word Count #}
+          <td style="text-align:center;font-size:12px;color:var(--adm-muted)">
+            {% if a.word_count %}{{ a.word_count }}{% else %}--{% endif %}
+          </td>
+
+          {# Reading Time #}
+          <td style="text-align:center;font-size:12px;color:var(--adm-muted)">
+            {{ a.reading_time }}m
+          </td>
+
+          {# Rewrite Status — color-coded #}
+          <td style="text-align:center">
+            {% if a.rewrite_status == 'completed' or a.rewrite_status == 'approved' %}
+              <span class="badge green" style="font-size:10px">{{ a.rewrite_status|title }}</span>
+            {% elif a.rewrite_status == 'queued' %}
+              <span class="badge grey" style="font-size:10px">Queued</span>
+            {% elif a.rewrite_status == 'processing' %}
+              <span class="badge yellow" style="font-size:10px">Processing</span>
+            {% elif a.rewrite_status == 'failed' %}
+              <span class="badge red" style="font-size:10px">Failed</span>
+            {% elif a.rewrite_status == 'rejected' %}
+              <span class="badge red" style="font-size:10px">Rejected</span>
+            {% else %}
+              <span class="muted" style="font-size:11px">--</span>
+            {% endif %}
+          </td>
+
+          {# Rewrite Cost #}
+          <td style="text-align:right;font-size:11px;font-family:monospace;color:var(--adm-muted)">
+            {% if a.rewrite_cost %} ${{ a.rewrite_cost }}{% else %}--{% endif %}
+          </td>
+
+          <td style="text-align:right">
+            <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
+              <a class="btn light xs" href="{% url 'admin_article_edit' pk=a.id %}">Edit</a>
+              {% if a.deleted_at %}
+                <form method="POST" action="{% url 'admin_article_restore' pk=a.id %}" style="display:inline">{% csrf_token %}
+                  <button class="btn light xs" type="submit">Restore</button>
+                </form>
+              {% else %}
+                <form method="POST" action="{% url 'admin_article_delete' pk=a.id %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Archive this article?')">{% csrf_token %}
+                  <button class="btn danger xs" type="submit">Archive</button>
+                </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# Pagination #}
+{% if articles.has_other_pages %}
+<div style="display:flex;justify-content:center;gap:8px;margin-top:20px;align-items:center">
+  {% if articles.has_previous %}
+    <a href="?page={{ articles.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}" class="btn light xs">&larr; Prev</a>
+  {% endif %}
+  <span class="muted" style="font-size:13px">Page {{ articles.number }} of {{ articles.paginator.num_pages }}</span>
+  {% if articles.has_next %}
+    <a href="?page={{ articles.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}" class="btn light xs">Next &rarr;</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

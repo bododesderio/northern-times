@@ -1,0 +1,120 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}{{ page_title }}{% endblock %}
+{% block breadcrumb_title %}{{ page_title }}{% endblock %}
+
+{% block admin_content %}
+{# Source Info & Actions #}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+  <div>
+    <div style="font-size:13px" class="muted">{{ source.url }}</div>
+    <div style="font-size:13px;margin-top:4px">
+      Total: <strong>{{ articles.paginator.count }}</strong> articles
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <form method="POST" action="{% url 'admin_crawler_toggle' pk=source.id %}" style="display:inline">{% csrf_token %}
+      <button type="submit" class="btn light">Crawl Now</button>
+    </form>
+    <form method="POST" action="{% url 'admin_archive_source_articles' pk=source.id %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Archive ALL articles from {{ source.name }}? This soft-deletes them.')">{% csrf_token %}
+      <button type="submit" class="btn light">Archive All</button>
+    </form>
+    <form method="POST" action="{% url 'admin_restore_source_articles' pk=source.id %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Restore all archived articles from {{ source.name }}?')">{% csrf_token %}
+      <button type="submit" class="btn light">Restore All</button>
+    </form>
+    <form method="POST" action="{% url 'admin_delete_source_articles' pk=source.id %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'PERMANENTLY delete ALL articles from {{ source.name }}? This cannot be undone!')">{% csrf_token %}
+      <button type="submit" class="btn danger">Permanent Delete All</button>
+    </form>
+  </div>
+</div>
+
+{# Articles Table #}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th style="text-align:center">Status</th>
+        <th style="text-align:center">Rewrite</th>
+        <th style="text-align:center">Quality</th>
+        <th>Published</th>
+        <th style="text-align:right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if not articles %}
+        <tr><td colspan="6" class="muted" style="padding:40px;text-align:center">No articles from this source.</td></tr>
+      {% endif %}
+      {% for article in articles %}
+        <tr{% if article.deleted_at %} style="opacity:0.5"{% endif %}>
+          <td>
+            <div style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">{{ article.title }}</div>
+            <div class="muted" style="font-size:12px">{{ article.display_author|default:"-" }}</div>
+          </td>
+          <td style="text-align:center">
+            {% if article.deleted_at %}
+              <span class="badge grey">Deleted</span>
+            {% elif article.status == 'published' %}
+              <span class="badge green">Published</span>
+            {% elif article.status == 'pending_review' %}
+              <span class="badge yellow">Pending</span>
+            {% elif article.status == 'draft' %}
+              <span class="badge grey">Draft</span>
+            {% elif article.status == 'scheduled' %}
+              <span class="badge blue">Scheduled</span>
+            {% else %}
+              <span class="badge grey">{{ article.status }}</span>
+            {% endif %}
+          </td>
+          <td style="text-align:center">
+            {% if article.rewrite_status == 'completed' %}
+              <span class="badge green">Done</span>
+            {% elif article.rewrite_status == 'queued' %}
+              <span class="badge yellow">Queued</span>
+            {% elif article.rewrite_status == 'failed' %}
+              <span class="badge red">Failed</span>
+            {% elif article.rewrite_status %}
+              <span class="badge grey">{{ article.rewrite_status }}</span>
+            {% else %}
+              <span class="muted">-</span>
+            {% endif %}
+          </td>
+          <td style="text-align:center;font-size:13px">{{ article.quality_score|floatformat:0|default:"-" }}</td>
+          <td style="font-size:13px">{% if article.published_at %}{{ article.published_at|date:"M j, g:i A" }}{% else %}<span class="muted">-</span>{% endif %}</td>
+          <td style="text-align:right">
+            <div style="display:flex;justify-content:flex-end;gap:6px">
+              <a href="{% url 'admin_article_edit' pk=article.id %}" class="btn light xs">Edit</a>
+              {% if article.deleted_at %}
+                <form method="POST" action="{% url 'admin_article_restore' pk=article.id %}" style="display:inline">{% csrf_token %}
+                  <button type="submit" class="btn light xs">Restore</button>
+                </form>
+              {% else %}
+                <form method="POST" action="{% url 'admin_article_delete' pk=article.id %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Archive this article?')">{% csrf_token %}
+                  <button type="submit" class="btn danger xs">Archive</button>
+                </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# Pagination #}
+{% if articles.has_other_pages %}
+<div style="display:flex;justify-content:center;gap:8px;margin-top:20px">
+  {% if articles.has_previous %}
+    <a href="?page={{ articles.previous_page_number }}" class="btn light xs">&larr; Prev</a>
+  {% endif %}
+  <span class="muted" style="padding:6px 12px;font-size:13px">Page {{ articles.number }} of {{ articles.paginator.num_pages }}</span>
+  {% if articles.has_next %}
+    <a href="?page={{ articles.next_page_number }}" class="btn light xs">Next &rarr;</a>
+  {% endif %}
+</div>
+{% endif %}
+
+<div style="margin-top:20px">
+  <a href="{% url 'admin_crawler' %}" style="font-size:13px;color:#cc0000">&larr; Back to Sources</a>
+</div>
+{% endblock %}

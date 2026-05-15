@@ -1,0 +1,100 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}AI Rewriter{% endblock %}
+{% block breadcrumb_title %}AI Rewriter{% endblock %}
+
+{% block admin_content %}
+{# Service Status #}
+<div style="margin-bottom:20px;display:flex;align-items:center;gap:12px">
+  <span style="font-size:13px;font-weight:600;color:{% if rewriter_enabled %}#28a745{% else %}#dc3545{% endif %}">
+    &#9679; Rewriter {% if rewriter_enabled %}ON{% else %}OFF{% endif %}
+  </span>
+</div>
+
+{# Stats Cards #}
+<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px">
+  {% for stat in stats_cards %}
+    <div class="card" style="padding:18px;background:{{ stat.bg }}">
+      <div style="font-size:22px;font-weight:800;color:{{ stat.color }}">{{ stat.value }}</div>
+      <div class="muted" style="font-size:12px">{{ stat.label }}</div>
+    </div>
+  {% endfor %}
+</div>
+
+{# Bulk Queue #}
+<div class="card" style="margin-bottom:24px">
+  <div style="font-weight:700;font-size:15px;margin-bottom:14px">Bulk Queue</div>
+  <form method="POST" action="{% url 'admin_rewriter_queue_bulk' %}" style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+    {% csrf_token %}
+    <div class="form-group" style="margin-bottom:0">
+      <label class="form-label">Source (optional)</label>
+      <select name="source_id" class="form-control" style="min-width:180px">
+        <option value="0">All crawl sources</option>
+        {% for src in crawl_sources %}
+          <option value="{{ src.id }}">{{ src.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:0">
+      <label class="form-label">Since date</label>
+      <input type="date" name="since" class="form-control">
+    </div>
+    <div class="form-group" style="margin-bottom:0">
+      <label class="form-label">Max articles</label>
+      <input type="number" name="limit" value="50" min="1" max="500" class="form-control" style="width:80px">
+    </div>
+    <button type="submit" class="btn" style="background:#cc0000;color:#fff">Queue for Rewriting</button>
+  </form>
+</div>
+
+{# Jobs Table #}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Article</th>
+        <th>Source</th>
+        <th style="text-align:center">Status</th>
+        <th>Queued</th>
+        <th style="text-align:right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if not jobs %}
+        <tr><td colspan="5" class="muted" style="padding:40px;text-align:center">No rewriter jobs yet.</td></tr>
+      {% endif %}
+      {% for article in jobs %}
+        <tr>
+          <td style="font-weight:600;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ article.title }}</td>
+          <td class="muted">{{ article.source_name|default:"--" }}</td>
+          <td style="text-align:center">
+            <span class="badge {% if article.rewrite_status == 'approved' %}green{% elif article.rewrite_status == 'completed' %}blue{% elif article.rewrite_status == 'failed' %}red{% elif article.rewrite_status == 'processing' %}yellow{% elif article.rewrite_status == 'queued' %}grey{% else %}grey{% endif %}">
+              {{ article.rewrite_status|title }}
+            </span>
+          </td>
+          <td class="muted" style="font-size:13px">{{ article.created_at|date:"M j, g:i A" }}</td>
+          <td style="text-align:right">
+            <div style="display:flex;gap:6px;justify-content:flex-end">
+              {% if article.rewrite_status == 'completed' %}
+                <form method="POST" action="{% url 'admin_rewriter_approve' pk=article.id %}" style="display:inline">{% csrf_token %}<button class="btn success xs">Approve</button></form>
+                <form method="POST" action="{% url 'admin_rewriter_reject' pk=article.id %}" style="display:inline">{% csrf_token %}<button class="btn danger xs">Reject</button></form>
+              {% endif %}
+              {% if article.rewrite_status == 'failed' %}
+                <form method="POST" action="{% url 'admin_rewriter_retry' pk=article.id %}" style="display:inline">{% csrf_token %}<button class="btn light xs">Retry</button></form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if total_pages > 1 %}
+<div class="pagination">
+  {% if page > 1 %}<a class="btn light sm" href="?page={{ page|add:"-1" }}">Prev</a>{% endif %}
+  <span class="muted">Page {{ page }} of {{ total_pages }}</span>
+  {% if page < total_pages %}<a class="btn light sm" href="?page={{ page|add:"1" }}">Next</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

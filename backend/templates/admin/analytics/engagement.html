@@ -1,0 +1,130 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Engagement Analytics{% endblock %}
+{% block breadcrumb_title %}Engagement Analytics{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <h1>Engagement Analytics</h1>
+  <form method="GET" style="display:flex;gap:10px;align-items:center">
+    <select name="period" class="form-control" style="width:auto" onchange="this.form.submit()">
+      <option value="7d" {% if request.GET.period == '7d' %}selected{% endif %}>Last 7 Days</option>
+      <option value="30d" {% if request.GET.period == '30d' or not request.GET.period %}selected{% endif %}>Last 30 Days</option>
+      <option value="90d" {% if request.GET.period == '90d' %}selected{% endif %}>Last 90 Days</option>
+    </select>
+  </form>
+</div>
+
+{# Engagement KPI Cards #}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:28px">
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Total Comments</div>
+    <div style="font-size:28px;font-weight:700">{{ stats.total_comments|default:"0" }}</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Newsletter Subscribers</div>
+    <div style="font-size:28px;font-weight:700">{{ stats.total_subscribers|default:"0" }}</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Email Open Rate</div>
+    <div style="font-size:28px;font-weight:700">{{ stats.email_open_rate|default:"0" }}%</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Social Shares</div>
+    <div style="font-size:28px;font-weight:700">{{ stats.social_shares|default:"0" }}</div>
+  </div>
+</div>
+
+{# Most Commented Articles #}
+<div class="card" style="margin-bottom:20px">
+  <h3 style="font-size:15px;font-weight:600;padding:20px 20px 0">Most Commented Articles</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Article</th>
+          <th>Author</th>
+          <th style="text-align:right">Comments</th>
+          <th style="text-align:right">Views</th>
+          <th>Published</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for article in most_commented %}
+        <tr>
+          <td class="muted">{{ forloop.counter }}</td>
+          <td style="max-width:300px">
+            <a href="{% url 'admin_article_edit' pk=article.id %}" style="font-weight:600;color:var(--adm-ink)">{{ article.title|truncatewords:10 }}</a>
+          </td>
+          <td class="muted" style="font-size:13px">{{ article.author_name|default:"Admin" }}</td>
+          <td style="text-align:right;font-weight:700">{{ article.comment_count|default:"0" }}</td>
+          <td style="text-align:right">{{ article.view_count|default:"0" }}</td>
+          <td class="muted" style="font-size:13px;white-space:nowrap">{{ article.published_at|date:"M j, Y" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="muted" style="text-align:center;padding:40px">No engagement data available yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# Recent Comments #}
+<div class="card" style="margin-bottom:20px">
+  <h3 style="font-size:15px;font-weight:600;padding:20px 20px 0">Recent Comments</h3>
+  <div style="padding:0 20px 20px">
+    {% for comment in recent_comments %}
+    <div style="padding:14px 0;border-bottom:1px solid var(--adm-border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <strong style="font-size:14px">{{ comment.author_name|default:"Anonymous" }}</strong>
+        <span class="muted" style="font-size:12px">{{ comment.created_at|date:"M j, g:iA" }}</span>
+      </div>
+      <p style="font-size:14px;line-height:1.5;color:var(--adm-ink);margin:0 0 6px">{{ comment.content|truncatewords:30 }}</p>
+      <a href="{% url 'admin_article_edit' pk=comment.article_id %}" class="muted" style="font-size:12px">on: {{ comment.article_title|truncatewords:8 }}</a>
+    </div>
+    {% empty %}
+    <div class="muted" style="text-align:center;padding:40px">No recent comments.</div>
+    {% endfor %}
+  </div>
+</div>
+
+{# Newsletter Performance #}
+<div class="card">
+  <h3 style="font-size:15px;font-weight:600;padding:20px 20px 0">Newsletter Performance</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Newsletter</th>
+          <th>Sent</th>
+          <th style="text-align:right">Recipients</th>
+          <th style="text-align:right">Opens</th>
+          <th style="text-align:right">Open Rate</th>
+          <th style="text-align:right">Clicks</th>
+          <th style="text-align:right">CTR</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for nl in newsletters %}
+        <tr>
+          <td><strong>{{ nl.subject|truncatewords:8 }}</strong></td>
+          <td class="muted" style="font-size:13px;white-space:nowrap">{{ nl.sent_at|date:"M j, Y" }}</td>
+          <td style="text-align:right">{{ nl.recipient_count|default:"0" }}</td>
+          <td style="text-align:right">{{ nl.open_count|default:"0" }}</td>
+          <td style="text-align:right;font-weight:600">{{ nl.open_rate|default:"0" }}%</td>
+          <td style="text-align:right">{{ nl.click_count|default:"0" }}</td>
+          <td style="text-align:right;font-weight:600">{{ nl.click_rate|default:"0" }}%</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="muted" style="text-align:center;padding:40px">No newsletter data available.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

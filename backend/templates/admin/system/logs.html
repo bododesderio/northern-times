@@ -1,0 +1,80 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}System Logs{% endblock %}
+{% block breadcrumb_title %}System Logs{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <h1>System Logs</h1>
+  <div style="display:flex;gap:10px;align-items:center">
+    <form method="GET" id="logFilterForm" style="display:flex;gap:10px;align-items:center">
+      <select name="level" class="form-control" style="width:auto" onchange="this.form.submit()">
+        <option value="">All Levels</option>
+        <option value="error" {% if request.GET.level == 'error' %}selected{% endif %}>Error</option>
+        <option value="warning" {% if request.GET.level == 'warning' %}selected{% endif %}>Warning</option>
+        <option value="info" {% if request.GET.level == 'info' %}selected{% endif %}>Info</option>
+        <option value="debug" {% if request.GET.level == 'debug' %}selected{% endif %}>Debug</option>
+      </select>
+      <select name="source" class="form-control" style="width:auto" onchange="this.form.submit()">
+        <option value="">All Sources</option>
+        <option value="crawler" {% if request.GET.source == 'crawler' %}selected{% endif %}>Crawler</option>
+        <option value="rewriter" {% if request.GET.source == 'rewriter' %}selected{% endif %}>Rewriter</option>
+        <option value="newsletter" {% if request.GET.source == 'newsletter' %}selected{% endif %}>Newsletter</option>
+        <option value="auth" {% if request.GET.source == 'auth' %}selected{% endif %}>Auth</option>
+        <option value="system" {% if request.GET.source == 'system' %}selected{% endif %}>System</option>
+      </select>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:100px">Level</th>
+          <th style="width:120px">Source</th>
+          <th>Message</th>
+          <th style="width:170px">Timestamp</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td>
+            {% if log.level == 'error' %}
+            <span style="color:#dc2626;font-weight:600;font-size:13px">ERROR</span>
+            {% elif log.level == 'warning' %}
+            <span style="color:#d97706;font-weight:600;font-size:13px">WARN</span>
+            {% elif log.level == 'info' %}
+            <span style="color:#2563eb;font-weight:600;font-size:13px">INFO</span>
+            {% else %}
+            <span style="color:var(--adm-muted);font-size:13px">DEBUG</span>
+            {% endif %}
+          </td>
+          <td><span class="badge">{{ log.source|default:"system" }}</span></td>
+          <td style="font-size:13px;line-height:1.5;white-space:normal;font-family:monospace">{{ log.message|truncatewords:50 }}</td>
+          <td class="muted" style="font-size:12px;white-space:nowrap">{{ log.created_at|date:"M j, Y g:i:sA" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="4" class="muted" style="text-align:center;padding:40px">No log entries found.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page_obj %}
+<div style="display:flex;justify-content:center;gap:8px;margin-top:20px">
+  {% if page_obj.has_previous %}
+  <a class="btn light xs" href="?page={{ page_obj.previous_page_number }}&level={{ request.GET.level|default:'' }}&source={{ request.GET.source|default:'' }}">Previous</a>
+  {% endif %}
+  <span class="muted" style="padding:8px 12px;font-size:14px">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+  <a class="btn light xs" href="?page={{ page_obj.next_page_number }}&level={{ request.GET.level|default:'' }}&source={{ request.GET.source|default:'' }}">Next</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}{% if is_edit %}Edit User{% else %}New User{% endif %}{% endblock %}
+{% block breadcrumb_title %}{% if is_edit %}Edit User{% else %}New User{% endif %}{% endblock %}
+
+{% block admin_content %}
+<div style="margin-bottom:20px">
+  <a href="{% url 'admin_users' %}" class="muted" style="font-size:14px">&larr; Back to Users</a>
+</div>
+
+<div style="max-width:760px">
+  <div class="page-header">
+    <div>
+      <h1>{% if is_edit %}Edit User{% else %}New User{% endif %}</h1>
+      <div class="sub">{% if is_edit %}Update account details, role, and permissions.{% else %}Create a new newsroom account.{% endif %}</div>
+    </div>
+  </div>
+
+  <form method="POST" action="{% if is_edit %}{% url 'admin_user_edit' pk=user_obj.id %}{% else %}{% url 'admin_user_create' %}{% endif %}">
+    {% csrf_token %}
+
+    <div class="card" style="margin-bottom:20px">
+      <div style="font-weight:700;font-size:14px;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--adm-border)">Account Details</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label class="form-label">Username <span class="req">*</span></label>
+          <input name="username" type="text" required class="form-control" value="{{ user_obj.username|default:'' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email <span class="req">*</span></label>
+          <input name="email" type="email" required class="form-control" value="{{ user_obj.email|default:'' }}">
+        </div>
+      </div>
+
+      {% if not is_edit %}
+        <div class="form-group">
+          <label class="form-label">Password <span class="req">*</span></label>
+          <input name="password" type="password" required class="form-control" placeholder="Minimum 8 characters" minlength="8">
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div style="font-weight:700;font-size:14px;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--adm-border)">Role & Status</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label class="form-label">Role</label>
+          <select name="role_id" class="form-control">
+            <option value="">-- No role --</option>
+            {% for r in roles %}
+              <option value="{{ r.id }}" {% if user_obj.role_id == r.id %}selected{% endif %}>{{ r.name|title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select name="is_active" class="form-control">
+            <option value="1" {% if user_obj.is_active %}selected{% endif %}>Active</option>
+            <option value="0" {% if not user_obj.is_active %}selected{% endif %}>Inactive</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    {% if is_edit %}
+    <div class="card" style="margin-bottom:20px">
+      <div style="font-weight:700;font-size:14px;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--adm-border)">Change Password</div>
+      <div class="form-group">
+        <label class="form-label">New Password <span class="muted">(leave blank to keep current)</span></label>
+        <input name="password" type="password" class="form-control" placeholder="New password" minlength="8">
+      </div>
+    </div>
+    {% endif %}
+
+    <div style="display:flex;gap:12px">
+      <button class="btn" type="submit">{% if is_edit %}Update User{% else %}Create User{% endif %}</button>
+      <a class="btn light" href="{% url 'admin_users' %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}SEO Audit{% endblock %}
+{% block breadcrumb_title %}SEO Audit{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1>SEO Audit</h1>
+    <div class="sub">Check your articles for SEO issues -- missing meta, short content, broken images.</div>
+  </div>
+  <form method="POST" action="{% url 'admin_seo_run' %}" style="display:inline">
+    {% csrf_token %}
+    <button type="submit" class="btn">Run SEO Audit</button>
+  </form>
+</div>
+
+{% if last_run %}
+  <div class="card" style="margin-bottom:20px;padding:14px">
+    <span class="muted" style="font-size:13px">Last audit: {{ last_run|date:"M j, Y g:i A" }} &middot; {{ issues_count|default:0 }} issues found</span>
+  </div>
+{% endif %}
+
+{% if issues %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>URL</th><th>Issue</th><th>Type</th><th>Severity</th></tr>
+      </thead>
+      <tbody>
+        {% for issue in issues %}
+          <tr>
+            <td style="font-weight:600;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ issue.url }}</td>
+            <td>{{ issue.message }}</td>
+            <td class="muted" style="font-size:13px">{{ issue.issue_type }}</td>
+            <td>
+              <span class="badge {% if issue.severity == 'critical' %}red{% elif issue.severity == 'warning' %}yellow{% else %}blue{% endif %}">{{ issue.severity|title }}</span>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <div class="empty-state">
+    <h3>No SEO issues found</h3>
+    <p>Run an audit to check your articles.</p>
+  </div>
+{% endif %}
+{% endblock %}

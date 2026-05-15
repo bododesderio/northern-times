@@ -1,0 +1,25 @@
+{% extends "errors/base.html" %}
+
+{% block error_code %}403{% endblock %}
+{% block error_title %}Access Denied{% endblock %}
+{% block error_code_display %}403{% endblock %}
+{% block error_badge %}403{% endblock %}
+
+{% block error_message %}Access Denied{% endblock %}
+
+{% block error_detail %}You don't have permission to view this page. If you believe this is an error, please contact your administrator or try logging in with different credentials.{% endblock %}
+
+{% block error_actions %}
+<a href="/admin/" class="err-btn err-btn-primary">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+  Admin Dashboard
+</a>
+<a href="/admin/login/" class="err-btn err-btn-secondary">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+  Login
+</a>
+<a href="javascript:history.back()" class="err-btn err-btn-secondary">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+  Go Back
+</a>
+{% endblock %}

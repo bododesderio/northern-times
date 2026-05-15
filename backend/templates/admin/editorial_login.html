@@ -1,0 +1,211 @@
+{% load static %}
+<!doctype html>
+<html lang="en" data-adm-theme="light">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Login — {{ site_title|default:"Northern Times" }} Admin</title>
+  <link rel="stylesheet" href="{% static 'fonts/fonts.css' %}"/>
+  <style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: 'Libre Franklin', system-ui, sans-serif; font-size: 15px; }
+
+  .lp-wrap { display: flex; min-height: 100vh; width: 100%; }
+  .lp-left {
+    flex: 0 0 48%; background: #1a1b1e;
+    position: relative; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .lp-noise {
+    position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    mix-blend-mode: overlay; opacity: 0.6;
+  }
+  .lp-rules { position: absolute; inset: 0; z-index: 1; display: flex; justify-content: space-around; pointer-events: none; }
+  .lp-rules span { display: block; width: 1px; background: linear-gradient(to bottom, transparent 0%, rgba(255,255,255,.05) 20%, rgba(255,255,255,.05) 80%, transparent 100%); }
+  .lp-left-body {
+    position: relative; z-index: 2; flex: 1;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 56px 52px; gap: 44px;
+  }
+  .lp-masthead { text-align: center; }
+  .lp-rule-top, .lp-rule-bot { height: 1px; background: linear-gradient(to right, transparent, rgba(255,255,255,.25), transparent); margin: 12px 0; }
+  .lp-nameplate { font-family: 'UnifrakturMaguntia', Georgia, serif; font-size: clamp(32px, 4vw, 52px); color: #f5f0e8; line-height: 1.1; }
+  .lp-edition { font-size: 10px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: rgba(255,255,255,.35); margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .lp-quote-block { border-left: 2px solid rgba(255,255,255,.15); padding-left: 20px; }
+  .lp-quote { font-family: Georgia, serif; font-size: 15px; font-style: italic; color: rgba(255,255,255,.55); line-height: 1.7; margin: 0 0 8px; transition: opacity .5s ease; }
+  .lp-cite { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: rgba(255,255,255,.3); display: block; transition: opacity .5s ease; }
+  .lp-grid-preview { display: grid; grid-template-columns: 1fr 90px 1fr; gap: 14px; opacity: 0.22; }
+  .lp-preview-col { display: flex; flex-direction: column; gap: 7px; }
+  .lp-preview-img { background: rgba(255,255,255,.12); border-radius: 2px; min-height: 80px; }
+  .lp-pline { height: 6px; background: rgba(255,255,255,.35); border-radius: 3px; }
+  .w40{width:40%}.w50{width:50%}.w60{width:60%}.w70{width:70%}.w80{width:80%}.w90{width:90%}
+  .lp-left-foot { position: relative; z-index: 2; padding: 16px 52px; border-top: 1px solid rgba(255,255,255,.07); font-size: 11px; color: rgba(255,255,255,.2); }
+  .lp-right { flex: 1; display: flex; align-items: center; justify-content: center; background: #1c1917; padding: 40px 24px; }
+  .lp-form-wrap { width: 100%; max-width: 400px; animation: lpFadeUp .4s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes lpFadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  .lp-mobile-brand { display: none; font-family: 'UnifrakturMaguntia', Georgia, serif; font-size: 28px; color: #fafafa; margin-bottom: 28px; }
+  .lp-form-title { font-size: 26px; font-weight: 800; color: #fafafa; margin: 0 0 6px; }
+  .lp-form-sub { font-size: 14px; color: #a8a29e; margin: 0 0 28px; }
+  .lp-error { display: flex; align-items: center; gap: 8px; background: rgba(211,47,47,.15); border: 1px solid #D32F2F; color: #ffb3ac; border-radius: 10px; padding: 11px 14px; font-size: 13px; font-weight: 500; margin-bottom: 20px; animation: lpShake .35s both; }
+  @keyframes lpShake { 10%,90%{transform:translateX(-2px)} 20%,80%{transform:translateX(3px)} 30%,50%,70%{transform:translateX(-4px)} 40%,60%{transform:translateX(4px)} }
+  .lp-form { display: flex; flex-direction: column; gap: 18px; }
+  .lp-field { display: flex; flex-direction: column; gap: 7px; }
+  .lp-label { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #a8a29e; }
+  .lp-input-wrap { position: relative; display: flex; align-items: center; }
+  .lp-input-icon { position: absolute; left: 13px; color: #78716c; pointer-events: none; }
+  .lp-input { width: 100%; padding: 12px 40px; border: 1.5px solid #292524; border-radius: 10px; background: #0c0a09; color: #fafafa; font-size: 15px; outline: none; transition: border-color .15s, box-shadow .15s; }
+  .lp-input::placeholder { color: #78716c; }
+  .lp-input:focus { border-color: #D32F2F; box-shadow: 0 0 0 3px rgba(211,47,47,.15); }
+  .lp-pw-toggle { position: absolute; right: 12px; background: none; border: none; cursor: pointer; color: #78716c; padding: 4px; display: flex; }
+  .lp-submit { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px 20px; background: #D32F2F; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: 700; margin-top: 4px; transition: background .15s; }
+  .lp-submit:hover { background: #b71c1c; }
+  .lp-foot { margin-top: 24px; }
+  .lp-back-link { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: #78716c; text-decoration: none; }
+  .lp-back-link:hover { color: #fafafa; }
+  @media (max-width: 780px) {
+    .lp-wrap { flex-direction: column; }
+    .lp-left { display: none; }
+    .lp-right { min-height: 100vh; padding: 48px 24px; }
+    .lp-mobile-brand { display: block; }
+  }
+  </style>
+</head>
+<body>
+
+<div class="lp-wrap">
+  <div class="lp-left" aria-hidden="true">
+    <div class="lp-noise"></div>
+    <div class="lp-rules"><span></span><span></span><span></span></div>
+    <div class="lp-left-body">
+      <div class="lp-masthead">
+        <div class="lp-rule-top"></div>
+        <div class="lp-nameplate">{{ site_title|default:"Northern Times" }}</div>
+        <div class="lp-rule-bot"></div>
+        <div class="lp-edition">
+          <span id="lpDate"></span>
+          <span style="opacity:.4">&#183;</span>
+          <span>Admin Edition</span>
+        </div>
+      </div>
+      <div class="lp-quote-block">
+        <p class="lp-quote" id="lpQuote"></p>
+        <cite class="lp-cite" id="lpCite"></cite>
+      </div>
+      <div class="lp-grid-preview" aria-hidden="true">
+        <div class="lp-preview-col">
+          <div class="lp-pline w80"></div><div class="lp-pline w60"></div>
+          <div class="lp-pline w90"></div><div class="lp-pline w50"></div>
+        </div>
+        <div class="lp-preview-col lp-preview-img"></div>
+        <div class="lp-preview-col">
+          <div class="lp-pline w70"></div><div class="lp-pline w90"></div>
+          <div class="lp-pline w50"></div><div class="lp-pline w80"></div>
+        </div>
+      </div>
+    </div>
+    <div class="lp-left-foot">Powered by {{ site_title|default:"Northern Times" }} CMS</div>
+  </div>
+
+  <div class="lp-right">
+    <div class="lp-form-wrap">
+      <div class="lp-mobile-brand">{{ site_title|default:"Northern Times" }}</div>
+      <h1 class="lp-form-title">Welcome back</h1>
+      <p class="lp-form-sub">Sign in to your newsroom dashboard</p>
+
+      {% if error %}
+        <div class="lp-error">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          {{ error }}
+        </div>
+      {% endif %}
+
+      {% if form.non_field_errors %}
+        {% for err in form.non_field_errors %}
+          <div class="lp-error">{{ err }}</div>
+        {% endfor %}
+      {% endif %}
+
+      <form method="POST" action="{% url 'admin_login' %}" class="lp-form" autocomplete="on">
+        {% csrf_token %}
+
+        <div class="lp-field">
+          <label class="lp-label" for="lpEmail">Email address</label>
+          <div class="lp-input-wrap">
+            <svg class="lp-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            <input id="lpEmail" name="email" type="email" required autocomplete="email"
+                   placeholder="editor@example.com" class="lp-input"
+                   value="{{ form.email.value|default:'' }}">
+          </div>
+        </div>
+
+        <div class="lp-field">
+          <label class="lp-label" for="lpPassword">Password</label>
+          <div class="lp-input-wrap">
+            <svg class="lp-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input id="lpPassword" name="password" type="password" required
+                   autocomplete="current-password" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" class="lp-input">
+            <button type="button" class="lp-pw-toggle" onclick="lpTogglePw()" tabindex="-1" aria-label="Show password">
+              <svg id="lpEyeOpen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg id="lpEyeSlash" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="lp-submit">
+          Sign in to Newsroom
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+      </form>
+
+      <div class="lp-foot" style="display:flex;justify-content:space-between;align-items:center;">
+        <a href="/" class="lp-back-link">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Back to front page
+        </a>
+        <a href="{% url 'admin_forgot_password' %}" class="lp-back-link">Forgot password?</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var el = document.getElementById('lpDate');
+  if (!el) return;
+  var d = new Date();
+  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  el.textContent = days[d.getDay()] + ', ' + months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+})();
+
+(function () {
+  var quotes = {{ login_quotes|safe|default:'[{"quote":"The press is the best instrument for enlightening the mind of man.","author":"Thomas Jefferson"}]' }};
+  if (!quotes.length) return;
+  var qEl = document.getElementById('lpQuote');
+  var cEl = document.getElementById('lpCite');
+  if (!qEl || !cEl) return;
+  var idx = Math.floor(Math.random() * quotes.length);
+  function show(i) {
+    qEl.textContent = '\u201c' + quotes[i].quote + '\u201d';
+    cEl.textContent = quotes[i].author ? '\u2014 ' + quotes[i].author : '';
+  }
+  function next() {
+    qEl.style.opacity = '0'; cEl.style.opacity = '0';
+    setTimeout(function () { idx = (idx + 1) % quotes.length; show(idx); qEl.style.opacity = '1'; cEl.style.opacity = '1'; }, 520);
+  }
+  show(idx);
+  setInterval(next, 6000);
+})();
+
+function lpTogglePw() {
+  var inp = document.getElementById('lpPassword');
+  var open = document.getElementById('lpEyeOpen');
+  var slash = document.getElementById('lpEyeSlash');
+  if (!inp) return;
+  var show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  if (open) open.style.display = show ? 'none' : '';
+  if (slash) slash.style.display = show ? '' : 'none';
+}
+</script>
+</body>
+</html>

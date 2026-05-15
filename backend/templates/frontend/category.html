@@ -1,0 +1,106 @@
+{% extends "frontend/layout.html" %}
+{% load core_tags %}
+
+{% block title %}{{ category.name }} - {{ site_name }}{% endblock %}
+
+{% block content %}
+{% render_ad ads 'top-banner' 'ad-leaderboard' %}
+<div class="np-page-wrap">
+
+  <!-- Category Header -->
+  <header class="np-cat-header">
+    <div class="np-cat-accent-line"></div>
+    <span class="np-cat-tag">Section</span>
+    <h1 class="np-cat-title">{{ category.name }}</h1>
+    <p class="np-cat-desc">{{ category.description|default_if_none:""|default:"Deep-dive reporting and expert analysis on "|add:category.name|lower|add:"." }}</p>
+  </header>
+
+  {% if articles %}
+  <div class="np-cat-layout">
+
+    <!-- Main Content: Article Grid -->
+    <div class="np-cat-main">
+      <div class="np-cat-grid-header">
+        <h2 class="np-cat-grid-title">Latest in {{ category.name }}</h2>
+      </div>
+
+      <div class="np-cat-article-grid">
+        {% for a in articles %}
+        <article class="np-cat-card">
+          <a href="{% url 'articles_frontend:article' slug=a.slug %}" class="np-cat-card-link">
+            <div class="np-cat-card-img">
+              {% if a.featured_image %}
+                <img src="{{ a.featured_image }}" alt="{{ a.title }}" loading="{% if forloop.counter <= 3 %}eager{% else %}lazy{% endif %}" onerror="this.style.display='none'">
+              {% else %}
+                <div class="np-cat-card-placeholder"></div>
+              {% endif %}
+            </div>
+            <span class="np-cat-tag">{{ a.category|default:category.name }}</span>
+            <h3 class="np-cat-card-title">{{ a.title }}</h3>
+            <div class="np-cat-card-meta">
+              <span>By {{ a.author|default:"Staff" }}</span>
+              <span class="np-meta-dot">&bull;</span>
+              <span>{{ a.published_at|timesince }} ago</span>
+            </div>
+          </a>
+        </article>
+        {% endfor %}
+      </div>
+
+      {% render_ad ads 'in-feed' 'ad-in-feed' %}
+      {% render_ad ads 'below-article' 'ad-below-article' %}
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="np-cat-sidebar">
+      {% render_ad ads 'sidebar' 'ad-sidebar-slot' %}
+
+      <!-- Trending in Category -->
+      {% if most %}
+      <section class="np-sidebar-section">
+        <div class="np-sidebar-heading-accent">
+          <h2 class="np-sidebar-heading-text">Trending in {{ category.name }}</h2>
+        </div>
+        <div class="np-trending-list">
+          {% for m in most|slice:":4" %}
+          <a href="{% url 'articles_frontend:article' slug=m.slug %}" class="np-trending-item">
+            <span class="np-trending-num">{{ forloop.counter|stringformat:"02d" }}</span>
+            <div>
+              <h4 class="np-trending-title">{{ m.title }}</h4>
+              {% if m.views %}
+                <span class="np-trending-reads">{{ m.views|floatformat:"0" }} reads</span>
+              {% endif %}
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+      <!-- Newsletter CTA -->
+      <section class="np-sidebar-newsletter">
+        <div class="np-sidebar-newsletter-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+          <h2 class="np-sidebar-heading-text">The Daily Brief</h2>
+        </div>
+        <p class="np-sidebar-newsletter-desc">Stay ahead of the curve with our morning briefing.</p>
+        <form class="follow-form np-sidebar-newsletter-form" data-type="category" data-id="{{ category.id }}">
+          <input type="email" placeholder="EMAIL ADDRESS" required class="np-sidebar-input">
+          <button type="submit" class="np-sidebar-btn">Subscribe Now</button>
+          <span class="follow-msg np-sidebar-msg"></span>
+        </form>
+      </section>
+
+    </aside>
+
+  </div>
+
+  {% else %}
+    <div class="np-empty-state">
+      <h3>Nothing published here yet</h3>
+      <p>Articles will appear here when published.</p>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

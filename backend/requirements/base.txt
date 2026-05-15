@@ -1,0 +1,60 @@
+# Django core
+Django>=5.1,<5.2
+psycopg2-binary>=2.9.9
+django-redis>=5.4.0
+
+# REST API
+djangorestframework>=3.15.0
+django-filter>=24.0
+django-cors-headers>=4.4.0
+drf-spectacular>=0.27.0
+
+# Background tasks
+celery[redis]>=5.4.0
+django-celery-beat>=2.6.0
+
+# Storage
+django-storages[boto3]>=1.14.0
+boto3>=1.35.0
+Pillow>=10.4.0
+
+# Web scraping & extraction
+beautifulsoup4>=4.12.3
+trafilatura>=2.0.0
+readability-lxml>=0.8.1
+newspaper3k>=0.2.8
+lxml>=5.3.0
+lxml-html-clean>=0.4.1
+feedparser>=6.0.11
+httpx>=0.28.0
+selenium>=4.25.0
+
+# AI / ML
+openai>=1.50.0
+sentence-transformers>=3.3.0
+transformers>=4.47.0
+torch>=2.5.0
+spacy>=3.7.0
+sentencepiece>=0.2.0
+
+# Content processing
+bleach>=6.1.0
+html5lib>=1.1
+
+# GeoIP
+geoip2>=4.8.0
+maxminddb>=2.6.0
+
+# Email & notifications
+pywebpush>=2.0.0
+
+# Monitoring
+sentry-sdk[django]>=2.0.0
+
+# Utilities
+python-dotenv>=1.0.1
+gunicorn>=23.0.0
+uvicorn[standard]>=0.34.0
+
+# pgvector
+pgvector>=0.3.0

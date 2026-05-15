@@ -1,0 +1,41 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Policy Pages{% endblock %}
+{% block breadcrumb_title %}Policy Pages{% endblock %}
+
+{% block admin_content %}
+<div class="page-header">
+  <div>
+    <h1>Policy Pages</h1>
+    <div class="sub">Manage legal and editorial policy pages (Privacy Policy, Terms, etc.).</div>
+  </div>
+  <a href="{% url 'admin_policy_create' %}" class="btn">+ New Policy Page</a>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Title</th><th>Slug</th><th style="text-align:center">Status</th><th>Updated</th><th style="text-align:right">Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for p in policies %}
+        <tr>
+          <td style="font-weight:700">{{ p.title }}</td>
+          <td><code style="background:var(--adm-bg);padding:2px 8px;border-radius:6px">{{ p.slug }}</code></td>
+          <td style="text-align:center"><span class="badge {% if p.is_published %}green{% else %}grey{% endif %}">{% if p.is_published %}Published{% else %}Draft{% endif %}</span></td>
+          <td class="muted" style="font-size:13px">{{ p.updated_at|date:"M j, Y" }}</td>
+          <td style="text-align:right">
+            <div style="display:flex;gap:6px;justify-content:flex-end">
+              <a href="{% url 'admin_policy_edit' pk=p.id %}" class="btn light xs">Edit</a>
+              <a href="/{{ p.slug }}" target="_blank" class="btn light xs">View</a>
+              <form method="POST" action="{% url 'admin_policy_delete' pk=p.id %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete this policy page?')">{% csrf_token %}<button class="btn danger xs">Delete</button></form>
+            </div>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="muted" style="text-align:center;padding:40px">No policy pages created yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

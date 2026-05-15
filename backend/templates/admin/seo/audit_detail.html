@@ -1,0 +1,77 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}SEO Audit Detail{% endblock %}
+{% block breadcrumb_title %}SEO Audit Detail{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <div>
+    <h1>SEO Audit #{{ audit.id|default:"" }}</h1>
+    <div class="muted" style="font-size:14px;margin-top:4px">Ran on {{ audit.created_at|date:"M j, Y g:iA"|default:"--" }}</div>
+  </div>
+  <a class="btn light" href="{% url 'admin_seo_audits' %}">Back to Audits</a>
+</div>
+
+{# Score summary #}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:28px">
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Overall Score</div>
+    <div style="font-size:32px;font-weight:700;color:{% if audit.score >= 80 %}#16a34a{% elif audit.score >= 50 %}#d97706{% else %}#dc2626{% endif %}">
+      {{ audit.score|default:"--" }}
+    </div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Issues Found</div>
+    <div style="font-size:32px;font-weight:700">{{ audit.issues_count|default:"0" }}</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Pages Scanned</div>
+    <div style="font-size:32px;font-weight:700">{{ audit.pages_scanned|default:"0" }}</div>
+  </div>
+  <div class="card" style="padding:20px;text-align:center">
+    <div class="muted" style="font-size:13px;margin-bottom:4px">Duration</div>
+    <div style="font-size:32px;font-weight:700">{{ audit.duration_seconds|default:"0" }}s</div>
+  </div>
+</div>
+
+{# Issues table #}
+<div class="card">
+  <h3 style="font-size:15px;font-weight:600;padding:20px 20px 0">Issues</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Severity</th>
+          <th>Category</th>
+          <th>Issue</th>
+          <th>Page</th>
+          <th>Recommendation</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for issue in issues %}
+        <tr>
+          <td>
+            {% if issue.severity == 'critical' %}
+            <span style="color:#dc2626;font-weight:600;font-size:13px">Critical</span>
+            {% elif issue.severity == 'warning' %}
+            <span style="color:#d97706;font-weight:600;font-size:13px">Warning</span>
+            {% else %}
+            <span style="color:#2563eb;font-weight:600;font-size:13px">Info</span>
+            {% endif %}
+          </td>
+          <td><span class="badge">{{ issue.category|default:"general" }}</span></td>
+          <td><strong>{{ issue.title }}</strong></td>
+          <td style="font-size:13px;max-width:200px;word-break:break-all">{{ issue.page_url|default:"--" }}</td>
+          <td style="font-size:13px;max-width:300px;white-space:normal;line-height:1.5">{{ issue.recommendation|default:"" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5" class="muted" style="text-align:center;padding:40px">No issues found. Great job!</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

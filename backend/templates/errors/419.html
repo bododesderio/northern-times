@@ -1,0 +1,21 @@
+{% extends "errors/base.html" %}
+
+{% block error_code %}419{% endblock %}
+{% block error_title %}Session Expired{% endblock %}
+{% block error_code_display %}419{% endblock %}
+{% block error_badge %}419{% endblock %}
+
+{% block error_message %}Session Expired{% endblock %}
+
+{% block error_detail %}Your session or security token has expired. This usually happens when a page is left open too long. Please go back and try again — your data should still be there.{% endblock %}
+
+{% block error_actions %}
+<a href="javascript:history.back()" class="err-btn err-btn-primary">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+  Go Back &amp; Retry
+</a>
+<a href="/admin/" class="err-btn err-btn-secondary">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+  Dashboard
+</a>
+{% endblock %}

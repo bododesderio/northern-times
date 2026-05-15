@@ -1,0 +1,59 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Social Post Log{% endblock %}
+{% block breadcrumb_title %}Social Post Log{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <h1>Social Post Log</h1>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Article</th>
+          <th>Platform</th>
+          <th>Status</th>
+          <th>Post URL</th>
+          <th>Posted At</th>
+          <th>Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for post in posts %}
+        <tr>
+          <td style="max-width:300px">
+            <strong>{{ post.article_title|truncatewords:10 }}</strong>
+          </td>
+          <td><span class="badge">{{ post.platform }}</span></td>
+          <td>
+            {% if post.status == 'success' %}
+            <span style="color:#16a34a;font-weight:600;font-size:13px">Success</span>
+            {% elif post.status == 'failed' %}
+            <span style="color:#dc2626;font-weight:600;font-size:13px">Failed</span>
+            {% else %}
+            <span style="color:#d97706;font-weight:600;font-size:13px">Pending</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if post.post_url %}
+            <a href="{{ post.post_url }}" target="_blank" style="font-size:13px">View Post</a>
+            {% else %}
+            <span class="muted">--</span>
+            {% endif %}
+          </td>
+          <td class="muted" style="font-size:13px;white-space:nowrap">{{ post.created_at|date:"M j, Y g:iA" }}</td>
+          <td style="font-size:12px;color:#dc2626;max-width:200px">{{ post.error_message|default:"" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="muted" style="text-align:center;padding:40px">No social posts logged yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

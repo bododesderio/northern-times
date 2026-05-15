@@ -1,0 +1,85 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}My Profile{% endblock %}
+{% block breadcrumb_title %}My Profile{% endblock %}
+
+{% block admin_content %}
+<div style="max-width:820px">
+  <div class="page-header">
+    <div>
+      <h1>My Profile</h1>
+      <div class="sub">Manage your account details, bio, and password.</div>
+    </div>
+  </div>
+
+  {# Profile Header Card #}
+  <div class="card" style="margin-bottom:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+    <div style="position:relative;flex-shrink:0">
+      {% if user_obj.avatar_url %}
+        <img src="{{ user_obj.avatar_url }}" alt="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--adm-border)">
+      {% else %}
+        <div style="width:72px;height:72px;border-radius:50%;background:{% if user_obj.role == 'super_admin' %}#c00{% elif user_obj.role == 'editor' %}#1a6bbf{% else %}#4a4a4a{% endif %};display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff">
+          {{ user_obj.username|make_list|first|upper }}
+        </div>
+      {% endif %}
+    </div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:20px;font-weight:800;margin-bottom:4px">{{ user_obj.username }}</div>
+      <div class="muted" style="font-size:14px;margin-bottom:8px">{{ user_obj.email }}</div>
+      <span class="badge {% if user_obj.role == 'super_admin' %}red{% elif user_obj.role == 'editor' %}blue{% else %}grey{% endif %}">
+        {{ user_obj.role|title }}
+      </span>
+    </div>
+  </div>
+
+  {# Edit Profile Form #}
+  <form method="POST" action="{% url 'admin_profile' %}">
+    {% csrf_token %}
+
+    <div class="card" style="margin-bottom:20px">
+      <div style="font-weight:700;font-size:14px;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--adm-border)">Profile Details</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label class="form-label">Username</label>
+          <input name="username" value="{{ user_obj.username }}" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input name="email" type="email" value="{{ user_obj.email }}" class="form-control" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Bio (optional)</label>
+        <textarea name="bio" class="form-control" rows="3" placeholder="Tell readers about yourself...">{{ user_obj.bio|default:'' }}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Avatar URL</label>
+        <input name="avatar_url" value="{{ user_obj.avatar_url|default:'' }}" class="form-control" placeholder="https://...">
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div style="font-weight:700;font-size:14px;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--adm-border)">Change Password</div>
+      <div class="form-group">
+        <label class="form-label">Current Password</label>
+        <input name="current_password" type="password" class="form-control" placeholder="Enter current password">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label class="form-label">New Password</label>
+          <input name="new_password" type="password" class="form-control" placeholder="Minimum 8 characters" minlength="8">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirm New Password</label>
+          <input name="new_password_confirm" type="password" class="form-control" placeholder="Repeat new password">
+        </div>
+      </div>
+      <div class="form-hint">Leave password fields blank to keep your current password.</div>
+    </div>
+
+    <div style="display:flex;gap:12px">
+      <button class="btn" type="submit" style="padding:12px 32px">Update Profile</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

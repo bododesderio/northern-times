@@ -39,7 +39,7 @@ class NTUploadAdapter {
             const token = csrfMeta?.content || csrfInput?.value || '';
 
             if (token) {
-                formData.append('csrfmiddlewaretoken', token);
+                formData.append('csrfmiddlewaretoken', token); // must match Django CSRF field name
             }
 
             // --- Configure request ---

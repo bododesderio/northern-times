@@ -1,0 +1,70 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Newsletter{% endblock %}
+{% block breadcrumb_title %}Newsletter{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px">
+  <div>
+    <h1 style="margin:0">Newsletter</h1>
+    <p class="muted" style="margin:4px 0 0">{{ active_count|default:0 }} active subscribers</p>
+  </div>
+  <a href="{% url 'admin_newsletter_compose' %}" class="btn">+ Compose</a>
+</div>
+
+{# Stats #}
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px">
+  <div class="card" style="padding:14px;text-align:center">
+    <div style="font-size:24px;font-weight:700">{{ stats.sent|default:0 }}</div>
+    <div class="muted" style="font-size:12px">Sent</div>
+  </div>
+  <div class="card" style="padding:14px;text-align:center">
+    <div style="font-size:24px;font-weight:700">{{ active_count|default:0 }}</div>
+    <div class="muted" style="font-size:12px">Subscribers</div>
+  </div>
+  <div class="card" style="padding:14px;text-align:center">
+    <div style="font-size:24px;font-weight:700;color:{% if queue_stats.pending > 0 %}#e67700{% endif %}">{{ queue_stats.pending|default:0 }}</div>
+    <div class="muted" style="font-size:12px">Queue Pending</div>
+  </div>
+  <div class="card" style="padding:14px;text-align:center">
+    <div style="font-size:24px;font-weight:700;color:{% if queue_stats.failed > 0 %}#cc0000{% endif %}">{{ queue_stats.failed|default:0 }}</div>
+    <div class="muted" style="font-size:12px">Queue Failed</div>
+  </div>
+</div>
+
+{# Test Email #}
+<div class="card" style="padding:16px;margin-bottom:20px;display:flex;gap:12px;flex-wrap:wrap;align-items:end">
+  <form method="POST" action="{% url 'admin_newsletter_test' %}" style="display:flex;gap:8px;flex:1;min-width:250px;align-items:end">
+    {% csrf_token %}
+    <div style="flex:1">
+      <label class="form-label">Send Test Email</label>
+      <input type="email" name="test_email" placeholder="your@email.com" required class="form-control">
+    </div>
+    <button type="submit" class="btn sm">Send Test</button>
+  </form>
+</div>
+
+{# Issues Table #}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Subject</th><th>Recipients</th><th>Sent</th><th style="text-align:right">Actions</th></tr>
+    </thead>
+    <tbody>
+      {% if not issues %}
+        <tr><td colspan="4" class="muted" style="padding:40px;text-align:center">No newsletters sent yet.</td></tr>
+      {% endif %}
+      {% for issue in issues %}
+        <tr>
+          <td style="font-weight:600">{{ issue.subject }}</td>
+          <td>{{ issue.recipients|default:0 }}</td>
+          <td class="muted" style="font-size:13px">{{ issue.sent_at|date:"M j, Y g:i A" }}</td>
+          <td style="text-align:right">
+            <a href="{% url 'admin_newsletter_preview' pk=issue.id %}" class="btn light xs">View</a>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

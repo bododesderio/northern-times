@@ -1,0 +1,79 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}{% if policy %}Edit Policy Page{% else %}New Policy Page{% endif %}{% endblock %}
+{% block breadcrumb_title %}{% if policy %}Edit Policy Page{% else %}New Policy Page{% endif %}{% endblock %}
+
+{% block admin_content %}
+<div style="max-width:900px">
+  <div class="page-header">
+    <div>
+      <h1>{% if policy %}Edit Policy Page{% else %}New Policy Page{% endif %}</h1>
+      <div class="sub">Create or edit legal/editorial policy pages.</div>
+    </div>
+  </div>
+
+  <form method="POST" action="{% if policy %}{% url 'admin_policy_edit' pk=policy.id %}{% else %}{% url 'admin_policy_create' %}{% endif %}">
+    {% csrf_token %}
+
+    <div class="card" style="margin-bottom:20px">
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+        <div class="form-group">
+          <label class="form-label">Title <span class="req">*</span></label>
+          <input name="title" type="text" required value="{{ policy.title|default:'' }}" class="form-control" style="font-size:18px">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Slug</label>
+          <input name="slug" type="text" value="{{ policy.slug|default:'' }}" class="form-control" placeholder="auto-generated">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select name="is_published" class="form-control" style="max-width:200px">
+          <option value="1" {% if policy.is_published %}selected{% endif %}>Published</option>
+          <option value="0" {% if not policy.is_published %}selected{% endif %}>Draft</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="form-group">
+        <label class="form-label">Content <span class="req">*</span></label>
+        <textarea name="content" id="policyContent" required class="form-control" style="min-height:400px;font-size:16px;line-height:1.7">{{ policy.content|default:'' }}</textarea>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px">
+      <button class="btn" type="submit">{% if policy %}Update Page{% else %}Create Page{% endif %}</button>
+      <a class="btn light" href="{% url 'admin_policies' %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block admin_scripts %}
+<script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/classic/ckeditor.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var el = document.getElementById('policyContent');
+  if (!el || typeof ClassicEditor === 'undefined') return;
+  ClassicEditor.create(el, {
+    toolbar: ['heading', '|', 'bold', 'italic', 'link', '|', 'bulletedList', 'numberedList', '|', 'blockQuote', 'insertTable', '|', 'undo', 'redo'],
+    heading: {
+      options: [
+        { model: 'paragraph', title: 'Paragraph', class: 'ck-heading_paragraph' },
+        { model: 'heading2', view: 'h2', title: 'Heading 2', class: 'ck-heading_heading2' },
+        { model: 'heading3', view: 'h3', title: 'Heading 3', class: 'ck-heading_heading3' },
+        { model: 'heading4', view: 'h4', title: 'Heading 4', class: 'ck-heading_heading4' }
+      ]
+    }
+  }).then(function(editor) {
+    // Sync CKEditor data back to textarea on form submit
+    editor.model.document.on('change:data', function() {
+      el.value = editor.getData();
+    });
+  }).catch(function(err) {
+    console.error('CKEditor init failed:', err);
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}{{ page_title|default:"Edit Webhook" }}{% endblock %}
+{% block breadcrumb_title %}{{ page_title|default:"Edit Webhook" }}{% endblock %}
+
+{% block admin_content %}
+<div class="card" style="max-width:720px">
+  <h1 style="margin-bottom:24px">{% if webhook.id %}Edit Webhook{% else %}New Webhook{% endif %}</h1>
+
+  <form method="POST" action="{{ form_action|default:'' }}" id="webhookForm">
+    {% csrf_token %}
+
+    <div class="form-group">
+      <label class="form-label">Name <span class="req">*</span></label>
+      <input name="name" required value="{{ webhook.name|default:'' }}" class="form-control" placeholder="e.g. Slack Notification">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">URL <span class="req">*</span></label>
+      <input name="url" type="url" required value="{{ webhook.url|default:'' }}" class="form-control" placeholder="https://hooks.slack.com/services/...">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Events</label>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px">
+        {% for event in available_events %}
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer">
+          <input type="checkbox" name="events" value="{{ event.0 }}" {% if event.0 in selected_events %}checked{% endif %} style="width:auto">
+          {{ event.1 }}
+        </label>
+        {% empty %}
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer">
+          <input type="checkbox" name="events" value="article.published" {% if 'article.published' in selected_events %}checked{% endif %} style="width:auto">
+          Article Published
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer">
+          <input type="checkbox" name="events" value="article.updated" {% if 'article.updated' in selected_events %}checked{% endif %} style="width:auto">
+          Article Updated
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer">
+          <input type="checkbox" name="events" value="comment.created" {% if 'comment.created' in selected_events %}checked{% endif %} style="width:auto">
+          New Comment
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer">
+          <input type="checkbox" name="events" value="user.registered" {% if 'user.registered' in selected_events %}checked{% endif %} style="width:auto">
+          User Registered
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer">
+          <input type="checkbox" name="events" value="crawler.error" {% if 'crawler.error' in selected_events %}checked{% endif %} style="width:auto">
+          Crawler Error
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Secret <span style="font-weight:400;color:var(--adm-muted);font-size:13px">(for signature verification)</span></label>
+      <input name="secret" type="password" value="{{ webhook.secret|default:'' }}" class="form-control" placeholder="Optional signing secret">
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="form-group">
+        <label class="form-label">Content Type</label>
+        <select name="content_type" class="form-control">
+          <option value="application/json" {% if webhook.content_type == 'application/json' %}selected{% endif %}>application/json</option>
+          <option value="application/x-www-form-urlencoded" {% if webhook.content_type == 'application/x-www-form-urlencoded' %}selected{% endif %}>form-urlencoded</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" name="is_active" {% if webhook.is_active %}checked{% endif %} style="width:auto">
+          Active
+        </label>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:16px;margin-top:28px">
+      <button class="btn" type="submit" style="padding:12px 32px">{% if webhook.id %}Update Webhook{% else %}Create Webhook{% endif %}</button>
+      <a class="btn light" href="{% url 'admin_webhooks' %}" style="padding:12px 32px">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

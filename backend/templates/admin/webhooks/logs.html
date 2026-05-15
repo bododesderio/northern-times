@@ -1,0 +1,66 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Webhook Logs{% endblock %}
+{% block breadcrumb_title %}Webhook Logs{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <h1>Webhook Delivery Logs</h1>
+  <a class="btn light" href="{% url 'admin_webhooks' %}">Back to Webhooks</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Webhook</th>
+          <th>Event</th>
+          <th>Status</th>
+          <th>HTTP Code</th>
+          <th>Response Time</th>
+          <th>Delivered At</th>
+          <th>Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td><strong>{{ log.webhook_name|default:"--" }}</strong></td>
+          <td><span class="badge">{{ log.event }}</span></td>
+          <td>
+            {% if log.status == 'success' %}
+            <span style="color:#16a34a;font-weight:600;font-size:13px">Success</span>
+            {% elif log.status == 'failed' %}
+            <span style="color:#dc2626;font-weight:600;font-size:13px">Failed</span>
+            {% else %}
+            <span style="color:#d97706;font-weight:600;font-size:13px">Pending</span>
+            {% endif %}
+          </td>
+          <td class="muted">{{ log.http_status|default:"--" }}</td>
+          <td class="muted" style="font-size:13px">{{ log.response_time_ms|default:"--" }}ms</td>
+          <td class="muted" style="font-size:12px;white-space:nowrap">{{ log.created_at|date:"M j, Y g:iA" }}</td>
+          <td style="font-size:12px;color:#dc2626;max-width:250px;white-space:normal">{{ log.error_message|default:"" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="muted" style="text-align:center;padding:40px">No webhook deliveries logged yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if page_obj %}
+<div style="display:flex;justify-content:center;gap:8px;margin-top:20px">
+  {% if page_obj.has_previous %}
+  <a class="btn light xs" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+  {% endif %}
+  <span class="muted" style="padding:8px 12px;font-size:14px">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+  <a class="btn light xs" href="?page={{ page_obj.next_page_number }}">Next</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

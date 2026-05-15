@@ -1,0 +1,96 @@
+{% extends "admin/layout.html" %}
+
+{% block admin_title %}Social Settings{% endblock %}
+{% block breadcrumb_title %}Social Settings{% endblock %}
+
+{% block admin_content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+  <h1>Social Media Settings</h1>
+  <button type="submit" form="socialSettingsForm" class="btn" style="padding:10px 28px">Save Settings</button>
+</div>
+
+<form method="POST" action="{{ form_action|default:'' }}" id="socialSettingsForm">
+  {% csrf_token %}
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:20px">
+    {# Facebook #}
+    <div class="card" style="padding:24px">
+      <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">Facebook</h3>
+      <div class="form-group">
+        <label class="form-label">Page ID</label>
+        <input name="facebook_page_id" value="{{ settings.facebook_page_id|default:'' }}" class="form-control" placeholder="e.g. 123456789">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Access Token</label>
+        <input name="facebook_access_token" type="password" value="{{ settings.facebook_access_token|default:'' }}" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" name="facebook_auto_post" {% if settings.facebook_auto_post %}checked{% endif %} style="width:auto">
+          Auto-post new articles
+        </label>
+      </div>
+    </div>
+
+    {# Twitter / X #}
+    <div class="card" style="padding:24px">
+      <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">Twitter / X</h3>
+      <div class="form-group">
+        <label class="form-label">API Key</label>
+        <input name="twitter_api_key" type="password" value="{{ settings.twitter_api_key|default:'' }}" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">API Secret</label>
+        <input name="twitter_api_secret" type="password" value="{{ settings.twitter_api_secret|default:'' }}" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Access Token</label>
+        <input name="twitter_access_token" type="password" value="{{ settings.twitter_access_token|default:'' }}" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Access Token Secret</label>
+        <input name="twitter_access_token_secret" type="password" value="{{ settings.twitter_access_token_secret|default:'' }}" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" name="twitter_auto_post" {% if settings.twitter_auto_post %}checked{% endif %} style="width:auto">
+          Auto-post new articles
+        </label>
+      </div>
+    </div>
+
+    {# LinkedIn #}
+    <div class="card" style="padding:24px">
+      <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">LinkedIn</h3>
+      <div class="form-group">
+        <label class="form-label">Organization ID</label>
+        <input name="linkedin_org_id" value="{{ settings.linkedin_org_id|default:'' }}" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Access Token</label>
+        <input name="linkedin_access_token" type="password" value="{{ settings.linkedin_access_token|default:'' }}" class="form-control">
+      </div>
+      <div class="form-group">
+        <label class="form-label" style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" name="linkedin_auto_post" {% if settings.linkedin_auto_post %}checked{% endif %} style="width:auto">
+          Auto-post new articles
+        </label>
+      </div>
+    </div>
+
+    {# General #}
+    <div class="card" style="padding:24px">
+      <h3 style="font-size:15px;font-weight:600;margin-bottom:16px">General</h3>
+      <div class="form-group">
+        <label class="form-label">Default Hashtags</label>
+        <input name="default_hashtags" value="{{ settings.default_hashtags|default:'' }}" class="form-control" placeholder="#NorthernTimes #News">
+        <div class="form-hint">Comma-separated hashtags added to all social posts.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">UTM Source</label>
+        <input name="utm_source" value="{{ settings.utm_source|default:'social' }}" class="form-control">
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
