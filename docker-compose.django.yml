@@ -75,7 +75,7 @@ services:
       context: .
       dockerfile: docker/django/Dockerfile
     container_name: northern_times_celery_worker
-    command: ["celery", "-A", "config.celery", "worker", "--loglevel=info", "--concurrency=4"]
+    command: ["celery", "-A", "config.celery", "worker", "--loglevel=info", "--concurrency=2", "--max-tasks-per-child=50"]
     volumes:
       - ./backend:/app/backend
       - ./frontend:/app/frontend
@@ -83,6 +83,7 @@ services:
       - .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
+      CELERY_WORKER_MAX_TASKS_PER_CHILD: "50"
     depends_on:
       django:
         condition: service_healthy
@@ -103,7 +104,7 @@ services:
       resources:
         limits:
           cpus: "2"
-          memory: 4G
+          memory: 6G
 
   celery-beat:
     build:

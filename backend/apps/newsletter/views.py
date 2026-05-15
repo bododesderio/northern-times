@@ -152,9 +152,21 @@ def newsletter_send_test(request):
     """Send a generic test email to verify mail delivery."""
     test_email = request.POST.get('test_email', '').strip()
     if test_email:
-        messages.success(request, f'Test email sent to {test_email} (stub).')
+        from django.core.mail import send_mail
+        from django.conf import settings
+        try:
+            send_mail(
+                subject='Northern Times — Test Email',
+                message='This is a test email from Northern Times. If you received this, email delivery is working correctly.',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[test_email],
+                fail_silently=False,
+            )
+            messages.success(request, f'Test email sent to {test_email}.')
+        except Exception as e:
+            messages.error(request, f'Email failed: {e}')
     else:
-        messages.warning(request, 'No email address provided.')
+        messages.error(request, 'Please enter an email address.')
     return redirect('admin_newsletter')
 
 

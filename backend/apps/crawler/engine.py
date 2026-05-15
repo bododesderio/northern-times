@@ -5,6 +5,7 @@ Pipeline: Fetch feeds -> Extract articles -> Clean content -> Enrich -> Dedup ->
 
 Replaces the PHP CrawlerEngine (app/Services/CrawlerEngine.php).
 """
+import gc
 import hashlib
 import logging
 import re
@@ -284,6 +285,9 @@ class CrawlerEngine:
             f"Source {source.name}: {new_count} new, {dupe_count} dupes, "
             f"{error_count} errors in {duration_ms}ms"
         )
+
+        # Free memory after each source crawl cycle
+        gc.collect()
 
         return {
             'status': status,
