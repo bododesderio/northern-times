@@ -4,6 +4,7 @@
 
 **Version:** 2.0 (Django) — May 2026
 **Stack:** Django 5.1 / PostgreSQL + pgvector / Redis / Celery / Nginx / Docker
+**Codebase:** 237 Python files, 81 templates, 43 static assets — zero legacy code
 **Status:** Production-ready
 
 ---
@@ -100,8 +101,8 @@ backend/
     system/            # Setting, SystemLog, CronRun, DBBackup, PolicyPage, LoginQuote
     core/              # Context processors, template tags, helpers, error handlers
   templates/
-    admin/             # 80+ admin templates (layout, dashboard, forms, lists)
-    frontend/          # 12 public templates (home, article, category, search, etc.)
+    admin/             # 68 admin templates (layout, dashboard, forms, lists)
+    frontend/          # 11 public templates (home, article, category, search, etc.)
     errors/            # Branded 403, 404, 500 error pages
   requirements/
     base.txt           # 60+ packages
