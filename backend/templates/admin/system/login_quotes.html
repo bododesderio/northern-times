@@ -46,7 +46,7 @@
           <td style="font-size:14px;line-height:1.6;font-style:italic;white-space:normal">"{{ q.quote_text }}"</td>
           <td style="font-weight:600;font-size:14px">{{ q.author|default:"Unknown" }}</td>
           <td>
-            <form method="POST" action="{{ delete_action|default:'' }}" style="display:inline" onsubmit="return confirm('Delete this quote?')">
+            <form method="POST" action="{{ delete_action|default:'' }}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete this quote?')">
               {% csrf_token %}
               <input type="hidden" name="quote_id" value="{{ q.id }}">
               <input type="hidden" name="_method" value="DELETE">

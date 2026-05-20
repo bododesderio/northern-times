@@ -59,13 +59,13 @@
           <td style="display:flex;gap:6px">
             {% if backup.status == 'completed' %}
             <a href="{{ backup.download_url|default:'#' }}" class="btn light xs">Download</a>
-            <form method="POST" action="{{ restore_action|default:'' }}" style="display:inline" onsubmit="return confirm('Restore this backup? This will overwrite current data.')">
+            <form method="POST" action="{{ restore_action|default:'' }}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Restore this backup? This will overwrite current data.')">
               {% csrf_token %}
               <input type="hidden" name="backup_id" value="{{ backup.id }}">
               <button type="submit" class="btn light xs" style="color:#d97706">Restore</button>
             </form>
             {% endif %}
-            <form method="POST" action="{{ delete_action|default:'' }}" style="display:inline" onsubmit="return confirm('Delete this backup?')">
+            <form method="POST" action="{{ delete_action|default:'' }}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete this backup?')">
               {% csrf_token %}
               <input type="hidden" name="backup_id" value="{{ backup.id }}">
               <input type="hidden" name="_method" value="DELETE">

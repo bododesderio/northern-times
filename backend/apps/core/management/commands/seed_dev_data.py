@@ -113,7 +113,7 @@ class Command(BaseCommand):
             ('Gulu University Launches New Science Faculty Building', 'northern-uganda'),
             ('Uganda Parliament Passes Landmark Climate Bill', 'politics'),
             ('Northern Uganda Farmers Report Record Harvest Season', 'northern-uganda'),
-            ('Kampala-Gulu Highway Expansion Reaches 80% Completion', 'national'),
+            ('Kampala-Gulu Highway Expansion Reaches 80% Completion', 'northern-uganda'),
             ('East African Community Summit Opens in Nairobi', 'world'),
             ('Uganda Cranes Qualify for Africa Cup of Nations', 'sports'),
             ('New Hospital Opens in Lira District', 'health'),
@@ -226,7 +226,7 @@ class Command(BaseCommand):
 
         self.stdout.write('\n  Seeding comments...')
         articles = Article.objects.filter(source_name='dev-seeder', status='published')[:5]
-        if Comment.objects.filter(author_name='Dev Commenter').exists():
+        if Comment.objects.filter(name='John Opio').exists():
             self.stdout.write('    Comments already exist — skipping.')
             return
 
@@ -243,8 +243,8 @@ class Command(BaseCommand):
             comment_data = random.choice(comments_data)
             Comment.objects.create(
                 article=article,
-                author_name=comment_data[0],
-                author_email=f'{slugify(comment_data[0])}@example.com',
+                name=comment_data[0],
+                email=f'{slugify(comment_data[0])}@example.com',
                 content=comment_data[1],
                 status=comment_data[2],
             )
@@ -252,6 +252,8 @@ class Command(BaseCommand):
         self.stdout.write(f'    Comments: {created} created.')
 
     def _seed_subscribers(self):
+        import secrets
+
         from apps.newsletter.models import Subscriber
 
         self.stdout.write('\n  Seeding subscribers...')
@@ -266,7 +268,10 @@ class Command(BaseCommand):
         for email, status in subs:
             _, was_created = Subscriber.objects.get_or_create(
                 email=email,
-                defaults={'status': status},
+                defaults={
+                    'status': status,
+                    'unsub_token': secrets.token_urlsafe(32),
+                },
             )
             if was_created:
                 created += 1
@@ -329,7 +334,8 @@ class Command(BaseCommand):
         self.stdout.write(f'    Social keywords: {created} created, {len(keywords) - created} already existed.')
 
     def _seed_sample_analytics(self):
-        from apps.analytics.models import DailyStats
+        from apps.analytics.models import ArticleView, DailyStats, SiteVisitor
+        from apps.articles.models import Article
 
         self.stdout.write('\n  Seeding sample analytics...')
         if DailyStats.objects.exists():
@@ -337,19 +343,82 @@ class Command(BaseCommand):
             return
 
         today = timezone.now().date()
-        created = 0
-        for i in range(30):
-            day = today - timedelta(days=i)
-            base_views = random.randint(50, 500)
-            DailyStats.objects.get_or_create(
-                date=day,
-                defaults={
-                    'total_views': base_views,
-                    'unique_visitors': int(base_views * random.uniform(0.4, 0.7)),
-                    'new_articles': random.randint(0, 8),
-                    'new_comments': random.randint(0, 5),
-                    'new_subscribers': random.randint(0, 3),
-                },
-            )
-            created += 1
-        self.stdout.write(f'    Daily stats: {created} days seeded (last 30 days).')
+        now = timezone.now()
+
+        # ── Realistic visitor IPs with geo data ──
+        visitor_profiles = [
+            {'ip': '41.210.{}.{}', 'country': 'Uganda', 'city': 'Kampala', 'lat': 0.3476, 'lng': 32.5825, 'device': 'mobile', 'browser': 'Chrome', 'os': 'Android'},
+            {'ip': '41.210.{}.{}', 'country': 'Uganda', 'city': 'Gulu', 'lat': 2.7746, 'lng': 32.2990, 'device': 'mobile', 'browser': 'Chrome', 'os': 'Android'},
+            {'ip': '41.210.{}.{}', 'country': 'Uganda', 'city': 'Lira', 'lat': 2.2499, 'lng': 32.5339, 'device': 'desktop', 'browser': 'Chrome', 'os': 'Windows'},
+            {'ip': '41.202.{}.{}', 'country': 'Kenya', 'city': 'Nairobi', 'lat': -1.2921, 'lng': 36.8219, 'device': 'mobile', 'browser': 'Safari', 'os': 'iOS'},
+            {'ip': '197.157.{}.{}', 'country': 'Tanzania', 'city': 'Dar es Salaam', 'lat': -6.7924, 'lng': 39.2083, 'device': 'mobile', 'browser': 'Chrome', 'os': 'Android'},
+            {'ip': '105.235.{}.{}', 'country': 'Rwanda', 'city': 'Kigali', 'lat': -1.9403, 'lng': 29.8739, 'device': 'desktop', 'browser': 'Firefox', 'os': 'Windows'},
+            {'ip': '154.72.{}.{}', 'country': 'Nigeria', 'city': 'Lagos', 'lat': 6.5244, 'lng': 3.3792, 'device': 'mobile', 'browser': 'Chrome', 'os': 'Android'},
+            {'ip': '102.89.{}.{}', 'country': 'South Africa', 'city': 'Johannesburg', 'lat': -26.2041, 'lng': 28.0473, 'device': 'desktop', 'browser': 'Edge', 'os': 'Windows'},
+            {'ip': '86.45.{}.{}', 'country': 'United Kingdom', 'city': 'London', 'lat': 51.5074, 'lng': -0.1278, 'device': 'desktop', 'browser': 'Chrome', 'os': 'macOS'},
+            {'ip': '72.134.{}.{}', 'country': 'United States', 'city': 'New York', 'lat': 40.7128, 'lng': -74.0060, 'device': 'desktop', 'browser': 'Safari', 'os': 'macOS'},
+            {'ip': '41.210.{}.{}', 'country': 'Uganda', 'city': 'Jinja', 'lat': 0.4244, 'lng': 33.2041, 'device': 'mobile', 'browser': 'Firefox', 'os': 'Android'},
+            {'ip': '41.210.{}.{}', 'country': 'Uganda', 'city': 'Mbarara', 'lat': -0.6033, 'lng': 30.6545, 'device': 'tablet', 'browser': 'Safari', 'os': 'iOS'},
+        ]
+
+        articles = list(Article.objects.filter(status='published')[:20])
+        total_visitors = 0
+        total_views = 0
+
+        # ── Seed 30 days of SiteVisitor + ArticleView data ──
+        for day_offset in range(30):
+            day = today - timedelta(days=day_offset)
+
+            # More visitors on recent days, fewer older; weekday variation
+            weekday = day.weekday()
+            is_weekend = weekday >= 5
+            recency_factor = max(0.3, 1.0 - (day_offset * 0.02))
+            base_count = random.randint(8, 25) if is_weekend else random.randint(15, 45)
+            visitor_count = int(base_count * recency_factor)
+
+            day_ips = []
+            for v in range(visitor_count):
+                profile = random.choice(visitor_profiles)
+                ip = profile['ip'].format(random.randint(1, 254), random.randint(1, 254))
+                if SiteVisitor.objects.filter(ip_address=ip, visit_date=day).exists():
+                    continue
+                SiteVisitor.objects.create(
+                    ip_address=ip,
+                    country=profile['country'],
+                    city=profile['city'],
+                    latitude=profile['lat'] + random.uniform(-0.05, 0.05),
+                    longitude=profile['lng'] + random.uniform(-0.05, 0.05),
+                    visit_date=day,
+                    device_type=profile['device'],
+                    browser=profile['browser'],
+                    os=profile['os'],
+                )
+                day_ips.append(ip)
+                total_visitors += 1
+
+            # Seed ArticleView records for this day (viewed_at is auto_now_add,
+            # so we bulk-update after creation to backdate older records)
+            if articles and day_ips:
+                viewed_articles = random.sample(articles, min(random.randint(3, 10), len(articles)))
+                for article in viewed_articles:
+                    for _ in range(random.randint(1, 4)):
+                        view = ArticleView.objects.create(
+                            article=article,
+                            visitor_ip=random.choice(day_ips),
+                        )
+                        if day_offset > 0:
+                            backdate = now - timedelta(days=day_offset, hours=random.randint(0, 23), minutes=random.randint(0, 59))
+                            ArticleView.objects.filter(pk=view.pk).update(viewed_at=backdate)
+                        total_views += 1
+
+        self.stdout.write(f'    Site visitors: {total_visitors} seeded across 30 days.')
+        self.stdout.write(f'    Article views: {total_views} seeded across 30 days.')
+
+        # ── Aggregate into DailyStats ──
+        from apps.analytics.services.aggregator import aggregate_date
+        stats_created = 0
+        for day_offset in range(30):
+            day = today - timedelta(days=day_offset)
+            aggregate_date(day)
+            stats_created += 1
+        self.stdout.write(f'    Daily stats: {stats_created} days aggregated from raw data.')

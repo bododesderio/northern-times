@@ -78,7 +78,8 @@ class Command(BaseCommand):
         if role:
             user.role = role
             user.save(update_fields=['role'])
-        self.stdout.write(self.style.SUCCESS('    Created admin user (admin / changeme123)'))
+        pwd_source = 'ADMIN_PASSWORD env' if os.environ.get('ADMIN_PASSWORD') else 'default'
+        self.stdout.write(self.style.SUCCESS(f'    Created admin user (admin / {pwd_source})'))
 
     # ------------------------------------------------------------------
     # 2. Site settings
@@ -123,22 +124,22 @@ class Command(BaseCommand):
             ('Top Stories', 'top-stories', 'Lead stories and editor picks from across all sections.', 1, True, True),
             ('Northern Uganda', 'northern-uganda', 'Regional reporting and features from Northern Uganda and Lango sub-region.', 2, True, True),
             ('Politics', 'politics', 'Politics, government, elections, and policy analysis.', 3, True, True),
-            ('National', 'national', 'National news and current affairs from across Uganda.', 4, True, True),
-            ('Business', 'business', 'Business, economy, finance, and market analysis.', 5, True, True),
-            ('Sports', 'sports', 'Football, basketball, athletics, and East African sports.', 6, True, True),
-            ('Health', 'health', 'Health, medicine, public health, and wellness reporting.', 7, True, True),
-            ('World', 'world', 'World news, international affairs, and global analysis.', 8, True, True),
-            ('Opinion', 'opinion', 'Opinion columns, editorials, and expert commentary.', 9, True, True),
-            ('Technology', 'technology', 'Technology, software, AI, innovation, and digital trends.', 10, True, True),
-            ('Education', 'education', 'Education news, policy, and academic developments.', 50, False, True),
-            ('Entertainment', 'entertainment', 'Entertainment, celebrity news, music, film, and culture.', 50, False, True),
-            ('Environment', 'environment', 'Environment, climate change, conservation, and sustainability.', 50, False, True),
-            ('Lifestyle', 'lifestyle', 'Lifestyle, wellness, travel, and modern living.', 50, False, True),
-            ('Crime & Security', 'crime-security', 'Crime, law enforcement, security, and justice reporting.', 50, False, True),
+            ('Business', 'business', 'Business, economy, finance, and market analysis.', 4, True, True),
+            ('Sports', 'sports', 'Football, basketball, athletics, and East African sports.', 5, True, True),
+            ('Health', 'health', 'Health, medicine, public health, and wellness reporting.', 6, True, True),
+            ('World', 'world', 'World news, international affairs, and global analysis.', 7, True, True),
+            ('Opinion', 'opinion', 'Opinion columns, editorials, and expert commentary.', 8, True, True),
+            ('Technology', 'technology', 'Technology, software, AI, innovation, and digital trends.', 9, True, True),
+            ('Crime & Security', 'crime-security', 'Crime, law enforcement, security, and justice reporting.', 10, True, True),
+            ('Education', 'education', 'Education news, policy, and academic developments.', 11, True, True),
+            ('Entertainment', 'entertainment', 'Entertainment, celebrity news, music, film, and culture.', 12, True, True),
+            ('Environment', 'environment', 'Environment, climate change, conservation, and sustainability.', 13, True, True),
+            ('Lifestyle', 'lifestyle', 'Lifestyle, wellness, travel, and modern living.', 14, True, True),
         ]
 
         lookup = {}
         created = 0
+        updated = 0
         for name, slug, desc, sort, nav, sidebar in cats:
             obj, was_created = Category.objects.get_or_create(
                 slug=slug,
@@ -150,11 +151,36 @@ class Command(BaseCommand):
                     'show_in_sidebar': sidebar,
                 },
             )
-            lookup[slug] = obj
             if was_created:
                 created += 1
+            else:
+                # Update existing categories to match current config
+                changed = False
+                if obj.sort_order != sort:
+                    obj.sort_order = sort
+                    changed = True
+                if obj.show_in_nav != nav:
+                    obj.show_in_nav = nav
+                    changed = True
+                if obj.show_in_sidebar != sidebar:
+                    obj.show_in_sidebar = sidebar
+                    changed = True
+                if changed:
+                    obj.save(update_fields=['sort_order', 'show_in_nav', 'show_in_sidebar'])
+                    updated += 1
+            lookup[slug] = obj
 
-        self.stdout.write(f'    Categories: {created} created, {len(cats) - created} already existed.')
+        # Remove deprecated "National" category (reclassify its articles first)
+        national = Category.objects.filter(slug='national').first()
+        if national:
+            politics = lookup.get('politics')
+            if politics:
+                moved = national.articles.filter(deleted_at__isnull=True).update(category=politics)
+                self.stdout.write(f'    Moved {moved} articles from National to Politics.')
+            national.delete()
+            self.stdout.write('    Deleted deprecated "National" category.')
+
+        self.stdout.write(f'    Categories: {created} created, {updated} updated, {len(cats) - created - updated} unchanged.')
         return lookup
 
     # ------------------------------------------------------------------

@@ -36,15 +36,32 @@ def analytics_index(request):
         visitors=Sum('unique_visitors'),
     )
 
+    # Real-time today stats (live from raw tables, not waiting for Celery aggregation)
+    today_visitors = SiteVisitor.objects.filter(visit_date=today).count()
+    today_views = ArticleView.objects.filter(viewed_at__date=today).count()
+
+    # Merge today's live data into 30d totals if DailyStats hasn't aggregated yet
+    if not DailyStats.objects.filter(date=today).exists():
+        totals_30d['views'] = (totals_30d.get('views') or 0) + today_views
+        totals_30d['visitors'] = (totals_30d.get('visitors') or 0) + today_visitors
+
     # Chart data
     chart_labels = [s.date.isoformat() for s in daily]
     chart_views = [s.total_views for s in daily]
     chart_visitors = [s.unique_visitors for s in daily]
 
+    # Append today's live data to chart if not yet aggregated
+    if not DailyStats.objects.filter(date=today).exists() and (today_views or today_visitors):
+        chart_labels.append(today.isoformat())
+        chart_views.append(today_views)
+        chart_visitors.append(today_visitors)
+
     return render(request, 'admin/analytics/index.html', {
         'daily_stats': daily,
         'totals_30d': totals_30d,
         'totals_7d': totals_7d,
+        'today_visitors': today_visitors,
+        'today_views': today_views,
         'chart_labels': chart_labels,
         'chart_views': chart_views,
         'chart_visitors': chart_visitors,
@@ -116,17 +133,23 @@ def engagement_index(request):
 
     visitors = SiteVisitor.objects.filter(visit_date__gte=thirty_days_ago)
 
-    # Device breakdown
-    device_counts = {}
-    for v in visitors.values_list('device_type', flat=True):
-        device_counts[v or 'unknown'] = device_counts.get(v or 'unknown', 0) + 1
+    # Device breakdown (DB-level aggregation)
+    device_qs = (
+        visitors.values('device_type')
+        .annotate(count=Count('id'))
+        .order_by('-count')
+    )
+    device_counts = {(row['device_type'] or 'unknown'): row['count'] for row in device_qs}
 
-    # Top countries
-    country_counts = {}
-    for v in visitors.values_list('country', flat=True):
-        if v:
-            country_counts[v] = country_counts.get(v, 0) + 1
-    top_countries = sorted(country_counts.items(), key=lambda x: x[1], reverse=True)[:15]
+    # Top countries (DB-level aggregation)
+    country_qs = (
+        visitors.filter(country__isnull=False)
+        .exclude(country='')
+        .values('country')
+        .annotate(count=Count('id'))
+        .order_by('-count')[:15]
+    )
+    top_countries = [(row['country'], row['count']) for row in country_qs]
 
     return render(request, 'admin/analytics/engagement.html', {
         'device_counts': device_counts,
@@ -164,6 +187,7 @@ def ad_impression(request):
     return JsonResponse({'status': 'ok'})
 
 
+@login_required
 def visitor_location(request):
     """Return visitor location data for mapping."""
     today = timezone.now().date()
@@ -249,7 +273,10 @@ def engagement_radar_api(request):
 @login_required
 def traffic_chart_api(request):
     """Daily views/visitors for last 30 days for chart rendering."""
-    days = int(request.GET.get('days', 30))
+    try:
+        days = min(int(request.GET.get('days', 30)), 365)
+    except (ValueError, TypeError):
+        days = 30
     stats = DailyStats.objects.order_by('-date')[:days]
     data = [{
         'date': s.date.isoformat(),

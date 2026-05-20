@@ -1,4 +1,5 @@
 from datetime import timedelta
+from xml.sax.saxutils import escape as xml_escape
 
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -100,14 +101,15 @@ def home(request):
         published_at__gte=timezone.now() - timedelta(hours=48),
         source_name__in=ugandan_source_names,
     )
-    hero = ugandan_recent.order_by('?').first()
-    if not hero:
+    import random
+    ugandan_count = ugandan_recent.count()
+    if ugandan_count:
+        hero = ugandan_recent[random.randint(0, ugandan_count - 1)]
+    else:
         # Fallback: any Ugandan article, then any article
-        hero = (
-            Article.objects.published()
-            .filter(source_name__in=ugandan_source_names)
-            .order_by('?').first()
-        ) or Article.objects.published().first()
+        fallback_qs = Article.objects.published().filter(source_name__in=ugandan_source_names)
+        fb_count = fallback_qs.count()
+        hero = fallback_qs[random.randint(0, fb_count - 1)] if fb_count else Article.objects.published().first()
 
     # ── Latest sidebar (exclude hero) ──
     latest_sidebar = Article.objects.published().exclude(
@@ -123,7 +125,7 @@ def home(request):
     )
 
     # ── Category sections ──
-    layout_variants = ['card', 'thumbnail', 'bento', 'card', 'thumbnail', 'card']
+    layout_variants = ['card', 'thumbnail', 'bento']
     sections = []
 
     # First section: Top Stories (auto-curated from best articles)
@@ -135,10 +137,10 @@ def home(request):
             'articles': top_stories,
         })
 
-    # Remaining sections: categories with actual articles (skip Top Stories category)
+    # Remaining sections: all categories with actual articles (skip Top Stories)
     categories = Category.objects.filter(
         show_in_nav=True,
-    ).exclude(slug='top-stories').order_by('sort_order')[:6]
+    ).exclude(slug='top-stories').order_by('sort_order')
 
     for i, cat in enumerate(categories):
         cat_articles = list(Article.objects.published().filter(category=cat)[:9])
@@ -403,7 +405,7 @@ def search(request):
 
     # Trending articles for empty search
     trending = Article.objects.published().order_by('-quality_score', '-published_at')[:5]
-    popular_tags = Tag.objects.annotate(count=Count('articletag')).order_by('-count')[:20]
+    popular_tags = Tag.objects.annotate(count=Count('article_tags')).order_by('-count')[:20]
 
     desc = f'Search results for "{query}" — {results.count()} articles found.' if query else 'Search articles.'
     context = {
@@ -490,9 +492,9 @@ def rss_feed(request):
             pub_date = a.published_at.strftime('%a, %d %b %Y %H:%M:%S +0000')
         items.append(
             f'<item>'
-            f'<title>{a.title}</title>'
-            f'<link>{request.build_absolute_uri(f"/article/{a.slug}/")}</link>'
-            f'<description>{a.excerpt}</description>'
+            f'<title>{xml_escape(a.title or "")}</title>'
+            f'<link>{xml_escape(request.build_absolute_uri(f"/article/{a.slug}/"))}</link>'
+            f'<description>{xml_escape(a.excerpt or "")}</description>'
             f'<pubDate>{pub_date}</pubDate>'
             f'</item>'
         )
@@ -504,8 +506,8 @@ def rss_feed(request):
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<rss version="2.0">'
         '<channel>'
-        f'<title>{site_name}</title>'
-        f'<description>{site_desc}</description>'
+        f'<title>{xml_escape(site_name)}</title>'
+        f'<description>{xml_escape(site_desc)}</description>'
         f'<link>{request.build_absolute_uri("/")}</link>'
         f'{"".join(items)}'
         '</channel>'
@@ -535,7 +537,7 @@ def sitemap(request):
     for a in articles[:5000]:
         urls.append(
             f'<url>'
-            f'<loc>{request.build_absolute_uri(f"/article/{a.slug}/")}</loc>'
+            f'<loc>{xml_escape(request.build_absolute_uri(f"/article/{a.slug}/"))}</loc>'
             f'<lastmod>{a.updated_at.strftime("%Y-%m-%d")}</lastmod>'
             f'</url>'
         )
@@ -633,6 +635,7 @@ def comment_post(request):
 
 
 @require_POST
+@csrf_protect
 def follow_topic(request):
     """Subscribe to a topic (category or tag) by email."""
     email = request.POST.get('email', '')
@@ -649,6 +652,7 @@ def follow_topic(request):
 
 
 @require_POST
+@csrf_protect
 def unfollow_topic(request):
     """Unsubscribe from a topic."""
     email = request.POST.get('email', '')

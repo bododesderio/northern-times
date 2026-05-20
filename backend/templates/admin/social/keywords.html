@@ -55,7 +55,7 @@
           <td>{{ kw.mentions_7d|default:"0" }}</td>
           <td class="muted" style="font-size:13px">{{ kw.last_seen_at|date:"M j, Y g:iA"|default:"Never" }}</td>
           <td>
-            <form method="POST" action="{{ delete_action|default:'' }}" style="display:inline" onsubmit="return confirm('Delete this keyword?')">
+            <form method="POST" action="{{ delete_action|default:'' }}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Delete this keyword?')">
               {% csrf_token %}
               <input type="hidden" name="keyword_id" value="{{ kw.id }}">
               <input type="hidden" name="_method" value="DELETE">

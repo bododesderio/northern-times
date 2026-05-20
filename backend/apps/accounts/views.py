@@ -6,12 +6,82 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
+from collections import OrderedDict
+
 from .decorators import role_required
 from .models import Role, User
+
+
+# ---------------------------------------------------------------------------
+# Permission categories for role form
+# ---------------------------------------------------------------------------
+
+PERMISSION_CATEGORIES = OrderedDict([
+    ('Articles', [
+        ('create_articles', 'Create articles'),
+        ('edit_own_articles', 'Edit own articles'),
+        ('edit_all_articles', 'Edit all articles'),
+        ('delete_articles', 'Delete articles'),
+        ('publish_articles', 'Publish articles'),
+        ('archive_articles', 'Archive articles'),
+    ]),
+    ('Categories', [
+        ('manage_categories', 'Manage categories'),
+    ]),
+    ('Comments', [
+        ('moderate_comments', 'Moderate comments'),
+        ('delete_comments', 'Delete comments'),
+    ]),
+    ('Media', [
+        ('upload_media', 'Upload media'),
+        ('manage_media', 'Manage media library'),
+    ]),
+    ('Newsletter', [
+        ('compose_newsletter', 'Compose newsletters'),
+        ('send_newsletter', 'Send newsletters'),
+        ('manage_subscribers', 'Manage subscribers'),
+    ]),
+    ('Analytics', [
+        ('view_analytics', 'View analytics'),
+    ]),
+    ('Ads & Popups', [
+        ('manage_ads', 'Manage ad placements'),
+        ('manage_popups', 'Manage popups'),
+    ]),
+    ('Crawler', [
+        ('manage_sources', 'Manage crawl sources'),
+        ('run_crawler', 'Run crawler'),
+        ('view_crawl_logs', 'View crawl logs'),
+    ]),
+    ('AI Rewriter', [
+        ('manage_rewriter', 'Manage rewriter'),
+    ]),
+    ('SEO', [
+        ('run_seo_audit', 'Run SEO audit'),
+    ]),
+    ('Social', [
+        ('manage_social', 'Manage social monitor'),
+    ]),
+    ('Webhooks', [
+        ('manage_webhooks', 'Manage webhooks'),
+    ]),
+    ('Users & Roles', [
+        ('view_users', 'View users'),
+        ('manage_users', 'Manage users'),
+        ('manage_roles', 'Manage roles'),
+    ]),
+    ('System', [
+        ('manage_settings', 'Manage settings'),
+        ('manage_backups', 'Manage backups'),
+        ('view_logs', 'View system logs'),
+        ('danger_zone', 'Danger zone operations'),
+    ]),
+])
 
 
 # ---------------------------------------------------------------------------
@@ -27,11 +97,14 @@ def login_view(request):
         if user is not None:
             login(request, user)
             next_url = request.GET.get('next', '/admin/')
+            if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                next_url = '/admin/'
             return redirect(next_url)
         messages.error(request, 'Invalid email or password.')
     return render(request, 'admin/editorial_login.html')
 
 
+@require_POST
 def logout_view(request):
     """Log out the current user and redirect to login."""
     logout(request)
@@ -222,14 +295,16 @@ def role_create(request):
     """Create a new role."""
     if request.method == 'POST':
         name = request.POST.get('name', '').strip()
-        level = request.POST.get('level', 1)
-        permissions_raw = request.POST.get('permissions', '').strip()
-        permissions = [p.strip() for p in permissions_raw.split(',') if p.strip()] if permissions_raw else []
+        try:
+            level = int(request.POST.get('level', 1))
+        except (ValueError, TypeError):
+            level = 1
+        permissions = request.POST.getlist('permissions')
 
         if Role.objects.filter(name=name).exists():
             messages.error(request, 'A role with this name already exists.')
         else:
-            Role.objects.create(name=name, level=int(level), permissions=permissions)
+            Role.objects.create(name=name, level=level, permissions=permissions)
             messages.success(request, f'Role "{name}" created.')
             return redirect('admin_roles')
 
@@ -237,6 +312,8 @@ def role_create(request):
         'action': 'Create',
         'active_nav': 'roles',
         'page_title': 'Create Role',
+        'permission_categories': PERMISSION_CATEGORIES,
+        'role_permissions': [],
     })
 
 
@@ -248,18 +325,23 @@ def role_edit(request, pk):
 
     if request.method == 'POST':
         role.name = request.POST.get('name', role.name).strip()
-        role.level = int(request.POST.get('level', role.level))
-        permissions_raw = request.POST.get('permissions', '').strip()
-        role.permissions = [p.strip() for p in permissions_raw.split(',') if p.strip()] if permissions_raw else []
+        try:
+            role.level = int(request.POST.get('level', role.level))
+        except (ValueError, TypeError):
+            role.level = role.level
+        role.permissions = request.POST.getlist('permissions')
         role.save()
         messages.success(request, f'Role "{role.name}" updated.')
         return redirect('admin_roles')
 
     return render(request, 'admin/roles/form.html', {
         'role': role,
+        'is_edit': True,
         'action': 'Edit',
         'active_nav': 'roles',
         'page_title': 'Edit Role',
+        'permission_categories': PERMISSION_CATEGORIES,
+        'role_permissions': role.permissions if isinstance(role.permissions, list) else [],
     })
 
 

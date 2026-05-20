@@ -40,11 +40,11 @@ class VisitorTrackingMiddleware:
         if not ua or any(b in ua.lower() for b in ('bot', 'spider', 'crawl', 'curl', 'wget')):
             return response
 
-        # Track asynchronously to avoid slowing down the response
+        # Track visitor (errors must not break the response)
         try:
             self._track_visitor(request, ua)
         except Exception as e:
-            logger.debug(f"Visitor tracking error: {e}")
+            logger.warning("Visitor tracking error: %s", e)
 
         return response
 
@@ -54,23 +54,30 @@ class VisitorTrackingMiddleware:
         from apps.core.helpers import get_client_ip
 
         ip = get_client_ip(request)
+        if not ip:
+            return
         today = date.today()
 
         # Skip if already tracked today (1 record per IP per day)
         if SiteVisitor.objects.filter(ip_address=ip, visit_date=today).exists():
             return
 
-        # Parse user agent
-        from apps.analytics.services.ua_parser import parse
-        device_info = parse(ua)
-
-        # GeoIP lookup (cached internally)
-        geo = {}
+        # Parse user agent (safe — pure regex, no external deps)
+        device_info = {}
         try:
-            from apps.analytics.services.geoip import lookup
-            geo = lookup(ip)
+            from apps.analytics.services.ua_parser import parse
+            device_info = parse(ua)
         except Exception:
             pass
+
+        # GeoIP lookup (optional — skip for local IPs, cached internally)
+        geo = {}
+        if ip not in ('127.0.0.1', '::1', '0.0.0.0'):
+            try:
+                from apps.analytics.services.geoip import lookup
+                geo = lookup(ip)
+            except Exception:
+                pass
 
         SiteVisitor.objects.create(
             ip_address=ip,

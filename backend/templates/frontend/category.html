@@ -12,7 +12,11 @@
     <div class="np-cat-accent-line"></div>
     <span class="np-cat-tag">Section</span>
     <h1 class="np-cat-title">{{ category.name }}</h1>
-    <p class="np-cat-desc">{{ category.description|default_if_none:""|default:"Deep-dive reporting and expert analysis on "|add:category.name|lower|add:"." }}</p>
+    {% if category.description %}
+      <p class="np-cat-desc">{{ category.description }}</p>
+    {% else %}
+      <p class="np-cat-desc">Deep-dive reporting and expert analysis on {{ category.name|lower }}.</p>
+    {% endif %}
   </header>
 
   {% if articles %}

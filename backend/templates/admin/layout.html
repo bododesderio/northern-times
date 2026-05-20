@@ -468,7 +468,10 @@
             <a href="{% url 'admin_settings' %}">Settings</a>
             <a href="/" target="_blank">View Site</a>
             <div style="height:1px;background:var(--adm-border);margin:4px 0"></div>
-            <a href="{% url 'admin_logout' %}" style="color:#dc2626">Sign Out</a>
+            <form method="post" action="{% url 'admin_logout' %}" style="margin:0">
+              {% csrf_token %}
+              <button type="submit" style="background:none;border:none;color:#dc2626;cursor:pointer;font:inherit;padding:0;width:100%;text-align:left">Sign Out</button>
+            </form>
           </div>
         </div>
       </div>

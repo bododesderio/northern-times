@@ -43,7 +43,17 @@ class SecurityHeadersMiddleware:
         response['X-Content-Type-Options'] = 'nosniff'
         response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
         response['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
-        response['Content-Security-Policy'] = "img-src 'self' data: https: blob:"
+        response['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.ckeditor.com; "
+            "style-src 'self' 'unsafe-inline' https://cdn.ckeditor.com; "
+            "img-src 'self' data: https: blob:; "
+            "font-src 'self' https://cdn.ckeditor.com; "
+            "connect-src 'self'; "
+            "frame-src 'self'; "
+            "media-src 'self' https:; "
+            "object-src 'none'"
+        )
 
         # Prevent caching on admin pages
         if request.path.startswith('/admin'):

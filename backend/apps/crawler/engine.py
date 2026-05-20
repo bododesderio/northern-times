@@ -766,9 +766,9 @@ class CrawlerEngine:
                 if cat:
                     return cat
 
-        # Fallback: National for Ugandan, World for others
+        # Fallback: Politics for Ugandan, World for others
         if ugandan:
-            return Category.objects.filter(slug='national').first() or Category.objects.first()
+            return Category.objects.filter(slug='politics').first() or Category.objects.first()
         return Category.objects.filter(slug='world').first() or Category.objects.first()
 
     # ------------------------------------------------------------------

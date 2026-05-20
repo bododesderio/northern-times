@@ -261,7 +261,7 @@
       {# Content (CKEditor) #}
       <div class="form-group" style="margin-top:20px">
         <label class="form-label">Content <span class="req">*</span></label>
-        <div id="editor">{{ article.content|default:'' }}</div>
+        <div id="editor">{{ article.content|default:''|safe }}</div>
         <textarea name="content" id="contentHidden" required style="display:none">{{ article.content|default:'' }}</textarea>
       </div>
 
@@ -271,17 +271,9 @@
 
       {# Action buttons #}
       <div style="display:flex;gap:16px;margin-top:28px;flex-wrap:wrap;align-items:center">
-        <button class="btn" type="submit" style="padding:12px 32px;font-size:16px">
-          {% if is_edit %}Update Article{% else %}Create Article{% endif %}
+        <button class="btn" type="submit" id="saveBtn" style="padding:12px 32px;font-size:16px">
+          {% if is_edit %}Update Article{% else %}Save Article{% endif %}
         </button>
-
-        {% if not is_editor and article.status == 'draft' or not is_edit %}
-        <button type="submit" class="btn success" style="padding:12px 32px;font-size:16px"
-                onclick="document.getElementById('status').value='pending_review'">
-          {% if was_rejected %}Resubmit for Review{% else %}Submit for Review{% endif %}
-        </button>
-        {% endif %}
-
         <a class="btn light" href="{% url 'admin_articles' %}" style="padding:12px 32px;font-size:16px">Cancel</a>
       </div>
     </div>
@@ -296,16 +288,18 @@
           <label class="form-label">Status</label>
           {% if is_editor %}
           <select name="status" id="status" class="form-control">
-            {% for s in status_choices %}
-            <option value="{{ s.0 }}" {% if article.status == s.0 %}selected{% endif %}>{{ s.1 }}</option>
-            {% endfor %}
+            <option value="draft" {% if article.status == 'draft' %}selected{% endif %}>Draft</option>
+            <option value="pending_review" {% if article.status == 'pending_review' %}selected{% endif %}>Pending Review</option>
+            <option value="published" {% if article.status == 'published' %}selected{% endif %}>Published</option>
+            <option value="scheduled" {% if article.status == 'scheduled' %}selected{% endif %}>Scheduled</option>
+            <option value="archived" {% if article.status == 'archived' %}selected{% endif %}>Archived</option>
           </select>
           {% else %}
           <select name="status" id="status" class="form-control">
-            <option value="draft" {% if article.status == 'draft' %}selected{% endif %}>Draft</option>
+            <option value="draft" {% if article.status == 'draft' or not article.status %}selected{% endif %}>Draft</option>
             <option value="pending_review" {% if article.status == 'pending_review' %}selected{% endif %}>Submit for Review</option>
           </select>
-          <div class="form-hint">Articles must be reviewed by an editor before publishing.</div>
+          <div class="form-hint" style="margin-top:6px;font-size:12px;color:var(--adm-muted)">Select "Submit for Review" to send to an editor for approval.</div>
           {% endif %}
         </div>
 
@@ -393,7 +387,7 @@
                 <td>{{ rev.created_at|date:"M j, g:iA" }}</td>
                 <td>
                   {% if not forloop.first %}
-                  <form method="POST" action="{% url 'admin_article_revision_restore' pk=article.id rev_id=rev.id %}" style="display:inline" onsubmit="return confirm('Restore this revision?')">
+                  <form method="POST" action="{% url 'admin_article_revision_restore' pk=article.id rev_id=rev.id %}" style="display:inline" onsubmit="return ntSubmitConfirm(event, 'Restore this revision?')">
                     {% csrf_token %}
                     <button type="submit" class="btn light xs">Restore</button>
                   </form>
@@ -425,15 +419,43 @@
 {% endblock %}
 
 {% block admin_scripts %}
-<script src="https://cdn.ckeditor.com/ckeditor5/43.3.1/super-build/ckeditor.js"></script>
+<script src="https://cdn.ckeditor.com/ckeditor5/43.3.1/ckeditor5.umd.js"></script>
 <script src="{% static 'js/ckeditor-adapter.js' %}"></script>
 <script>
 (function() {
   let editorInstance = null;
 
+  // --- CKEditor 5 v43 (UMD) plugin imports ---
+  const {
+    ClassicEditor, Essentials, Paragraph,
+    Heading, Bold, Italic, Strikethrough, Underline, Subscript, Superscript,
+    List, TodoList, Indent, IndentBlock,
+    Alignment, Font, FontColor, FontBackgroundColor, Highlight,
+    Link, AutoLink,
+    Image, ImageBlock, ImageInline, ImageInsert, ImageToolbar,
+    ImageCaption, ImageStyle, ImageResize, ImageTextAlternative,
+    BlockQuote, Table, TableToolbar, TableProperties, TableCellProperties,
+    MediaEmbed, CodeBlock, Code, HtmlEmbed, GeneralHtmlSupport,
+    HorizontalLine, PageBreak, RemoveFormat, FindAndReplace,
+    SourceEditing, Undo, PasteFromOffice, TextTransformation
+  } = CKEDITOR;
+
   // --- CKEditor init ---
-  CKEDITOR.ClassicEditor.create(document.getElementById('editor'), {
-    extraPlugins: [NTUploadAdapterPlugin],
+  ClassicEditor.create(document.getElementById('editor'), {
+    plugins: [
+      Essentials, Paragraph, Heading,
+      Bold, Italic, Strikethrough, Underline, Subscript, Superscript,
+      List, TodoList, Indent, IndentBlock,
+      Alignment, Font, FontColor, FontBackgroundColor, Highlight,
+      Link, AutoLink,
+      Image, ImageBlock, ImageInline, ImageInsert, ImageToolbar,
+      ImageCaption, ImageStyle, ImageResize, ImageTextAlternative,
+      BlockQuote, Table, TableToolbar, TableProperties, TableCellProperties,
+      MediaEmbed, CodeBlock, Code, HtmlEmbed, GeneralHtmlSupport,
+      HorizontalLine, PageBreak, RemoveFormat, FindAndReplace,
+      SourceEditing, Undo, PasteFromOffice, TextTransformation,
+      NTUploadAdapterPlugin
+    ],
     toolbar: {
       items: [
         'heading', '|',
@@ -443,16 +465,13 @@
         'undo', 'redo', '|',
         'fontSize', 'fontColor', 'fontBackgroundColor', 'highlight', '|',
         'alignment', '|',
-        'link', 'uploadImage', 'blockQuote', 'insertTable', 'mediaEmbed', '|',
+        'link', 'insertImage', 'blockQuote', 'insertTable', 'mediaEmbed', '|',
         'codeBlock', 'code', 'htmlEmbed', '|',
         'horizontalLine', 'pageBreak', '|',
         'removeFormat', 'findAndReplace', '|',
         'sourceEditing'
       ],
       shouldNotGroupWhenFull: true
-    },
-    list: {
-      properties: { styles: true, startIndex: true, reversed: true }
     },
     heading: {
       options: [
@@ -474,15 +493,7 @@
     mediaEmbed: { previewsInData: true },
     htmlSupport: {
       allow: [{ name: /.*/, attributes: true, classes: true, styles: true }]
-    },
-    removePlugins: [
-      'CKBox', 'CKFinder', 'EasyImage', 'RealTimeCollaborativeComments',
-      'RealTimeCollaborativeTrackChanges', 'RealTimeCollaborativeRevisionHistory',
-      'PresenceList', 'Comments', 'TrackChanges', 'TrackChangesData',
-      'RevisionHistory', 'Pagination', 'WProofreader', 'MathType',
-      'SlashCommand', 'Template', 'DocumentOutline', 'FormatPainter',
-      'TableOfContents', 'PasteFromOfficeEnhanced', 'CaseChange'
-    ]
+    }
   }).then(editor => {
     editorInstance = editor;
     window._ntEditorInstance = editor;
@@ -502,18 +513,33 @@
     });
   }).catch(err => {
     console.error('CKEditor init error:', err);
+    // Fallback: make the div editable as plain HTML
+    var el = document.getElementById('editor');
+    if (el) { el.contentEditable = 'true'; el.style.border = '2px solid red'; }
   });
 
-  // --- Schedule toggle ---
-  function toggleScheduleUI() {
-    var box = document.getElementById('scheduleBox');
-    var sel = document.getElementById('status');
-    if (box && sel) box.style.display = (sel.value === 'scheduled') ? 'block' : 'none';
-  }
+  // --- Schedule toggle + button label ---
   var statusSel = document.getElementById('status');
+  var saveBtn = document.getElementById('saveBtn');
+  var isEdit = {{ is_edit|yesno:"true,false" }};
+
+  function updateStatusUI() {
+    var box = document.getElementById('scheduleBox');
+    if (box && statusSel) box.style.display = (statusSel.value === 'scheduled') ? 'block' : 'none';
+    if (saveBtn && statusSel) {
+      var labels = {
+        'draft': isEdit ? 'Save Draft' : 'Save as Draft',
+        'pending_review': 'Submit for Review',
+        'published': isEdit ? 'Update & Publish' : 'Publish Now',
+        'scheduled': 'Schedule',
+        'archived': 'Archive'
+      };
+      saveBtn.textContent = labels[statusSel.value] || (isEdit ? 'Update Article' : 'Save Article');
+    }
+  }
   if (statusSel) {
-    statusSel.addEventListener('change', toggleScheduleUI);
-    toggleScheduleUI();
+    statusSel.addEventListener('change', updateStatusUI);
+    updateStatusUI();
   }
 
   // --- Tag input ---
@@ -535,7 +561,12 @@
         var chip = document.createElement('span');
         chip.className = 'tag-chip';
         chip.dataset.name = val;
-        chip.innerHTML = '#' + val + ' <button type="button" onclick="this.parentElement.remove();syncTags()">&times;</button>';
+        chip.textContent = '#' + val + ' ';
+        var removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.innerHTML = '&times;';
+        removeBtn.addEventListener('click', function() { this.parentElement.remove(); syncTags(); });
+        chip.appendChild(removeBtn);
         document.getElementById('tagContainer').insertBefore(chip, this);
         this.value = '';
         syncTags();
@@ -593,6 +624,7 @@
 
   // Listen for postMessage from media picker
   window.addEventListener('message', function(e) {
+    if (e.origin !== window.location.origin) return;
     if (e.data && e.data.type === 'media-selected') {
       var url = e.data.url;
       if (e.data.mode === 'featured' || !editorInstance) {

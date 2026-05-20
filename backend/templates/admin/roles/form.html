@@ -3,23 +3,95 @@
 {% block admin_title %}{% if is_edit %}Edit Role{% else %}New Role{% endif %}{% endblock %}
 {% block breadcrumb_title %}{% if is_edit %}Edit Role{% else %}New Role{% endif %}{% endblock %}
 
+{% block admin_css %}
+<style>
+.nt-perm-section {
+  margin-bottom: 24px;
+}
+.nt-perm-section:last-child {
+  margin-bottom: 0;
+}
+.nt-perm-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--adm-muted);
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--adm-border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nt-perm-section-title label {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--adm-accent, #cc0000);
+  cursor: pointer;
+  margin-left: auto;
+}
+.nt-perm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+}
+.nt-perm-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--adm-border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background .12s, border-color .12s;
+  user-select: none;
+}
+.nt-perm-item:hover {
+  background: rgba(204, 0, 0, .03);
+}
+.nt-perm-item:has(input:checked) {
+  border-color: var(--adm-accent, #cc0000);
+  background: rgba(204, 0, 0, .05);
+}
+.nt-perm-item input[type="checkbox"] {
+  accent-color: #cc0000;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+</style>
+{% endblock %}
+
 {% block admin_content %}
-<div style="max-width:760px">
+<div style="max-width:900px">
   <div class="page-header">
     <div>
       <h1>{% if is_edit %}Edit Role{% else %}New Role{% endif %}</h1>
-      <div class="sub">Define permissions for this role.</div>
+      <div class="sub">Define the role name, access level, and granular permissions.</div>
     </div>
   </div>
 
   <form method="POST" action="{% if is_edit %}{% url 'admin_role_edit' pk=role.id %}{% else %}{% url 'admin_role_create' %}{% endif %}">
     {% csrf_token %}
 
+    {# ── Role basics ── #}
     <div class="card" style="margin-bottom:20px">
-      <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:16px">
         <div class="form-group">
           <label class="form-label">Role Name <span class="req">*</span></label>
           <input name="name" type="text" required value="{{ role.name|default:'' }}" class="form-control">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Access Level</label>
+          <select name="level" class="form-control">
+            <option value="1" {% if role.level == 1 or not role.level %}selected{% endif %}>Level 1 — Author</option>
+            <option value="2" {% if role.level == 2 %}selected{% endif %}>Level 2 — Editor</option>
+            <option value="3" {% if role.level == 3 %}selected{% endif %}>Level 3 — Admin</option>
+          </select>
         </div>
         <div class="form-group">
           <label class="form-label">Color</label>
@@ -32,47 +104,35 @@
       </div>
     </div>
 
+    {# ── Permissions by section ── #}
     <div class="card" style="margin-bottom:20px">
-      <h3 style="margin:0 0 16px;font-size:16px;font-weight:700">Permission Level</h3>
-      <p class="muted" style="font-size:13px;margin-bottom:16px">Choose the access level for this role. Higher levels include all lower-level capabilities.</p>
-
-      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">
-        <label style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:1px solid var(--adm-border);border-radius:10px;cursor:pointer;transition:border-color .15s{% if role.level == 1 %};border-color:var(--adm-accent,#cc0000);background:rgba(204,0,0,.04){% endif %}">
-          <input type="radio" name="level" value="1" {% if role.level == 1 or not role.level %}checked{% endif %} style="margin-top:3px">
-          <div>
-            <div style="font-weight:700;font-size:14px">Level 1 &mdash; Author</div>
-            <div class="muted" style="font-size:13px;margin-top:2px">Can create, edit, and delete their own articles. Can manage their own profile.</div>
-          </div>
-        </label>
-
-        <label style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:1px solid var(--adm-border);border-radius:10px;cursor:pointer;transition:border-color .15s{% if role.level == 2 %};border-color:var(--adm-accent,#cc0000);background:rgba(204,0,0,.04){% endif %}">
-          <input type="radio" name="level" value="2" {% if role.level == 2 %}checked{% endif %} style="margin-top:3px">
-          <div>
-            <div style="font-weight:700;font-size:14px">Level 2 &mdash; Editor</div>
-            <div class="muted" style="font-size:13px;margin-top:2px">Everything in Level 1, plus: edit/publish all articles, manage categories, moderate comments, manage media library.</div>
-          </div>
-        </label>
-
-        <label style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:1px solid var(--adm-border);border-radius:10px;cursor:pointer;transition:border-color .15s{% if role.level == 3 %};border-color:var(--adm-accent,#cc0000);background:rgba(204,0,0,.04){% endif %}">
-          <input type="radio" name="level" value="3" {% if role.level == 3 %}checked{% endif %} style="margin-top:3px">
-          <div>
-            <div style="font-weight:700;font-size:14px">Level 3 &mdash; Super Admin</div>
-            <div class="muted" style="font-size:13px;margin-top:2px">Full access. Manage users, roles, crawl sources, system settings, backups, and all dangerous operations.</div>
-          </div>
-        </label>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <div>
+          <h3 style="margin:0;font-size:16px;font-weight:700">Permissions</h3>
+          <p class="muted" style="font-size:13px;margin:4px 0 0">Tick the actions this role is allowed to perform, grouped by section.</p>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button type="button" class="btn light xs" onclick="toggleAllPerms(true)">Select All</button>
+          <button type="button" class="btn light xs" onclick="toggleAllPerms(false)">Clear All</button>
+        </div>
       </div>
 
-      <h3 style="margin:0 0 12px;font-size:14px;font-weight:700">Capabilities Overview</h3>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
-        {% for category, perms in permission_categories.items %}
-          {% for perm in perms %}
-            <label style="display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--adm-border);border-radius:8px;cursor:pointer;font-size:13px">
-              <input type="checkbox" name="permissions" value="{{ perm }}" {% if perm in role.permissions %}checked{% endif %}>
-              {{ perm }}
-            </label>
+      {% for section, perms in permission_categories.items %}
+      <div class="nt-perm-section">
+        <div class="nt-perm-section-title">
+          {{ section }}
+          <label onclick="toggleSection(this, event)">toggle all</label>
+        </div>
+        <div class="nt-perm-grid">
+          {% for key, label in perms %}
+          <label class="nt-perm-item">
+            <input type="checkbox" name="permissions" value="{{ key }}" {% if key in role_permissions %}checked{% endif %}>
+            {{ label }}
+          </label>
           {% endfor %}
-        {% endfor %}
+        </div>
       </div>
+      {% endfor %}
     </div>
 
     <div style="display:flex;gap:12px">
@@ -81,4 +141,22 @@
     </div>
   </form>
 </div>
+{% endblock %}
+
+{% block admin_scripts %}
+<script>
+function toggleAllPerms(state) {
+  document.querySelectorAll('input[name="permissions"]').forEach(function(cb) {
+    cb.checked = state;
+  });
+}
+
+function toggleSection(el, e) {
+  e.preventDefault();
+  var section = el.closest('.nt-perm-section');
+  var boxes = section.querySelectorAll('input[type="checkbox"]');
+  var allChecked = Array.from(boxes).every(function(cb) { return cb.checked; });
+  boxes.forEach(function(cb) { cb.checked = !allChecked; });
+}
+</script>
 {% endblock %}

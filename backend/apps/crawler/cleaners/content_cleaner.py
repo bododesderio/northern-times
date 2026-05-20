@@ -255,6 +255,29 @@ def clean_content(html: str, base_url: str = '', strip_selectors: str = '') -> s
             except (ValueError, AttributeError, TypeError):
                 pass
 
+    # ── Phase 4b: Byline removal ──────────────────────────────────
+    # Strip "By [Author Name]" patterns from the start of article content.
+    # These leak the original author's name into the body text.
+
+    BYLINE_RE = re.compile(
+        r'^\s*(?:By|BY|Written\s+by|Reported\s+by|Story\s+by)\s+'
+        r'[A-Z][a-zA-Z\'\-]+(?:\s+[A-Z][a-zA-Z\'\-]+){0,4}'
+        r'(?:\s*[,|]\s*[A-Za-z\s,]+)?\s*$',
+        re.M,
+    )
+
+    # Check first few block elements for byline patterns
+    for tag in list(soup.find_all(['p', 'div', 'span'], limit=5)):
+        text = tag.get_text(strip=True)
+        if not text or len(text) > 200:
+            break
+        if BYLINE_RE.match(text):
+            tag.decompose()
+            continue
+        # Also catch standalone "By Name" as first line (not in a tag)
+        if text and not text[0].islower():
+            break  # Stop scanning once we hit real content
+
     # ── Phase 5: Image normalization ─────────────────────────────
 
     for img in soup.find_all("img"):
@@ -317,6 +340,7 @@ def clean_content(html: str, base_url: str = '', strip_selectors: str = '') -> s
 
         img.attrs = new_attrs
         img["style"] = "max-width:100%;height:auto"
+        img["crossorigin"] = "anonymous"
 
     # ── Phase 6: Dangerous attribute stripping ───────────────────
 

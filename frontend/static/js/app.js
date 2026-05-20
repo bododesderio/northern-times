@@ -138,7 +138,7 @@
           body: formData,
           headers: {
             "X-Requested-With": "XMLHttpRequest",
-            "X-CSRF-Token": csrf
+            "X-CSRFToken": csrf
           }
         });
 
@@ -304,15 +304,28 @@
     return new Promise(function(resolve) {
       var overlay = document.createElement('div');
       overlay.className = 'nt-confirm-overlay';
-      overlay.innerHTML =
-        '<div class="nt-confirm-box">' +
-          '<div class="nt-confirm-title">' + (title || 'Confirm') + '</div>' +
-          '<div class="nt-confirm-msg">' + message + '</div>' +
-          '<div class="nt-confirm-actions">' +
-            '<button class="nt-confirm-cancel">Cancel</button>' +
-            '<button class="nt-confirm-ok">Continue</button>' +
-          '</div>' +
-        '</div>';
+      var box = document.createElement('div');
+      box.className = 'nt-confirm-box';
+      var titleEl = document.createElement('div');
+      titleEl.className = 'nt-confirm-title';
+      titleEl.textContent = title || 'Confirm';
+      var msgEl = document.createElement('div');
+      msgEl.className = 'nt-confirm-msg';
+      msgEl.textContent = message;
+      var actions = document.createElement('div');
+      actions.className = 'nt-confirm-actions';
+      var cancelBtn = document.createElement('button');
+      cancelBtn.className = 'nt-confirm-cancel';
+      cancelBtn.textContent = 'Cancel';
+      var okBtn = document.createElement('button');
+      okBtn.className = 'nt-confirm-ok';
+      okBtn.textContent = 'Continue';
+      actions.appendChild(cancelBtn);
+      actions.appendChild(okBtn);
+      box.appendChild(titleEl);
+      box.appendChild(msgEl);
+      box.appendChild(actions);
+      overlay.appendChild(box);
       document.body.appendChild(overlay);
 
       function close(result) {
@@ -321,13 +334,13 @@
         resolve(result);
       }
 
-      overlay.querySelector('.nt-confirm-cancel').addEventListener('click', function() { close(false); });
-      overlay.querySelector('.nt-confirm-ok').addEventListener('click', function() { close(true); });
+      cancelBtn.addEventListener('click', function() { close(false); });
+      okBtn.addEventListener('click', function() { close(true); });
       overlay.addEventListener('click', function(e) { if (e.target === overlay) close(false); });
       document.addEventListener('keydown', function handler(e) {
         if (e.key === 'Escape') { close(false); document.removeEventListener('keydown', handler); }
       });
-      overlay.querySelector('.nt-confirm-ok').focus();
+      okBtn.focus();
     });
   };
 
@@ -335,5 +348,6 @@
   window.ntAlert = function(message, type) {
     toast(message, type || 'info', 3500);
   };
+
 
 })();
