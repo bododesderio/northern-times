@@ -28,8 +28,10 @@ def run_crawler(self, source_id=None):
                 from apps.crawler.models import CrawlSource
                 source = CrawlSource.objects.get(pk=source_id)
                 result = engine.crawl_source(source)
-                total_new = result.get('new_articles', 0)
-                errors = 1 if result.get('error') else 0
+                # crawl_source() returns {'status', 'new_count', 'found_count', ...}
+                # — NOT the {'new_articles', 'errors'} shape that crawl_all() returns.
+                total_new = result.get('new_count', 0)
+                errors = 1 if result.get('status') == 'error' else 0
                 sources_crawled = 1
             else:
                 summary = engine.crawl_all()

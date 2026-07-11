@@ -111,21 +111,31 @@ DATABASES = {
 }
 
 # Cache — Redis
+_REDIS_BASE = 'redis://:{password}@{host}:{port}'.format(
+    password=os.environ.get('REDIS_PASSWORD', ''),
+    host=os.environ.get('REDIS_HOST', 'redis'),
+    port=os.environ.get('REDIS_PORT', '6379'),
+)
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': 'redis://:{password}@{host}:{port}/0'.format(
-            password=os.environ.get('REDIS_PASSWORD', ''),
-            host=os.environ.get('REDIS_HOST', 'redis'),
-            port=os.environ.get('REDIS_PORT', '6379'),
-        ),
+        'LOCATION': f'{_REDIS_BASE}/0',
         'KEY_PREFIX': 'nt',
-    }
+    },
+    # Sessions live in a SEPARATE Redis DB so an admin "flush cache" (which
+    # FLUSHDBs the default cache) can never wipe live sessions / log everyone
+    # out. Django's RedisCache.clear() ignores KEY_PREFIX, so a distinct DB —
+    # not just a distinct prefix — is required for isolation.
+    'sessions': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': f'{_REDIS_BASE}/1',
+        'KEY_PREFIX': 'nt_sess',
+    },
 }
 
-# Sessions — Redis-backed
+# Sessions — Redis-backed (isolated from the flushable default cache)
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-SESSION_CACHE_ALIAS = 'default'
+SESSION_CACHE_ALIAS = 'sessions'
 SESSION_COOKIE_NAME = os.environ.get('SESSION_NAME', 'northern_times_session')
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
@@ -256,6 +266,13 @@ CRAWLER_STRATEGY_WORKERS = int(os.environ.get('CRAWLER_STRATEGY_WORKERS', '4'))
 CRAWLER_MIN_CONTENT_LENGTH = int(os.environ.get('CRAWLER_MIN_CONTENT_LENGTH', '400'))
 CRAWLER_SEMANTIC_DEDUP_THRESHOLD = float(os.environ.get('CRAWLER_DEDUP_THRESHOLD', '0.82'))
 CRAWLER_STORY_CLUSTER_THRESHOLD = float(os.environ.get('CRAWLER_CLUSTER_THRESHOLD', '0.65'))
+# Skip feed items whose published date is older than this many hours.
+CRAWLER_MAX_ARTICLE_AGE_HOURS = int(os.environ.get('CRAWLER_MAX_ARTICLE_AGE_HOURS', '48'))
+
+# Search — semantic (pgvector) ranking cold-loads the sentence-transformer into
+# the calling process, so it is OFF by default on the synchronous web path.
+# Enable only where the ML model is already resident (or latency is acceptable).
+SEARCH_SEMANTIC_ENABLED = os.environ.get('SEARCH_SEMANTIC_ENABLED', 'false').lower() == 'true'
 
 # Selenium WebDriver
 SELENIUM_REMOTE_URL = os.environ.get('SELENIUM_REMOTE_URL', 'http://selenium:4444/wd/hub')

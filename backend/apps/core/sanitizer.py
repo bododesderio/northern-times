@@ -131,6 +131,14 @@ def _add_nofollow_to_comment_links(html: str) -> str:
 # Public API
 # ---------------------------------------------------------------------------
 
+# Raw-text elements whose *content* must be removed, not just their tags.
+# Matches balanced <script>/<style> blocks (any attributes, any inner body).
+_RAW_TEXT_ELEMENT_RE = re.compile(
+    r'<(script|style)\b[^>]*>.*?</\1\s*>',
+    re.IGNORECASE | re.DOTALL,
+)
+
+
 def sanitize(html: str, profile: str = 'article') -> str:
     """
     Sanitize *html* using the named profile.
@@ -155,6 +163,11 @@ def sanitize(html: str, profile: str = 'article') -> str:
         raise ValueError(f"Unknown sanitizer profile: {profile!r}. "
                          f"Choose from {list(_PROFILES)}")
 
+    # bleach strips the <script>/<style> *tags* but keeps their raw-text
+    # content (e.g. "<script>alert(1)</script>" -> "alert(1)"). Drop these
+    # elements wholesale first so no inline script/style body survives.
+    html = _RAW_TEXT_ELEMENT_RE.sub('', html)
+
     cleaned = bleach.clean(
         html,
         tags=cfg['tags'],
@@ -173,4 +186,5 @@ def strip_tags(html: str) -> str:
     """Remove *all* HTML tags, returning plain text."""
     if not html:
         return ''
+    html = _RAW_TEXT_ELEMENT_RE.sub('', html)
     return bleach.clean(html, tags=[], strip=True).strip()

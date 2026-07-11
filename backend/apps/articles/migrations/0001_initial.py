@@ -5,6 +5,7 @@ import pgvector.django.vector
 import uuid
 from django.conf import settings
 from django.db import migrations, models
+from pgvector.django import VectorExtension
 
 
 class Migration(migrations.Migration):
@@ -16,6 +17,11 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Install pgvector before any VectorField column is created. Idempotent
+        # (CREATE EXTENSION IF NOT EXISTS), so it is a no-op on databases where
+        # the entrypoint already created it — but it is what provisions fresh
+        # databases the entrypoint never touches, notably Django's test DB.
+        VectorExtension(),
         migrations.CreateModel(
             name='Category',
             fields=[

@@ -59,19 +59,21 @@ class RSSFetcher:
         return []
 
     def _fetch_http(self, url: str, max_items: int) -> list[FeedItem]:
-        """Fetch via HTTP with browser-like headers."""
+        """Fetch via HTTP with browser-like headers (SSRF-guarded, per-hop)."""
+        from apps.crawler.fetchers.url_guard import safe_get
+
         try:
-            response = httpx.get(
-                url,
-                timeout=self.timeout,
-                headers={
+            with httpx.Client(
+                timeout=self.timeout, follow_redirects=False, verify=self.verify_ssl,
+            ) as client:
+                response = safe_get(client, url, headers={
                     'User-Agent': random.choice(BROWSER_USER_AGENTS),
                     'Accept': 'application/rss+xml, application/xml, text/xml, */*',
                     'Accept-Language': 'en-US,en;q=0.9',
-                },
-                follow_redirects=True,
-                verify=self.verify_ssl,
-            )
+                })
+            if response is None:
+                logger.warning(f"Blocked or unreachable feed URL (SSRF guard): {url}")
+                return []
             response.raise_for_status()
             return self._parse_feed(response.text, url, max_items)
 

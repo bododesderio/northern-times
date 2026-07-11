@@ -41,8 +41,9 @@ class CategoryClassifier:
         pipe = _get_pipeline()
         if pipe is None:
             return ('', 0.0)
-        # Weight title more heavily by repeating it
-        combined = f"{title}. {title}. {title}. {text[:500]}"
+        # Weight title more heavily by repeating it. Keep the input short — CPU
+        # zero-shot cost is ~O(tokens^2) per candidate label.
+        combined = f"{title}. {title}. {text[:300]}"
 
         try:
             result = pipe(combined, candidate_labels=categories, multi_label=False)

@@ -11,10 +11,16 @@ from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 
 from apps.core.helpers import get_client_ip
+from apps.core.ratelimit import rate_limit
 from apps.core.models import Setting
 from apps.system.models import ContactMessage, PolicyPage
 
 from .models import Article, Category, Comment, Tag, TopicFollow
+
+# How many relevance-ranked results the full search page will page through.
+# Fusion needs a bounded candidate pool; the true match total is reported
+# separately via HybridSearch.count().
+SEARCH_BROWSE_LIMIT = 100
 
 
 def _meta(request, **kwargs):
@@ -36,6 +42,18 @@ def _meta(request, **kwargs):
 
 
 import json as _json
+
+
+def _ldjson_safe(s):
+    """Escape a JSON string for safe embedding inside a
+    <script type="application/ld+json">...</script> block. json.dumps does
+    NOT escape < > & so an untrusted (crawled) title could otherwise close
+    the script element and inject markup.
+    """
+    for _ch, _code in (('<', '003c'), ('>', '003e'), ('&', '0026'),
+                       ('\u2028', '2028'), ('\u2029', '2029')):
+        s = s.replace(_ch, chr(92) + 'u' + _code)
+    return s
 
 
 def _article_ld(article, request):
@@ -69,7 +87,11 @@ def _article_ld(article, request):
         ld['dateModified'] = article.updated_at.isoformat()
     if article.category:
         ld['articleSection'] = str(article.category)
-    return _json.dumps(ld)
+    # Escape for embedding inside <script type="application/ld+json">…</script>:
+    # crawled titles are untrusted, and json.dumps does NOT escape < > & — a
+    # title like `</script><img onerror=…>` would otherwise break out and run.
+    # (Same escaping Django's json_script applies.)
+    return _ldjson_safe(_json.dumps(ld))
 
 
 # ---------------------------------------------------------------------------
@@ -221,7 +243,12 @@ def article(request, slug):
     # Tags
     tags = art.tags.all()
 
-    # Related articles — prioritize story cluster (continuing story), then same category
+    # Related articles — story cluster, then semantic (embedding) similarity,
+    # then same-category recency as a top-up. See services.related.
+    from apps.articles.services.related import related_articles
+    related = related_articles(art, limit=6)
+
+    # Continuing-story block (same cluster) — rendered as its own section.
     cluster_articles = []
     if art.story_cluster_id:
         cluster_articles = list(
@@ -230,18 +257,6 @@ def article(request, slug):
             .exclude(id=art.id)
             .order_by('-published_at')[:5]
         )
-
-    # Same category articles (exclude cluster dupes)
-    exclude_ids = [art.id] + [a.id for a in cluster_articles]
-    category_related = list(
-        Article.objects.published()
-        .filter(category=art.category)
-        .exclude(id__in=exclude_ids)
-        .order_by('-published_at')[:6]
-    )
-
-    # Merge: cluster first, then category related
-    related = (cluster_articles + category_related)[:6]
 
     # Named entities
     entities = art.entities.all()[:10]
@@ -276,15 +291,25 @@ def article(request, slug):
     # Reading time
     read_mins = art.reading_time or 1
 
-    # Author card data — crawled articles show site admin, manual articles show actual author
+    # Author card data — crawled/aggregated articles are attributed to the site
+    # admin ("Editorial Desk"); human-written articles show the actual author so
+    # their byline and profile bio appear.
     from apps.accounts.models import User
+
+    def _best_name(u):
+        if not u:
+            return ''
+        return ((u.display_name or '').strip()
+                or (u.get_full_name() or '').strip()
+                or u.username)
+
     if art.is_crawled:
-        author = User.objects.filter(is_superuser=True).first()
-        author_name = author.get_full_name() if author and author.get_full_name().strip() else 'The Northern Times'
-        author_role = 'Editorial'
+        author = User.objects.filter(is_superuser=True).order_by('id').first()
+        author_name = _best_name(author) or 'The Northern Times'
+        author_role = 'Editorial Desk'
     else:
         author = art.author
-        author_name = (author.get_full_name() if author else '') or art.display_author or 'Staff'
+        author_name = _best_name(author) or art.display_author or 'Staff'
         author_role = ''
         if author and author.role:
             author_role = author.role.name.replace('_', ' ').title()
@@ -390,15 +415,39 @@ def tag(request, slug):
 def search(request):
     """Full-text search results page."""
     query = request.GET.get('q', '').strip()
-    results = Article.objects.none()
+    results = []
+    # True match total for the header. May exceed len(results): the browsable set
+    # is a bounded, relevance-ranked top-N (fusion needs a candidate cap), so we
+    # report the honest total but only page through the top results.
+    result_count = 0
+
+    def _legacy_keyword_search():
+        return list(
+            Article.objects.published()
+            .filter(
+                Q(title__icontains=query)
+                | Q(content__icontains=query)
+                | Q(excerpt__icontains=query)
+                | Q(ai_summary__icontains=query)
+            )
+            .select_related('category')
+        )
 
     if query:
-        results = Article.objects.published().filter(
-            Q(title__icontains=query)
-            | Q(content__icontains=query)
-            | Q(excerpt__icontains=query)
-            | Q(ai_summary__icontains=query)
-        )
+        try:
+            from apps.articles.services.search import HybridSearch
+            hybrid = HybridSearch()
+            results = hybrid.search(query, limit=SEARCH_BROWSE_LIMIT)
+            result_count = hybrid.count(query)
+        except Exception:
+            results = []
+        # Fall back to substring search when the hybrid ranker returns nothing.
+        # Each ranker swallows its own errors and returns [], so a misconfigured
+        # index degrades to [] without raising — this recovers real matches the
+        # token-based FTS/trigram missed (and covers total ranker failure).
+        if not results:
+            results = _legacy_keyword_search()
+            result_count = len(results)
 
     paginator = Paginator(results, 12)
     page = paginator.get_page(request.GET.get('page'))
@@ -406,12 +455,11 @@ def search(request):
     # Trending articles for empty search
     trending = Article.objects.published().order_by('-quality_score', '-published_at')[:5]
     popular_tags = Tag.objects.annotate(count=Count('article_tags')).order_by('-count')[:20]
-
-    desc = f'Search results for "{query}" — {results.count()} articles found.' if query else 'Search articles.'
+    desc = f'Search results for "{query}" — {result_count} articles found.' if query else 'Search articles.'
     context = {
         'query': query,
         'articles': page,
-        'result_count': results.count(),
+        'result_count': result_count,
         'trending': trending,
         'tags': popular_tags,
         'meta': _meta(request,
@@ -562,9 +610,15 @@ def search_api(request):
     if not query or len(query) < 2:
         return JsonResponse({'results': []})
 
-    articles = Article.objects.published().filter(
-        Q(title__icontains=query) | Q(excerpt__icontains=query) | Q(ai_summary__icontains=query)
-    ).select_related('category')[:10]
+    try:
+        # Keyword + trigram only — skip the embedder on the low-latency
+        # autocomplete path. Semantic blending is reserved for the full page.
+        from apps.articles.services.search import HybridSearch
+        articles = HybridSearch(use_semantic=False).search(query, limit=10)
+    except Exception:
+        articles = Article.objects.published().filter(
+            Q(title__icontains=query) | Q(excerpt__icontains=query) | Q(ai_summary__icontains=query)
+        ).select_related('category')[:10]
 
     results = [
         {
@@ -618,24 +672,48 @@ def trending_api(request):
 
 @require_POST
 @csrf_protect
+@rate_limit('comment', limit=5, window=60)
 def comment_post(request):
     """Submit a comment via AJAX."""
     article_id = request.POST.get('article_id')
+    name = request.POST.get('name', '').strip()
+    email = request.POST.get('email', '').strip()
+    content = request.POST.get('content', '').strip()
+
+    # Validate required fields before touching the DB — a missing name/email/
+    # content previously created a blank comment and still returned success.
+    errors = {}
+    if not name:
+        errors['name'] = 'Name is required.'
+    if not email or '@' not in email:
+        errors['email'] = 'A valid email is required.'
+    if not content:
+        errors['content'] = 'Comment cannot be empty.'
+    if errors:
+        return JsonResponse({'success': False, 'errors': errors}, status=400)
+
     art = get_object_or_404(Article, id=article_id)
+
+    # Validate parent (reply target): must be a comment ON THIS ARTICLE. An
+    # unchecked id could thread a reply onto another article or 500 on a bad id.
+    parent_id = request.POST.get('parent_id') or None
+    if parent_id and not Comment.objects.filter(id=parent_id, article=art).exists():
+        parent_id = None
 
     Comment.objects.create(
         article=art,
-        name=request.POST.get('name', ''),
-        email=request.POST.get('email', ''),
-        content=request.POST.get('content', ''),
+        name=name,
+        email=email,
+        content=content,
         ip_address=get_client_ip(request),
-        parent_id=request.POST.get('parent_id') or None,
+        parent_id=parent_id,
     )
     return JsonResponse({'success': True})
 
 
 @require_POST
 @csrf_protect
+@rate_limit('follow', limit=10, window=60)
 def follow_topic(request):
     """Subscribe to a topic (category or tag) by email."""
     email = request.POST.get('email', '')
@@ -653,6 +731,7 @@ def follow_topic(request):
 
 @require_POST
 @csrf_protect
+@rate_limit('unfollow', limit=10, window=60)
 def unfollow_topic(request):
     """Unsubscribe from a topic."""
     email = request.POST.get('email', '')

@@ -191,6 +191,29 @@ JUNK_LINK_RE = re.compile(
 _SAFE_SCHEMES = ("http://", "https://", "data:", "mailto:", "#")
 _SAFE_SCHEMES_RESOLVE = ("http://", "https://", "mailto:")
 
+_TRACKING_IMG_RE = re.compile(r"\b(pixel|track|beacon|spacer|1x1)\b", re.I)
+
+
+def _looks_like_content_img(img) -> bool:
+    """True if an <img> is a real content image (has a usable, non-tracking src).
+
+    Used to rescue legitimate images that happen to sit inside a wrapper whose
+    class matches the junk regex (e.g. WordPress ``wp-caption`` / ``wp-block-image``
+    figures), so they aren't discarded with the wrapper.
+    """
+    src = (
+        img.get("src") or img.get("data-src")
+        or img.get("data-lazy-src") or img.get("data-original") or ""
+    )
+    if not src:
+        return False
+    low = src.lower()
+    if any(ad in low for ad in AD_IMAGE_PATTERNS):
+        return False
+    if "data:image/svg" in low or _TRACKING_IMG_RE.search(low):
+        return False
+    return True
+
 
 def clean_content(html: str, base_url: str = '', strip_selectors: str = '') -> str:
     """
@@ -240,7 +263,19 @@ def clean_content(html: str, base_url: str = '', strip_selectors: str = '') -> s
         if STRIP_CLASSES_RE.search(classes) or STRIP_CLASSES_RE.search(el_id):
             to_remove.append(el)
     for el in to_remove:
-        el.decompose()
+        if getattr(el, "decomposed", False) or el.parent is None:
+            continue  # already removed as part of an ancestor
+        # Rescue legitimate content images before dropping a junk wrapper — many
+        # inline article images live inside figure/wp-caption/gallery containers
+        # whose class matches the strip regex.
+        content_imgs = [im for im in el.find_all("img") if _looks_like_content_img(im)]
+        if content_imgs:
+            fig = soup.new_tag("figure")
+            for im in content_imgs:
+                fig.append(im.extract())
+            el.replace_with(fig)
+        else:
+            el.decompose()
 
     # ── Phase 4: Source-specific CSS stripping ───────────────────
 

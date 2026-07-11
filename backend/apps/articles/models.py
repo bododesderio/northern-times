@@ -2,10 +2,13 @@ import math
 import uuid
 
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex, OpClass
+from django.contrib.postgres.search import SearchVector, SearchVectorField
 from django.db import models
+from django.db.models import F, GeneratedField
 from django.utils import timezone
 from django.utils.text import slugify
-from pgvector.django import VectorField
+from pgvector.django import HnswIndex, VectorField
 
 
 class Category(models.Model):
@@ -150,6 +153,21 @@ class Article(models.Model):
     pull_quotes = models.JSONField(default=list, blank=True)
     keywords = models.JSONField(default=list, blank=True)
 
+    # Weighted full-text search vector, maintained by Postgres as a STORED
+    # generated column (title > excerpt/summary > body). Read-only from Django;
+    # backs the keyword ranker in apps.articles.services.search.HybridSearch and
+    # is served by the ``article_fts_gin`` GIN index below.
+    search_vector = GeneratedField(
+        expression=(
+            SearchVector('title', weight='A', config='english')
+            + SearchVector('excerpt', weight='B', config='english')
+            + SearchVector('ai_summary', weight='B', config='english')
+            + SearchVector('content', weight='C', config='english')
+        ),
+        output_field=SearchVectorField(),
+        db_persist=True,
+    )
+
     # Rewriting
     rewrite_status = models.CharField(
         max_length=20, choices=REWRITE_STATUS_CHOICES, null=True, blank=True
@@ -169,6 +187,23 @@ class Article(models.Model):
             models.Index(fields=['slug']),
             models.Index(fields=['source_hash']),
             models.Index(fields=['deleted_at']),
+            # Weighted FTS — matches HybridSearch._keyword_rank exactly.
+            GinIndex(fields=['search_vector'], name='article_fts_gin'),
+            # Trigram on title — consulted by the ``%`` operator (title__trigram_similar).
+            GinIndex(
+                OpClass(F('title'), name='gin_trgm_ops'),
+                name='article_title_trgm',
+            ),
+            # Approximate-nearest-neighbour over the 384-dim embedding (cosine).
+            # HNSW needs no training data, so it is healthy even when built on an
+            # empty table (unlike ivfflat).
+            HnswIndex(
+                name='article_emb_hnsw',
+                fields=['embedding'],
+                m=16,
+                ef_construction=64,
+                opclasses=['vector_cosine_ops'],
+            ),
         ]
 
     def __str__(self):

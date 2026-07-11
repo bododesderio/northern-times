@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Best-effort: if storage is a pre-provisioned/root-owned mounted volume the
+# mkdir can fail under a non-root container user — that must not abort boot
+# (the dirs already exist in that case).
+mkdir -p /app/backend/storage/logs /app/backend/storage/uploads /app/backend/storage/backups || true
+
 # ── Wait for PostgreSQL (max 60s) ────────────────────────────────
 echo "[entrypoint] Waiting for PostgreSQL..."
 pg_attempts=0

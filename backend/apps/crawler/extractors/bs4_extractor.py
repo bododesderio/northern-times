@@ -233,6 +233,15 @@ def _strategy_trafilatura(html: str, url: str) -> dict:
         metadata = trafilatura.extract_metadata(html, default_url=url)
 
         if body_html:
+            # trafilatura emits images as <graphic src=...> in HTML output;
+            # normalize to <img> so downstream cleaning and rendering treat them
+            # as images (otherwise every inline image is silently dropped).
+            if "<graphic" in body_html:
+                from bs4 import BeautifulSoup
+                gsoup = BeautifulSoup(body_html, "lxml")
+                for g in gsoup.find_all("graphic"):
+                    g.name = "img"
+                body_html = str(gsoup)
             result["content"] = body_html
         if body_text:
             result["text"] = body_text
@@ -435,15 +444,28 @@ def _merge_results(
             text_len = _text_length(c)
             if text_len >= MIN_CONTENT_LENGTH:
                 method = data.get("extraction_method", label)
-                candidates.append((label, c, text_len, method))
+                img_count = len(re.findall(r"<img\b", c, re.I))
+                candidates.append((label, c, text_len, method, img_count))
 
     if candidates:
+        max_text = max(c[2] for c in candidates)
         traf_candidates = [c for c in candidates if c[0] == "trafilatura"]
-        if traf_candidates:
-            _, content, _, strategy = traf_candidates[0]
+        # Among candidates that keep most of the text, which preserves the most
+        # inline images? trafilatura gives the cleanest prose but tends to drop
+        # images, so defer to an image-richer strategy when it keeps meaningfully
+        # more (>1) images without losing much text.
+        rich = sorted(
+            (c for c in candidates if c[2] >= 0.85 * max_text),
+            key=lambda x: x[4], reverse=True,
+        )
+        traf_imgs = traf_candidates[0][4] if traf_candidates else -1
+        if rich and rich[0][4] > traf_imgs + 1:
+            _, content, _, strategy, _ = rich[0]
+        elif traf_candidates:
+            _, content, _, strategy, _ = traf_candidates[0]
         else:
             candidates.sort(key=lambda x: x[2], reverse=True)
-            _, content, _, strategy = candidates[0]
+            _, content, _, strategy, _ = candidates[0]
 
     text = traf.get("text") or read.get("text") or density.get("text") or news.get("text") or ""
 

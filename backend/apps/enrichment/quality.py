@@ -11,6 +11,10 @@ class QualityScorer:
         """Score content quality based on multiple heuristics."""
         score = 0
         plain = re.sub(r'<[^>]+>', '', html) if html else text
+        # Empty/whitespace-only content has no quality — return 0 before the
+        # paragraph heuristic (plain.count('\n\n') + 1) grants a phantom point.
+        if not plain or not plain.strip():
+            return 0
         word_count = len(plain.split())
 
         # Length score (0-30)

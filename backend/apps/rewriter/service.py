@@ -7,6 +7,20 @@ from openai import OpenAI
 logger = logging.getLogger(__name__)
 
 
+def has_valid_openai_key() -> bool:
+    """True only if a real OpenAI key is configured (not empty / placeholder).
+
+    Prevents the rewriter from hammering the API with a placeholder key and
+    marking every article 'failed' — articles still publish with their original
+    crawled content, so a missing key just means "skip the optional rewrite".
+    """
+    key = (getattr(settings, 'OPENAI_API_KEY', '') or '').strip()
+    if not key or not key.startswith('sk-'):
+        return False
+    upper = key.upper()
+    return not any(tok in upper for tok in ('CHANGE', 'PLACEHOLDER', 'YOUR-', 'XXXX'))
+
+
 class ArticleRewriter:
     """Rewrites articles using OpenAI API (GPT-4o-mini)."""
 

@@ -47,27 +47,66 @@ class Command(BaseCommand):
         author_role = Role.objects.filter(name='author').first()
 
         users = [
-            {'username': 'editor1', 'email': 'editor1@northerntimes.local', 'first_name': 'Sarah', 'last_name': 'Achieng', 'role': editor_role},
-            {'username': 'editor2', 'email': 'editor2@northerntimes.local', 'first_name': 'James', 'last_name': 'Okello', 'role': editor_role},
-            {'username': 'reporter1', 'email': 'reporter1@northerntimes.local', 'first_name': 'Grace', 'last_name': 'Lakica', 'role': author_role},
-            {'username': 'reporter2', 'email': 'reporter2@northerntimes.local', 'first_name': 'David', 'last_name': 'Otim', 'role': author_role},
-            {'username': 'reporter3', 'email': 'reporter3@northerntimes.local', 'first_name': 'Agnes', 'last_name': 'Aciro', 'role': author_role},
+            {'username': 'editor1', 'email': 'editor1@northerntimes.local', 'first_name': 'Sarah', 'last_name': 'Achieng', 'role': editor_role,
+             'display_name': 'Sarah Achieng', 'title': 'Managing Editor',
+             'bio': 'Sarah Achieng is Managing Editor at The Northern Times. A Gulu-based journalist with over a decade covering Acholi and Lango sub-regions, she leads the newsroom’s politics and governance desk.',
+             'social': {'twitter': 'sarah_achieng', 'linkedin': 'sarahachieng'}},
+            {'username': 'editor2', 'email': 'editor2@northerntimes.local', 'first_name': 'James', 'last_name': 'Okello', 'role': editor_role,
+             'display_name': 'James Okello', 'title': 'Deputy Editor',
+             'bio': 'James Okello is Deputy Editor overseeing business and development coverage across northern Uganda. He previously reported on regional trade and agriculture for national outlets.',
+             'social': {'twitter': 'jokello'}},
+            {'username': 'reporter1', 'email': 'reporter1@northerntimes.local', 'first_name': 'Grace', 'last_name': 'Lakica', 'role': author_role,
+             'display_name': 'Grace Lakica', 'title': 'Senior Reporter',
+             'bio': 'Grace Lakica is a Senior Reporter covering health and education from Lira. Her work focuses on maternal health, nodding syndrome and access to schooling in rural districts.',
+             'social': {'twitter': 'gracelakica'}},
+            {'username': 'reporter2', 'email': 'reporter2@northerntimes.local', 'first_name': 'David', 'last_name': 'Otim', 'role': author_role,
+             'display_name': 'David Otim', 'title': 'Sports Reporter',
+             'bio': 'David Otim covers sport for The Northern Times, from the StarTimes Uganda Premier League to grassroots athletics in the north. Based in Gulu.',
+             'social': {'twitter': 'davidotim'}},
+            {'username': 'reporter3', 'email': 'reporter3@northerntimes.local', 'first_name': 'Agnes', 'last_name': 'Aciro', 'role': author_role,
+             'display_name': 'Agnes Aciro', 'title': 'Reporter',
+             'bio': 'Agnes Aciro reports on culture, environment and everyday life across the Teso and Karamoja sub-regions, with a focus on climate resilience and community voices.',
+             'social': {'instagram': 'agnes.aciro'}},
         ]
-        created = 0
+        created = updated = 0
         for u in users:
-            if not User.objects.filter(username=u['username']).exists():
+            user = User.objects.filter(username=u['username']).first()
+            if not user:
                 user = User.objects.create_user(
-                    username=u['username'],
-                    email=u['email'],
-                    password='testpass123',
-                    first_name=u['first_name'],
-                    last_name=u['last_name'],
+                    username=u['username'], email=u['email'], password='testpass123',
+                    first_name=u['first_name'], last_name=u['last_name'],
                 )
-                if u['role']:
-                    user.role = u['role']
-                    user.save(update_fields=['role'])
                 created += 1
-        self.stdout.write(f'    Users: {created} created, {len(users) - created} already existed.')
+            # Idempotent profile enrichment (backfills existing users).
+            user.role = u['role'] or user.role
+            user.display_name = u['display_name']
+            user.bio = u['bio']
+            user.social_links = u['social']
+            user.save(update_fields=['role', 'display_name', 'bio', 'social_links'])
+            updated += 1
+        self.stdout.write(f'    Users: {created} created, {updated} profiles set (bios + display names).')
+        self._seed_admin_profile()
+
+    def _seed_admin_profile(self):
+        """Give the site admin/superuser a proper byline + bio.
+
+        Crawled/aggregated articles are attributed to this account (see the
+        article detail view), so it needs a presentable name and bio.
+        """
+        from apps.accounts.models import User
+
+        admin = User.objects.filter(is_superuser=True).order_by('id').first()
+        if not admin:
+            return
+        if not (admin.display_name or '').strip():
+            admin.display_name = 'Northern Times Newsroom'
+        if not (admin.bio or '').strip():
+            admin.bio = (
+                'The Northern Times Newsroom curates and edits wire and partner '
+                'reports for readers across northern Uganda and the region.'
+            )
+        admin.save(update_fields=['display_name', 'bio'])
+        self.stdout.write(f'    Admin profile set: {admin.display_name}')
 
     def _seed_tags(self):
         from apps.articles.models import Tag

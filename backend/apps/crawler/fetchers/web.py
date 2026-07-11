@@ -28,9 +28,12 @@ class WebFetcher:
     @property
     def client(self):
         if self._client is None:
+            # follow_redirects=False: redirects are followed manually by
+            # url_guard.safe_get so each hop is SSRF-checked (a benign URL must
+            # not be able to 302 into internal/metadata space).
             self._client = httpx.Client(
                 timeout=self.timeout,
-                follow_redirects=True,
+                follow_redirects=False,
                 verify=self.verify_ssl,
                 limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
             )
@@ -38,6 +41,8 @@ class WebFetcher:
 
     def fetch(self, url: str) -> tuple[str, int]:
         """Fetch page HTML. Returns (html_content, status_code). Returns ('', 0) on error."""
+        from apps.crawler.fetchers.url_guard import safe_get
+
         headers = {
             'User-Agent': random.choice(USER_AGENTS),
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -49,7 +54,10 @@ class WebFetcher:
         }
 
         try:
-            response = self.client.get(url, headers=headers)
+            response = safe_get(self.client, url, headers=headers)
+            if response is None:
+                logger.warning(f"Blocked or unreachable URL (SSRF guard): {url}")
+                return '', 0
             response.raise_for_status()
 
             # Handle encoding — httpx auto-detects, but fallback to utf-8

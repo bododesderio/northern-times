@@ -38,7 +38,8 @@ spacy>=3.7.0
 sentencepiece>=0.2.0
 
 # Content processing
-bleach>=6.1.0
+# [css] pulls in tinycss2, required by bleach.css_sanitizer (apps.core.sanitizer).
+bleach[css]>=6.1.0
 html5lib>=1.1
 
 # GeoIP

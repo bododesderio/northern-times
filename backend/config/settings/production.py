@@ -18,6 +18,19 @@ if not SECRET_KEY:
     )
     # Use base.py fallback so the container can at least start for debugging
     SECRET_KEY = globals().get('SECRET_KEY', 'INSECURE-CHANGE-ME-IN-PRODUCTION')
+
+# Redis holds sessions AND the cache in this stack, so an unauthenticated,
+# network-reachable Redis is a session-theft / cache-poisoning risk. Require a
+# password in production. Set ALLOW_UNAUTHENTICATED_REDIS=true to opt out only
+# when Redis is provably isolated (e.g. loopback / private network with no
+# external route).
+if not os.environ.get('REDIS_PASSWORD') and \
+        os.environ.get('ALLOW_UNAUTHENTICATED_REDIS', 'false').lower() != 'true':
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured(
+        'REDIS_PASSWORD is not set. Redis stores sessions and cache; set a '
+        'password, or set ALLOW_UNAUTHENTICATED_REDIS=true if Redis is isolated.'
+    )
 _use_ssl = os.environ.get('SECURE_SSL_REDIRECT', 'false').lower() == 'true'
 SESSION_COOKIE_SECURE = _use_ssl
 CSRF_COOKIE_SECURE = _use_ssl

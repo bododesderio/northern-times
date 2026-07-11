@@ -44,15 +44,39 @@ def ads(request):
 
 def navigation(request):
     """Inject navigation categories for header, sidebar, and mobile drawer."""
+    from django.core.cache import cache
+    from django.db.models import Count, Q
+    from django.utils import timezone
+
     from apps.articles.models import Category
     from apps.system.models import PolicyPage
 
-    try:
-        nav_categories = list(Category.objects.filter(show_in_nav=True).order_by('sort_order', 'name'))
-        sidebar_categories = list(Category.objects.filter(show_in_sidebar=True).order_by('sort_order', 'name'))
-    except Exception:
-        nav_categories = []
-        sidebar_categories = []
+    # This runs on every request; the "which categories have articles" answer
+    # changes slowly, so cache it briefly to avoid two aggregate scans per page.
+    cached_nav = cache.get('nav_categories_v1')
+    if cached_nav is not None:
+        nav_categories, sidebar_categories = cached_nav
+    else:
+        try:
+            # Only surface categories that actually have published articles, so
+            # empty topics (e.g. a not-yet-populated Environment) don't render as
+            # dead nav links. They reappear once an article lands in them.
+            published = Q(
+                articles__status='published',
+                articles__deleted_at__isnull=True,
+                articles__published_at__lte=timezone.now(),
+            )
+            with_counts = Category.objects.annotate(
+                n_published=Count('articles', filter=published)
+            ).filter(n_published__gt=0)
+            nav_categories = list(
+                with_counts.filter(show_in_nav=True).order_by('sort_order', 'name'))
+            sidebar_categories = list(
+                with_counts.filter(show_in_sidebar=True).order_by('sort_order', 'name'))
+            cache.set('nav_categories_v1', (nav_categories, sidebar_categories), 120)
+        except Exception:
+            nav_categories = []
+            sidebar_categories = []
 
     try:
         footer_policies = list(PolicyPage.objects.filter(is_published=True, show_in_footer=True).order_by('sort_order'))

@@ -10,10 +10,19 @@ def process_queue(self):
     """Process pending article rewrites using OpenAI."""
     from django.conf import settings
     from apps.articles.models import Article
-    from apps.rewriter.service import ArticleRewriter
+    from apps.rewriter.service import ArticleRewriter, has_valid_openai_key
 
     if not settings.REWRITER_ENABLED:
         return "Rewriter disabled"
+
+    # Skip cleanly when there's no usable API key, rather than 401-failing every
+    # queued article each cycle. Articles remain published with original content.
+    if not has_valid_openai_key():
+        logger.warning(
+            "Rewriter enabled but OPENAI_API_KEY is missing/placeholder — "
+            "skipping rewrites (articles keep their original crawled content)."
+        )
+        return "Rewriter skipped: no valid OpenAI API key"
 
     batch_size = settings.REWRITER_BATCH_SIZE
     articles = list(

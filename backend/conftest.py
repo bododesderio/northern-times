@@ -5,6 +5,20 @@ import pytest
 from django.utils import timezone
 
 
+@pytest.fixture(autouse=True)
+def _clear_default_cache():
+    """Isolate tests from Redis cache state.
+
+    Django rolls back the DB between tests but NOT the cache, so values cached
+    by ``Setting.get`` (and similar) leak across tests and cause order-dependent
+    flakiness. Clear the default cache before each test. The ``sessions`` cache
+    is left alone so logged-in test clients keep their session.
+    """
+    from django.core.cache import cache
+    cache.clear()
+    yield
+
+
 @pytest.fixture
 def role_author(db):
     from apps.accounts.models import Role

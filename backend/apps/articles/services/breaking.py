@@ -209,4 +209,6 @@ class BreakingNewsEngine:
             return self.RECENCY_MAX_POINTS
 
         fraction_remaining = 1 - (age / window)
-        return int(self.RECENCY_MAX_POINTS * fraction_remaining)
+        # round(), not int(): a just-published article has a few ms of age, and
+        # truncation would drop its 24.999... to 24 instead of the full 25.
+        return round(self.RECENCY_MAX_POINTS * fraction_remaining)

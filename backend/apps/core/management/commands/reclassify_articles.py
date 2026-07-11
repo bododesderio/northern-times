@@ -1,165 +1,98 @@
-"""Reclassify articles using AI + keyword geo-routing.
+"""Reclassify existing articles with the current GeoClassifier.
 
-Reads every article and assigns the correct category based on content.
-Also removes the 'National' category, redistributing its articles.
+Uses the SAME topic-primary classifier the crawl pipeline uses
+(apps.crawler.classification.GeoClassifier) so there is one source of truth for
+routing rules. Region is inferred from each article's source_name.
 
 Usage:
     python manage.py reclassify_articles
     python manage.py reclassify_articles --dry-run
-    python manage.py reclassify_articles --ai-only         # skip keyword pre-filter
-    python manage.py reclassify_articles --remove-national  # only handle National articles
 """
-import re
+from dataclasses import dataclass
 
 from django.core.management.base import BaseCommand
-from django.utils.text import slugify
 
 from apps.articles.models import Article, Category
 
 
+@dataclass
+class _StubSource:
+    """Minimal stand-in for a CrawlSource — GeoClassifier only reads .region."""
+    region: str
+
+
+# Substrings used to infer a stored article's origin region from its source_name.
+_INTERNATIONAL = ('bbc', 'al jazeera', 'aljazeera', 'reuters', 'associated press',
+                  'ap news', 'afp', 'cnn', 'guardian', 'new york times', 'techcrunch',
+                  'espn', 'voa', 'who', 'goal', 'kickoff', 'supersport')
+_EAST_AFRICAN = ('east african', 'nation africa', 'daily nation', 'the citizen',
+                 'standard media', 'business daily', 'allafrica')
+
+
+def _infer_region(source_name: str) -> str:
+    name = (source_name or '').lower()
+    if any(s in name for s in _INTERNATIONAL):
+        return 'international'
+    if any(s in name for s in _EAST_AFRICAN):
+        return 'east_african'
+    return 'ugandan'
+
+
 class Command(BaseCommand):
-    help = 'Reclassify articles using AI zero-shot classification + keyword geo-routing.'
+    help = 'Reclassify articles using the crawl pipeline GeoClassifier (topic-primary).'
 
     def add_arguments(self, parser):
         parser.add_argument('--dry-run', action='store_true', help='Show changes without saving')
-        parser.add_argument('--ai-only', action='store_true', help='Use AI classifier for all (skip keyword pre-filter)')
-        parser.add_argument('--remove-national', action='store_true', help='Only reclassify articles in National category')
 
     def handle(self, *args, **options):
         dry_run = options['dry_run']
-        ai_only = options['ai_only']
-        remove_national = options['remove_national']
 
-        # Load categories
-        categories = {c.slug: c for c in Category.objects.all()}
-        national = categories.get('national')
+        from apps.crawler.classification import GeoClassifier
 
-        # Valid topic categories for AI classification (exclude meta-categories)
-        topic_categories = [
-            c for c in categories.values()
-            if c.slug not in ('top-stories', 'national')
-        ]
-        topic_names = [c.name for c in topic_categories]
-        topic_by_name = {c.name.lower(): c for c in topic_categories}
-        topic_by_slug = {c.slug: c for c in topic_categories}
-
-        # Load classifier
-        classifier = None
+        # Load the AI zero-shot classifier (shared by the GeoClassifier).
         try:
             from apps.enrichment.category_classifier import CategoryClassifier
             classifier = CategoryClassifier()
-            # Test it loads
             classifier.classify('test', 'test', ['Politics', 'Sports'])
-            self.stdout.write('  AI classifier loaded successfully.')
+            self.stdout.write('  AI classifier loaded.')
         except Exception as e:
-            self.stdout.write(self.style.WARNING(f'  AI classifier unavailable: {e}'))
-            self.stdout.write('  Falling back to keyword-only classification.')
+            self.stdout.write(self.style.WARNING(f'  AI classifier unavailable: {e} — keyword-only.'))
 
-        # Load keyword hints from crawler engine
-        from apps.crawler.engine import CrawlerEngine
-        engine = CrawlerEngine.__new__(CrawlerEngine)
+            class _NullClassifier:
+                def classify(self, *a, **k):
+                    return None, 0.0
 
-        # Determine which articles to process
-        if remove_national:
-            if not national:
-                self.stderr.write('National category not found — nothing to do.')
-                return
-            queryset = Article.objects.filter(category=national, deleted_at__isnull=True)
-            self.stdout.write(f'Processing {queryset.count()} National articles...')
-        else:
-            queryset = Article.objects.filter(deleted_at__isnull=True).select_related('category')
-            self.stdout.write(f'Processing {queryset.count()} articles...')
+            classifier = _NullClassifier()
+
+        geo = GeoClassifier(classifier)
+        category_names = list(
+            Category.objects.exclude(slug__in=['top-stories']).values_list('name', flat=True)
+        )
+
+        queryset = Article.objects.filter(deleted_at__isnull=True).select_related('category')
+        total = queryset.count()
+        self.stdout.write(f'Reclassifying {total} articles...')
 
         updated = 0
+        dist = {}
         for article in queryset.iterator():
-            text_lower = f"{article.title} {(article.content or '')[:2000]}".lower()
-            source_name = (article.source_name or '').lower()
-            old_cat = article.category
-
-            # Determine source type
-            international_sources = ['bbc', 'al jazeera', 'reuters', 'associated press', 'afp',
-                                     'cnn', 'guardian', 'new york times', 'washington post']
-            east_african_sources = ['east african', 'nation africa', 'daily nation', 'citizen',
-                                    'standard media']
-
-            is_international = any(s in source_name for s in international_sources)
-            is_east_african = any(s in source_name for s in east_african_sources)
-            is_ugandan = not is_international and not is_east_african
-
-            new_cat = None
-
-            if not ai_only:
-                # Step 1: Northern Uganda detection (Ugandan sources, 3+ keyword matches)
-                if is_ugandan and 'northern-uganda' in topic_by_slug:
-                    try:
-                        northern_matches = engine._count_northern_matches(text_lower)
-                        if northern_matches >= 3:
-                            new_cat = topic_by_slug['northern-uganda']
-                    except Exception:
-                        pass
-
-                # Step 2: International sources → World unless heavily about Uganda
-                if not new_cat and (is_international or is_east_african):
-                    uganda_matches = sum(
-                        1 for kw in CrawlerEngine.UGANDA_KEYWORDS
-                        if re.search(r'\b' + re.escape(kw) + r'\b', text_lower)
-                    )
-                    if uganda_matches < 2 and 'world' in topic_by_slug:
-                        new_cat = topic_by_slug['world']
-
-            # Step 3: Keyword topic hint (fast)
-            if not new_cat:
-                try:
-                    hint = engine._keyword_topic_hint(text_lower)
-                    if hint:
-                        cat = topic_by_name.get(hint.lower())
-                        if cat:
-                            new_cat = cat
-                except Exception:
-                    pass
-
-            # Step 4: AI classification (slow but accurate)
-            if not new_cat and classifier:
-                try:
-                    cat_name, score = classifier.classify(
-                        article.title,
-                        (article.content or '')[:1000],
-                        topic_names,
-                    )
-                    if cat_name and score >= 0.3:
-                        cat = topic_by_name.get(cat_name.lower())
-                        if cat:
-                            new_cat = cat
-                except Exception as e:
-                    self.stderr.write(f'  AI error for "{article.title[:50]}": {e}')
-
-            # Step 5: Fallback — Ugandan source → Politics, else → World
-            if not new_cat:
-                if is_ugandan:
-                    new_cat = topic_by_slug.get('politics', topic_by_slug.get('world'))
-                else:
-                    new_cat = topic_by_slug.get('world')
-
-            # Apply change if different from current
-            if new_cat and new_cat != old_cat:
-                old_name = old_cat.name if old_cat else 'None'
+            source = _StubSource(region=_infer_region(article.source_name))
+            new_cat = geo.classify(
+                source, article.title, article.content or '', category_names,
+            )
+            if new_cat:
+                dist[new_cat.name] = dist.get(new_cat.name, 0) + 1
+            if new_cat and new_cat != article.category:
+                old = article.category.name if article.category else 'None'
                 if dry_run:
-                    self.stdout.write(f'  [{old_name} -> {new_cat.name}] {article.title[:70]}')
+                    self.stdout.write(f'  [{old} -> {new_cat.name}] {article.title[:65]}')
                 else:
                     article.category = new_cat
                     article.save(update_fields=['category'])
                 updated += 1
 
         action = 'Would reclassify' if dry_run else 'Reclassified'
-        self.stdout.write(self.style.SUCCESS(f'{action} {updated} articles'))
-
-        # Remove National category if it exists and not dry-run
-        if national and not dry_run:
-            remaining = Article.objects.filter(category=national, deleted_at__isnull=True).count()
-            if remaining == 0:
-                national.delete()
-                self.stdout.write(self.style.SUCCESS('Deleted "National" category (0 articles remaining).'))
-            else:
-                self.stdout.write(self.style.WARNING(
-                    f'National category still has {remaining} articles — not deleted.'
-                ))
+        self.stdout.write(self.style.SUCCESS(f'{action} {updated}/{total} articles'))
+        self.stdout.write('  Resulting distribution:')
+        for name, n in sorted(dist.items(), key=lambda kv: -kv[1]):
+            self.stdout.write(f'    {n:4}  {name}')

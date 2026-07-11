@@ -51,13 +51,12 @@ class TestCrawlerEngineScheduling:
 
     def test_update_source_schedule_with_new_articles(self, crawl_source):
         """Schedule should reset empty counter when new articles found."""
-        from apps.crawler.engine import CrawlerEngine
+        from apps.crawler import scheduling
 
         crawl_source.consecutive_empty = 3
         crawl_source.save()
 
-        engine = CrawlerEngine()
-        engine._update_source_schedule(crawl_source, new_articles=5)
+        scheduling.update_after_crawl(crawl_source, new_articles=5)
         crawl_source.refresh_from_db()
 
         assert crawl_source.consecutive_empty == 0
@@ -67,27 +66,25 @@ class TestCrawlerEngineScheduling:
 
     def test_update_source_schedule_no_articles(self, crawl_source):
         """Empty counter should increment when no articles found."""
-        from apps.crawler.engine import CrawlerEngine
+        from apps.crawler import scheduling
 
         crawl_source.consecutive_empty = 2
         crawl_source.save()
 
-        engine = CrawlerEngine()
-        engine._update_source_schedule(crawl_source, new_articles=0)
+        scheduling.update_after_crawl(crawl_source, new_articles=0)
         crawl_source.refresh_from_db()
 
         assert crawl_source.consecutive_empty == 3
 
     def test_update_source_schedule_adaptive_backoff(self, crawl_source):
         """Interval should increase after 5+ consecutive empty crawls."""
-        from apps.crawler.engine import CrawlerEngine
+        from apps.crawler import scheduling
 
         crawl_source.consecutive_empty = 5
         crawl_source.crawl_interval = 30
         crawl_source.save()
 
-        engine = CrawlerEngine()
-        engine._update_source_schedule(crawl_source, new_articles=0)
+        scheduling.update_after_crawl(crawl_source, new_articles=0)
         crawl_source.refresh_from_db()
 
         # After 6 consecutive empty, interval should be doubled (60 min)
@@ -98,10 +95,9 @@ class TestCrawlerEngineScheduling:
 
     def test_increment_failures_backoff(self, crawl_source):
         """Failure counter should increment with backoff."""
-        from apps.crawler.engine import CrawlerEngine
+        from apps.crawler import scheduling
 
-        engine = CrawlerEngine()
-        engine._increment_failures(crawl_source)
+        scheduling.increment_failures(crawl_source)
         crawl_source.refresh_from_db()
 
         assert crawl_source.consecutive_failures == 1
@@ -110,14 +106,13 @@ class TestCrawlerEngineScheduling:
 
     def test_increment_failures_exponential_backoff(self, crawl_source):
         """Multiple failures should produce exponential backoff."""
-        from apps.crawler.engine import CrawlerEngine
+        from apps.crawler import scheduling
 
         crawl_source.consecutive_failures = 4
         crawl_source.crawl_interval = 10
         crawl_source.save()
 
-        engine = CrawlerEngine()
-        engine._increment_failures(crawl_source)
+        scheduling.increment_failures(crawl_source)
         crawl_source.refresh_from_db()
 
         assert crawl_source.consecutive_failures == 5
@@ -128,14 +123,13 @@ class TestCrawlerEngineScheduling:
 
     def test_increment_failures_caps_at_8_hours(self, crawl_source):
         """Backoff should be capped at 480 minutes (8 hours)."""
-        from apps.crawler.engine import CrawlerEngine
+        from apps.crawler import scheduling
 
         crawl_source.consecutive_failures = 20
         crawl_source.crawl_interval = 10
         crawl_source.save()
 
-        engine = CrawlerEngine()
-        engine._increment_failures(crawl_source)
+        scheduling.increment_failures(crawl_source)
         crawl_source.refresh_from_db()
 
         assert crawl_source.consecutive_failures == 21

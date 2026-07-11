@@ -33,7 +33,8 @@ class TestAdminAuth:
         assert response.status_code == 200
 
     def test_logout_redirects(self, admin_client):
-        response = admin_client.get('/admin/logout/')
+        # Logout is POST-only (GET logout is a CSRF/link-prefetch risk).
+        response = admin_client.post('/admin/logout/')
         assert response.status_code in (200, 302)
 
 
@@ -101,45 +102,45 @@ class TestCommentAdmin:
 @pytest.mark.django_db
 class TestCrawlerAdmin:
     def test_crawler_sources(self, admin_client, crawl_source):
-        response = admin_client.get('/admin/admin/crawler/')
+        response = admin_client.get('/admin/crawler/')
         assert response.status_code == 200
 
     def test_crawler_logs(self, admin_client):
-        response = admin_client.get('/admin/admin/crawler/logs/')
+        response = admin_client.get('/admin/crawler/logs/')
         assert response.status_code == 200
 
     def test_crawler_sources_requires_auth(self, client):
-        response = client.get('/admin/admin/crawler/')
+        response = client.get('/admin/crawler/')
         assert response.status_code == 302
 
 
 @pytest.mark.django_db
 class TestSystemAdmin:
     def test_system_index(self, admin_client):
-        response = admin_client.get('/admin/admin/system/')
+        response = admin_client.get('/admin/system/')
         assert response.status_code == 200
 
     def test_system_logs(self, admin_client):
-        response = admin_client.get('/admin/admin/system/logs/')
+        response = admin_client.get('/admin/system/logs/')
         assert response.status_code == 200
 
     def test_system_backups(self, admin_client):
-        response = admin_client.get('/admin/admin/system/backups/')
+        response = admin_client.get('/admin/system/backups/')
         assert response.status_code == 200
 
     def test_system_requires_auth(self, client):
-        response = client.get('/admin/admin/system/')
+        response = client.get('/admin/system/')
         assert response.status_code == 302
 
 
 @pytest.mark.django_db
 class TestMediaAdmin:
     def test_media_index(self, admin_client):
-        response = admin_client.get('/admin/admin/media/')
+        response = admin_client.get('/admin/media/')
         assert response.status_code == 200
 
     def test_media_requires_auth(self, client):
-        response = client.get('/admin/admin/media/')
+        response = client.get('/admin/media/')
         assert response.status_code == 302
 
 

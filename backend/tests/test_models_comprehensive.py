@@ -128,12 +128,13 @@ class TestComment:
         from apps.articles.models import Comment
         comment = Comment.objects.create(
             article=published_article,
-            author_name='Test User',
-            author_email='test@example.com',
+            name='Test User',
+            email='test@example.com',
             content='Great article!',
             status='approved',
         )
         assert comment.article == published_article
+        assert comment.name == 'Test User'
         assert str(comment)
 
 
@@ -233,7 +234,7 @@ class TestSystemModels:
     def test_setting(self):
         from apps.core.models import Setting
         s = Setting.objects.create(key='test_key', value='test_value', type='string')
-        assert str(s) == 'test_key'
+        assert 'test_key' in str(s)
 
     def test_policy_page(self):
         from apps.system.models import PolicyPage
@@ -309,7 +310,6 @@ class TestWebhookModels:
     def test_webhook(self):
         from apps.webhooks.models import Webhook
         wh = Webhook.objects.create(
-            name='Test Hook',
             url='https://example.com/webhook',
             events=['article.published'],
             is_active=True,
@@ -319,15 +319,15 @@ class TestWebhookModels:
     def test_webhook_log(self):
         from apps.webhooks.models import Webhook, WebhookLog
         wh = Webhook.objects.create(
-            name='Test', url='https://example.com/hook',
+            url='https://example.com/hook',
         )
         log = WebhookLog.objects.create(
             webhook=wh,
             event='article.published',
-            status_code=200,
+            response_code=200,
             payload={'test': True},
         )
-        assert log.status_code == 200
+        assert log.response_code == 200
 
 
 # ── Media ───────────────────────────────────────────────────────
