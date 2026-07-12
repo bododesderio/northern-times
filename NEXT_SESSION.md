@@ -77,7 +77,33 @@ add reader value**, e.g.: today's date/edition, a most-read / trending mini-list
 inconsistency: header says "EAST AFRICA EDITION" but sidebar says "GLOBAL EDITION" — pick
 one. (layout.html `.editorial-sidebar`, ~line 210.)
 
-## 8. Rebuild fresh + full final test suite
+## 8. Admin login page — left column white background
+The admin login page's left column should have a **white background** (currently
+dark/branded). Find the admin login template (likely `templates/admin/login.html` or an
+accounts template) and its CSS; make the left panel white while keeping contrast/legibility.
+
+## 9. System-wide silent failures — surface errors
+"Things are failing silently" across the system. Do a pass to make failures VISIBLE:
+- Frontend fetches (subscribe, comment, follow, reader-location, newsletter) — ensure
+  non-2xx / network errors show a user-facing message, not a silent no-op.
+- Backend `except Exception: pass` swallows (there are several — crawler, dispatch, mailer,
+  geo, context processors) — keep the non-critical ones from breaking flow BUT log them
+  (logger.warning/exception) so they're not invisible. Audit for bare excepts.
+- Admin actions / Django messages framework — confirm error messages actually render in
+  the admin + public templates (check the messages block exists in base templates).
+- Add a global JS error/network handler + server-side logging review. Produce a short list
+  of every silent-failure site found and fix or log each.
+
+## 10. Email templates build (Brevo-bound, NOT yet wired) — see docs/EMAIL_TEMPLATES_BUILD.md
+Build the 11 branded, CMS-driven, table-based HTML email templates (base + 10 components;
+T-01..T-09, A-01, A-02) per `docs/EMAIL_TEMPLATES_BUILD.md`. Brevo is NOT configured — do
+templates ONLY, no sending/API. RECONCILE with the existing double opt-in email work
+(templates/newsletter/email_base.html, mailer.py site_context(), Subscriber model) instead
+of duplicating; add missing CMS fields as `Setting` keys (logo_url, brand_primary_color,
+address, editorial_email, footer_tagline, social_*) and expose them in site_context().
+Render-test each to /tmp + eyeball via the Mailpit overlay (:8026).
+
+## 11. Rebuild fresh + full final test suite
 After 1–7: `docker compose -f docker-compose.django.yml [-f docker-compose.mailpit.yml]
 build` (deps baked), bring up fresh, run the ENTIRE pytest suite (expect all green),
 verify migrations apply cleanly on a fresh DB, and confirm localhost:8080 renders so the

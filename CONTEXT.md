@@ -10,7 +10,12 @@ article inline images, keep only the featured image (reverts the inline-image wo
 "Local News" copy generic, not Northern-Uganda-specific; (5) fix mobile footer
 (duplicate "About Us"); (6) fix mobile masthead stray artifact under the logo;
 (7) make the Editorial sidebar genuinely useful (fix GLOBAL vs EAST AFRICA edition);
-(8) rebuild fresh + run the FULL test suite + verify localhost. Execute these next.
+(8) admin login page left column → white background; (9) surface system-wide SILENT
+failures (frontend fetches + bare `except: pass` → log/show); (10) build the 11 branded
+CMS-driven email templates per `docs/EMAIL_TEMPLATES_BUILD.md` (Brevo NOT wired — templates
+only, reconcile with existing newsletter templates); (11) rebuild fresh + FULL test suite +
+verify localhost. Admin login: user `admin` / `admin@northerntimes.local` / pw `changeme123`
+(default; set ADMIN_PASSWORD env to override). Execute all of this next.
 
 ## Current task
 Big multi-phase pass: audit-driven fixes + geo feature. Phases:
