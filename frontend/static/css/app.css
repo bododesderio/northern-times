@@ -2564,8 +2564,11 @@ a.footer-contact-item:hover { color: var(--np-text-mid); }
 @media (max-width: 768px) {
   /* Header mobile overrides */
   .burger { display: flex; }
-  .header-title { font-size: 26px; }
-  .header-logo { max-height: 36px; }
+  .header-title { font-size: 20px; white-space: nowrap; }
+  .header-logo { max-height: 34px; }
+  /* Keep the centered wordmark clear of the absolute burger/search icons */
+  .header-masthead-inner { padding-left: 50px; padding-right: 50px; }
+  .header-masthead-side { gap: 6px; }
   .cat-tab { font-size: 13px; padding: 10px 14px; }
   /* Full-bleed hero on mobile article */
   .article-hero { margin-left: -16px; margin-right: -16px; border-radius: 0; }
@@ -2633,7 +2636,7 @@ a.footer-contact-item:hover { color: var(--np-text-mid); }
 
 /* ── ≤480px: narrow mobile ───────────────────────────────────── */
 @media (max-width: 480px) {
-  .header-title { font-size: 22px; }
+  .header-title { font-size: 17px; }
   .article-title { font-size: 30px; }
   .hero-carousel .hero-media img, .hero-enhanced .hero-media img, .hero-placeholder-bg { height: 220px; }
   .hero-carousel .hero-title, .hero-enhanced .hero-title { font-size: 20px; }
