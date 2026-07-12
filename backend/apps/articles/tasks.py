@@ -48,6 +48,29 @@ def publish_scheduled():
 
 
 @shared_task
+def geocode_pending_articles(limit=500):
+    """Backfill coordinates for articles that don't have them yet.
+
+    The crawler geocodes at ingest, but this catches anything missed (entities
+    added later, gazetteer expanded, imported rows). Cheap gazetteer lookups.
+    """
+    from apps.articles.models import Article
+    from apps.articles.services.geo import apply_geocode
+
+    qs = (Article.objects.filter(latitude__isnull=True)
+          .prefetch_related('entities')[:limit])
+    done = 0
+    for article in qs:
+        try:
+            if apply_geocode(article):
+                done += 1
+        except Exception:
+            logger.exception('geocode_pending_articles: failed for %s', article.id)
+    logger.info('geocode_pending_articles: geocoded %d article(s)', done)
+    return f'Geocoded {done} articles'
+
+
+@shared_task
 def notify_new_article(article_id):
     """Send Web Push notification for a newly published article."""
     from apps.articles.models import Article

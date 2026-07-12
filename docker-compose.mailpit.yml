@@ -24,6 +24,9 @@ services:
       retries: 5
 
   django:
+    build:
+      args:
+        INSTALL_DEV: "true"     # bake pytest/pytest-django etc. into the dev/test image
     environment:
       MAIL_HOST: mailpit
       MAIL_PORT: "1025"
@@ -32,6 +35,9 @@ services:
       MAIL_PASSWORD: ""
 
   celery-worker:
+    build:
+      args:
+        INSTALL_DEV: "true"
     environment:
       MAIL_HOST: mailpit
       MAIL_PORT: "1025"
@@ -40,6 +46,9 @@ services:
       MAIL_PASSWORD: ""
 
   celery-beat:
+    build:
+      args:
+        INSTALL_DEV: "true"
     environment:
       MAIL_HOST: mailpit
       MAIL_PORT: "1025"

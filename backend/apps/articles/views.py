@@ -209,21 +209,27 @@ def category(request, slug):
     reader_city = ''
     articles_qs = base_qs
     if slug == 'local-news':
-        from apps.articles.services.geo import haversine_km, reader_location
+        from apps.articles.services.geo import reader_location
         loc = reader_location(request)
         if loc:
             reader_city = loc.get('city', '') or ''
             rlat, rlon = loc['lat'], loc['lon']
 
-            def _sort_key(a):
-                if a.latitude is None or a.longitude is None:
-                    dist = float('inf')
-                else:
-                    dist = haversine_km(rlat, rlon, a.latitude, a.longitude)
-                ts = a.published_at.timestamp() if a.published_at else 0
-                return (dist, -ts)
-
-            articles_qs = sorted(base_qs, key=_sort_key)  # list; Paginator accepts it
+            # DB-side haversine so ordering + pagination stay in Postgres (scales
+            # past the old in-Python sorted()). NULL coords sort last, then recency.
+            from django.db.models import F
+            from django.db.models.expressions import RawSQL
+            distance_sql = (
+                '6371 * 2 * asin(sqrt('
+                'power(sin(radians(%s - latitude) / 2), 2) + '
+                'cos(radians(%s)) * cos(radians(latitude)) * '
+                'power(sin(radians(%s - longitude) / 2), 2)))'
+            )
+            articles_qs = (
+                base_qs
+                .annotate(distance=RawSQL(distance_sql, (rlat, rlat, rlon)))
+                .order_by(F('distance').asc(nulls_last=True), '-published_at')
+            )
             localized = True
 
     paginator = Paginator(articles_qs, 12)

@@ -82,4 +82,9 @@ app.conf.beat_schedule = {
         'task': 'apps.enrichment.tasks.cleanup_duplicates',
         'schedule': crontab(hour='*/12', minute=30),
     },
+    # Geocode any articles still missing coordinates — hourly
+    'geocode-pending-articles': {
+        'task': 'apps.articles.tasks.geocode_pending_articles',
+        'schedule': crontab(minute=15),
+    },
 }

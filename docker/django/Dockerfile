@@ -20,6 +20,17 @@ RUN pip install --no-cache-dir --prefix=/install \
     --extra-index-url https://download.pytorch.org/whl/cpu \
     -r /tmp/requirements/production.txt
 
+# Optionally bake the dev/test deps (pytest, pytest-django, etc.) into the image so
+# they survive container recreation. Off by default (prod/VPS); enabled by the
+# mailpit dev overlay via --build-arg INSTALL_DEV=true.
+ARG INSTALL_DEV=false
+RUN if [ "$INSTALL_DEV" = "true" ]; then \
+      pip install --no-cache-dir --prefix=/install \
+        --default-timeout=300 --retries=5 \
+        --extra-index-url https://download.pytorch.org/whl/cpu \
+        -r /tmp/requirements/development.txt ; \
+    fi
+
 # ---------- Stage 2: Runtime ----------
 FROM python:3.12-slim
 
