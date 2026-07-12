@@ -408,6 +408,13 @@ class CrawlerEngine:
                     )
                     article.tags.add(tag)
 
+        # Geocode from the freshly stored GPE entities (best-effort).
+        try:
+            from apps.articles.services.geo import apply_geocode
+            apply_geocode(article)
+        except Exception:
+            pass  # geocoding is non-critical to the crawl
+
     # ------------------------------------------------------------------
     # Story clustering
     # ------------------------------------------------------------------

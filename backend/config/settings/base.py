@@ -88,6 +88,7 @@ TEMPLATES = [
                 'apps.core.context_processors.branding',
                 'apps.core.context_processors.ads',
                 'apps.core.context_processors.navigation',
+                'apps.core.context_processors.location',
             ],
         },
     },

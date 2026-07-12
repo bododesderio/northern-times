@@ -30,8 +30,17 @@ Big multi-phase pass: audit-driven fixes + geo feature. Phases:
   in popups.js); new cookie-consent.js banner + lightbox.js article-image lightbox (+ CSS).
   NOTE: static uses ManifestStaticFilesStorage+collectstatic on entrypoint → CSS/JS edits
   need `restart django` too (not live from source).
-- P4 geo: coordinate-proximity (haversine) Local News per reader (manual>GPS>IP>default);
-  fix dead /api/visitor-location; article lat/lon+region backfill from GPE gazetteer — TODO.
+- P4 geo — DONE + tested (13 tests). Coordinate-proximity (haversine) Local News per reader.
+  apps/articles/services/geo.py: Uganda GAZETTEER (place→lat/lon, NU-weighted), haversine_km,
+  geocode_place/geocode_article/apply_geocode, reader_location(request) (session manual/GPS →
+  IP GeoIP). Article gains latitude/longitude/geo_place (mig 0006); backfilled from GPE
+  entities via `manage.py geocode_articles` (47/217) + crawler engine hook. New public
+  endpoint POST /api/reader-location/ (csrf-exempt; {lat,lon}|{place}|{clear}) stores in
+  session; layout.html GPS POST repointed here (was the dead /api/visitor-location). New
+  `location` context processor exposes location_mode + reader_location. category() view:
+  when slug==local-news and reader loc known, sorts by haversine (nearest first, coordless
+  last, then recency); category.html shows a "News near you" banner + region picker.
+  location_mode Setting defaults 'auto'.
 
 Earlier same session (committed b03096a): public-pages UX redesign — Local News rename
 (mig 0004 + 301 redirect), ai_summary "The Gist" card, compact author card, tightened

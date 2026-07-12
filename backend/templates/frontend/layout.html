@@ -526,7 +526,7 @@ document.addEventListener('DOMContentLoaded',function(){
   navigator.geolocation.getCurrentPosition(function(pos){
     sessionStorage.setItem('_geo_sent','1');
     var ct = document.querySelector('meta[name="x-csrf-token"]');
-    fetch('/api/visitor-location',{
+    fetch('/api/reader-location/',{
       method:'POST',
       headers:{'Content-Type':'application/json','X-CSRF-Token':ct?ct.content:''},
       body:JSON.stringify({lat:pos.coords.latitude,lon:pos.coords.longitude})

@@ -33,6 +33,26 @@ def branding(request):
     }
 
 
+def location(request):
+    """Reader-location context for local-news personalization.
+
+    `location_mode` (off | auto | manual) gates the client-side geo label;
+    `reader_location` is the server-resolved {lat, lon, source, city} or None.
+    """
+    loc = None
+    try:
+        # Session-only here (allow_ip=False) so a GeoIP call never runs on every
+        # page — the Local News view opts into the IP fallback when it ranks.
+        from apps.articles.services.geo import reader_location
+        loc = reader_location(request, allow_ip=False)
+    except Exception:
+        loc = None
+    return {
+        'location_mode': Setting.get('location_mode', 'auto'),
+        'reader_location': loc,
+    }
+
+
 def ads(request):
     """Inject active ad slots into every template context."""
     from apps.ads.models import AdSlot

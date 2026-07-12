@@ -141,6 +141,12 @@ class Article(models.Model):
     # Story clustering
     story_cluster_id = models.UUIDField(null=True, blank=True, db_index=True)
 
+    # Geo — story location (from the most salient GPE entity via the gazetteer).
+    # Powers reader-proximity ranking on the Local News feed.
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+    geo_place = models.CharField(max_length=120, blank=True, default='')
+
     # AI enrichment — 384-dimensional sentence-transformer embeddings
     embedding = VectorField(dimensions=384, null=True, blank=True)
     ai_summary = models.TextField(blank=True, default='')

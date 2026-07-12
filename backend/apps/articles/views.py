@@ -198,20 +198,43 @@ def category(request, slug):
         return redirect('articles_frontend:category', slug='local-news', permanent=True)
     cat = get_object_or_404(Category, slug=slug)
     if slug == 'top-stories':
-        articles_qs = Article.objects.published()
+        base_qs = Article.objects.published()
     else:
-        articles_qs = Article.objects.published().filter(category=cat)
+        base_qs = Article.objects.published().filter(category=cat)
+
+    # Trending (highest quality) — always from the queryset, before any localization.
+    trending = list(base_qs.order_by('-quality_score')[:5])
+
+    localized = False
+    reader_city = ''
+    articles_qs = base_qs
+    if slug == 'local-news':
+        from apps.articles.services.geo import haversine_km, reader_location
+        loc = reader_location(request)
+        if loc:
+            reader_city = loc.get('city', '') or ''
+            rlat, rlon = loc['lat'], loc['lon']
+
+            def _sort_key(a):
+                if a.latitude is None or a.longitude is None:
+                    dist = float('inf')
+                else:
+                    dist = haversine_km(rlat, rlon, a.latitude, a.longitude)
+                ts = a.published_at.timestamp() if a.published_at else 0
+                return (dist, -ts)
+
+            articles_qs = sorted(base_qs, key=_sort_key)  # list; Paginator accepts it
+            localized = True
 
     paginator = Paginator(articles_qs, 12)
     page = paginator.get_page(request.GET.get('page'))
-
-    # Trending in this category (highest quality score)
-    trending = articles_qs.order_by('-quality_score')[:5]
 
     context = {
         'category': cat,
         'articles': page,
         'most': trending,
+        'localized': localized,
+        'reader_city': reader_city,
         'meta': _meta(request,
             title=f'{cat.name} — {Setting.get("site_name", "Northern Times")}',
             description=cat.description or f'Latest {cat.name} news and analysis.',

@@ -6,6 +6,8 @@ from django.core.cache import cache
 from django.db import connection
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
 from apps.accounts.decorators import role_required
 from .models import Setting
@@ -91,7 +93,51 @@ def geo_lookup(request):
     return JsonResponse({
         'ip': ip,
         'country': geo.get('country', None),
+        'country_name': geo.get('country', None),
         'city': geo.get('city', None),
         'latitude': geo.get('latitude'),
         'longitude': geo.get('longitude'),
     })
+
+
+@csrf_exempt
+@require_POST
+def set_reader_location(request):
+    """Store the reader's location in their session for local-news personalization.
+
+    Accepts either browser GPS ({lat, lon}) or a manual region choice
+    ({place: "gulu"}). CSRF-exempt: it only writes a hint to the caller's own
+    session and performs no cross-user state change. Pass {clear: true} to reset.
+    """
+    import json
+
+    from apps.articles.services.geo import geocode_place
+
+    try:
+        data = json.loads(request.body or '{}')
+    except (ValueError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Invalid body'}, status=400)
+
+    if data.get('clear'):
+        request.session.pop('reader_loc', None)
+        return JsonResponse({'ok': True, 'cleared': True})
+
+    place = (data.get('place') or '').strip()
+    if place:
+        coords = geocode_place(place)
+        if not coords:
+            return JsonResponse({'ok': False, 'error': 'Unknown place'}, status=400)
+        request.session['reader_loc'] = {
+            'lat': coords[0], 'lon': coords[1], 'source': 'manual', 'city': place.title(),
+        }
+        return JsonResponse({'ok': True, 'place': place.title()})
+
+    try:
+        lat, lon = float(data['lat']), float(data['lon'])
+    except (KeyError, ValueError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Invalid coordinates'}, status=400)
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return JsonResponse({'ok': False, 'error': 'Out of range'}, status=400)
+
+    request.session['reader_loc'] = {'lat': lat, 'lon': lon, 'source': 'gps'}
+    return JsonResponse({'ok': True})

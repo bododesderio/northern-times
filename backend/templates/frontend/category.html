@@ -19,6 +19,51 @@
     {% endif %}
   </header>
 
+  {% if category.slug == 'local-news' %}
+  <div class="np-local-bar">
+    <div class="np-local-status">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      {% if localized %}
+        Showing news nearest {% if reader_city %}<strong>{{ reader_city }}</strong>{% else %}you{% endif %}
+      {% else %}
+        Pick your area to see the closest local news first
+      {% endif %}
+    </div>
+    <div class="np-local-picker">
+      <select id="npRegionPick" aria-label="Choose your area">
+        <option value="">Choose your area…</option>
+        <option value="lira">Lira / Lango</option>
+        <option value="gulu">Gulu / Acholi</option>
+        <option value="kitgum">Kitgum</option>
+        <option value="arua">Arua / West Nile</option>
+        <option value="soroti">Soroti / Teso</option>
+        <option value="moroto">Moroto / Karamoja</option>
+        <option value="kampala">Kampala</option>
+        <option value="jinja">Jinja / Busoga</option>
+        <option value="mbale">Mbale / Bugisu</option>
+        <option value="mbarara">Mbarara / Ankole</option>
+        <option value="fort portal">Fort Portal</option>
+        <option value="hoima">Hoima</option>
+        <option value="masaka">Masaka</option>
+      </select>
+      {% if localized %}<button type="button" id="npRegionClear" class="np-local-clear">Reset</button>{% endif %}
+    </div>
+  </div>
+  <script>
+  (function(){
+    var sel=document.getElementById('npRegionPick');
+    var clr=document.getElementById('npRegionClear');
+    var ct=document.querySelector('meta[name="x-csrf-token"]');
+    function send(body){
+      fetch('/api/reader-location/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':ct?ct.content:''},body:JSON.stringify(body)})
+        .then(function(r){return r.json();}).then(function(){location.reload();}).catch(function(){});
+    }
+    if(sel)sel.addEventListener('change',function(){if(sel.value)send({place:sel.value});});
+    if(clr)clr.addEventListener('click',function(){send({clear:true});});
+  })();
+  </script>
+  {% endif %}
+
   {% if articles %}
   <div class="np-cat-layout">
 
