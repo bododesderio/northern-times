@@ -22,9 +22,14 @@ Big multi-phase pass: audit-driven fixes + geo feature. Phases:
   (Setting contact_alert_email → highest-role staff → DEFAULT_FROM_EMAIL); per-issue
   test email now actually sends (was a stub). Templates: campaign.html, contact_alert.html,
   topic_unfollow.html.
-- P3 UI hardening: theme toggle (dead #darkToggle JS, no button), drawer double-handler,
-  search dead #headerSearchInput ref, popup a11y (trap/scroll-lock/role), cookie banner,
-  image lightbox — TODO.
+- P3 UI hardening — DONE. Added the #darkToggle button (moon/sun/system icons) wiring the
+  already-complete dark-mode.js three-mode cycle; consolidated the drawer to ONE handler
+  in app.js (backdrop+scroll-lock+aria+focus-trap+restore), removed the duplicate inline
+  layout.html handler; fixed the dead #headerSearchInput search ref + added Esc/click-
+  outside; popup a11y (role=dialog/aria-modal, body scroll-lock, focus-trap, focus-restore
+  in popups.js); new cookie-consent.js banner + lightbox.js article-image lightbox (+ CSS).
+  NOTE: static uses ManifestStaticFilesStorage+collectstatic on entrypoint → CSS/JS edits
+  need `restart django` too (not live from source).
 - P4 geo: coordinate-proximity (haversine) Local News per reader (manual>GPS>IP>default);
   fix dead /api/visitor-location; article lat/lon+region backfill from GPE gazetteer — TODO.
 

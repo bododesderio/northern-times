@@ -213,13 +213,29 @@
     wrapper.innerHTML = buildPopupHTML(popup);
     document.body.appendChild(wrapper);
 
-    // Focus management for accessibility
+    // Dialog semantics + body scroll-lock for overlay modals
+    var dialogEl = wrapper.querySelector('.nt-popup');
+    if (dialogEl) {
+      dialogEl.setAttribute('role', 'dialog');
+      dialogEl.setAttribute('aria-modal', 'true');
+    }
+    if (needsOverlay) document.body.style.overflow = 'hidden';
+
+    // Focus management: remember the opener, focus the first control
+    wrapper._lastFocus = document.activeElement;
     var firstFocusable = wrapper.querySelector('button, [href], input, textarea, select');
     if (firstFocusable) firstFocusable.focus();
 
-    // Escape key to close
+    // Keyboard: Escape closes; Tab is trapped inside the popup
     wrapper._escHandler = function (e) {
-      if (e.key === 'Escape') { closePopup(popup); track(popup.id, 'close'); }
+      if (e.key === 'Escape') { closePopup(popup); track(popup.id, 'close'); return; }
+      if (e.key === 'Tab') {
+        var f = wrapper.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), textarea, select, [tabindex]:not([tabindex="-1"])');
+        if (!f.length) return;
+        var first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
     };
     document.addEventListener('keydown', wrapper._escHandler);
 
@@ -283,9 +299,14 @@
     var wrapper = document.getElementById('nt-popup-wrapper');
     if (wrapper) {
       if (wrapper._escHandler) document.removeEventListener('keydown', wrapper._escHandler);
+      document.body.style.overflow = '';  // release scroll-lock
+      var lastFocus = wrapper._lastFocus;
       wrapper.style.opacity = '0';
       wrapper.style.transition = 'opacity 200ms ease';
-      setTimeout(function () { wrapper.remove(); }, 200);
+      setTimeout(function () {
+        wrapper.remove();
+        if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+      }, 200);
     }
     markDismissed(popup);
     activePopup = null;
