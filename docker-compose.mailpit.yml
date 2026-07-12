@@ -1,0 +1,48 @@
+# Dev/testing overlay — routes ALL application email to a viewable Mailpit inbox.
+#
+#   docker compose -f docker-compose.django.yml -f docker-compose.mailpit.yml up -d
+#
+# Mailpit web UI: http://localhost:8026  (SMTP sink reachable in-network at mailpit:1025)
+# Do NOT include this overlay in production (the VPS) — there, mail is relayed by
+# the postfix `mail` service via the MAIL_HOST/MAIL_PORT from .env.
+services:
+  mailpit:
+    image: axllent/mailpit:v1.20
+    container_name: northern_times_mailpit
+    restart: unless-stopped
+    ports:
+      - "8026:8025"          # web UI + REST API (8025 taken by another project on this host)
+    environment:
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+      MP_MAX_MESSAGES: "5000"
+    networks:
+      - northern_times
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8025/livez"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  django:
+    environment:
+      MAIL_HOST: mailpit
+      MAIL_PORT: "1025"
+      MAIL_ENCRYPTION: none
+      MAIL_USERNAME: ""
+      MAIL_PASSWORD: ""
+
+  celery-worker:
+    environment:
+      MAIL_HOST: mailpit
+      MAIL_PORT: "1025"
+      MAIL_ENCRYPTION: none
+      MAIL_USERNAME: ""
+      MAIL_PASSWORD: ""
+
+  celery-beat:
+    environment:
+      MAIL_HOST: mailpit
+      MAIL_PORT: "1025"
+      MAIL_ENCRYPTION: none
+      MAIL_USERNAME: ""
+      MAIL_PASSWORD: ""

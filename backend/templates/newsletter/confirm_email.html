@@ -1,0 +1,15 @@
+{% extends "newsletter/email_base.html" %}
+{% block subject %}Confirm your subscription — {{ site_name }}{% endblock %}
+{% block body %}
+  <h1 style="margin:0 0 16px;font-size:24px;line-height:1.25;color:#1c1917;">Confirm your subscription</h1>
+  <p style="margin:0 0 16px;">{% if subscriber.name %}Hi {{ subscriber.name }},{% else %}Hello,{% endif %}</p>
+  <p style="margin:0 0 24px;">Thanks for signing up for the {{ site_name }} newsletter. Please confirm your email address to start receiving independent journalism from Northern Uganda and East Africa.</p>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+    <tr><td style="background:#D32F2F;">
+      <a href="{{ confirm_url }}" style="display:inline-block;padding:14px 28px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;text-decoration:none;">Confirm subscription</a>
+    </td></tr>
+  </table>
+  <p style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#78716c;">Or paste this link into your browser:</p>
+  <p style="margin:0 0 16px;font-family:Arial,Helvetica,sans-serif;font-size:13px;word-break:break-all;"><a href="{{ confirm_url }}" style="color:#D32F2F;">{{ confirm_url }}</a></p>
+  <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#a8a29e;">If you didn't request this, you can safely ignore this email — no subscription will be created.</p>
+{% endblock %}

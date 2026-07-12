@@ -2,15 +2,33 @@
 Last updated: 2026-07-12
 
 ## Current task
-Public-pages UX redesign. COMPLETE and validated at runtime + full test suite
-(543 passed, 0 failed). Delivered: (1) category "Northern Uganda" → "Local News"
-label+slug rename (migration 0004, 301 redirect on old slug, classifier/seeds
-updated); (2) article page — render the previously-unshown ai_summary as a
-"The Gist" card, compact rectangular author card, tightened comments + reduced
-vertical spacing, removed "via {source}" hero attribution, small italic
-figcaptions; (3) footer brand column enriched with contact/location block
-(Lira City default via site_setting); (4) responsive pass keeping the new
-author card compact + horizontal and single-column comment form on mobile.
+Big multi-phase pass: audit-driven fixes + geo feature. Phases:
+- P1 Mailpit dev inbox — DONE. docker-compose.mailpit.yml overlay adds axllent/mailpit
+  (UI :8026, SMTP mailpit:1025); overlay overrides MAIL_HOST/PORT for app services so
+  ALL email is viewable/testable. NOT for VPS (postfix `mail` there). Run with
+  `-f docker-compose.django.yml -f docker-compose.mailpit.yml`.
+- P2A Newsletter double opt-in — DONE + tested (14 tests + mailpit e2e). Subscriber
+  gains name/confirm_token/confirmed_at/unsubscribed_at + 'pending' status (mig 0003).
+  subscribe→confirm email→confirm link (activates, single-use token)→welcome email;
+  unsubscribe GET(confirm)→POST(opt-out); resubscribe (one-click via unsub_token);
+  re-subscribe of unsubscribed re-opt-ins. Routes under articles_frontend. Email
+  templates in templates/newsletter/ (email_base + confirm/welcome/digest/topic_notify);
+  digest.html was MISSING (weekly_digest was crashing) — now created.
+- P2B email: campaign wrapper+unsub footer, TopicFollow notifications, contact-form
+  admin alert, per-issue test email — TODO.
+- P3 UI hardening: theme toggle (dead #darkToggle JS, no button), drawer double-handler,
+  search dead #headerSearchInput ref, popup a11y (trap/scroll-lock/role), cookie banner,
+  image lightbox — TODO.
+- P4 geo: coordinate-proximity (haversine) Local News per reader (manual>GPS>IP>default);
+  fix dead /api/visitor-location; article lat/lon+region backfill from GPE gazetteer — TODO.
+
+Earlier same session (committed b03096a): public-pages UX redesign — Local News rename
+(mig 0004 + 301 redirect), ai_summary "The Gist" card, compact author card, tightened
+comments/spacing, removed "via {source}", italic captions, footer contact block, responsive.
+Follow-ups since: removed source-info tooltip button; guarded The Gist to hide when it
+duplicates the excerpt. GOTCHA: prod uses cached template loader (APP_DIRS+DEBUG=False)
+— template edits need `restart django`; and `up -d` recreates django (new IP) so nginx
+`web` 502s until `restart web`.
 
 ## Prior task
 Comprehensive fix pass across the "5 challenges" (feature, refactor, separation

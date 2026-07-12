@@ -5,15 +5,21 @@ from django.db import models
 
 class Subscriber(models.Model):
     STATUS_CHOICES = [
+        ('pending', 'Pending confirmation'),
         ('active', 'Active'),
         ('unsubscribed', 'Unsubscribed'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
+    name = models.CharField(max_length=120, blank=True, default='')
     unsub_token = models.CharField(max_length=64, unique=True)
+    # Double opt-in: set until the subscriber clicks the confirmation link.
+    confirm_token = models.CharField(max_length=64, blank=True, default='', db_index=True)
     source = models.CharField(max_length=100, blank=True, default='')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    unsubscribed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -21,6 +27,10 @@ class Subscriber(models.Model):
 
     def __str__(self):
         return self.email
+
+    @property
+    def is_active(self):
+        return self.status == 'active'
 
 
 class NewsletterIssue(models.Model):

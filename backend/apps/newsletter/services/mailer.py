@@ -11,6 +11,52 @@ logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 3
 
 
+def site_context() -> dict:
+    """Common context (site name, absolute base URL, location) for all emails."""
+    from apps.core.models import Setting
+
+    domain = getattr(settings, 'APP_DOMAIN', 'localhost')
+    base = (getattr(settings, 'APP_URL', '') or f'https://{domain}').rstrip('/')
+    return {
+        'site_name': Setting.get('site_name', getattr(settings, 'APP_NAME', 'Northern Times')),
+        'site_url': base,
+        'site_location': Setting.get('contact_location', ''),
+    }
+
+
+def abs_url(path: str) -> str:
+    """Build an absolute site URL for a root-relative path."""
+    return f"{site_context()['site_url']}{path}"
+
+
+def _unsub_url(subscriber) -> str:
+    return abs_url(f'/newsletter/unsubscribe/{subscriber.unsub_token}/')
+
+
+def send_confirmation(subscriber) -> 'EmailQueue':
+    """Double opt-in: queue the confirmation email with the confirm link."""
+    ctx = site_context()
+    ctx.update({
+        'subscriber': subscriber,
+        'confirm_url': abs_url(f'/newsletter/confirm/{subscriber.confirm_token}/'),
+        'unsub_url': _unsub_url(subscriber),
+    })
+    html = render_to_string('newsletter/confirm_email.html', ctx)
+    return queue_email(subscriber.email, f"Confirm your subscription — {ctx['site_name']}", html)
+
+
+def send_welcome(subscriber, articles=None) -> 'EmailQueue':
+    """Queue the welcome email once a subscription is confirmed."""
+    ctx = site_context()
+    ctx.update({
+        'subscriber': subscriber,
+        'articles': articles or [],
+        'unsub_url': _unsub_url(subscriber),
+    })
+    html = render_to_string('newsletter/welcome.html', ctx)
+    return queue_email(subscriber.email, f"Welcome to {ctx['site_name']}", html)
+
+
 def send_email(
     to: str,
     subject: str,
@@ -106,16 +152,13 @@ def send_digest(subscriber: 'Subscriber', articles) -> 'EmailQueue':
     Returns:
         The created EmailQueue record.
     """
-    html_body = render_to_string('newsletter/digest.html', {
+    ctx = site_context()
+    ctx.update({
         'subscriber': subscriber,
         'articles': articles,
-        'site_name': getattr(settings, 'APP_NAME', 'Northern Times'),
-        'site_url': f'https://{getattr(settings, "APP_DOMAIN", "localhost")}',
-        'unsub_url': (
-            f'https://{getattr(settings, "APP_DOMAIN", "localhost")}'
-            f'/newsletter/unsubscribe/{subscriber.unsub_token}'
-        ),
+        'unsub_url': _unsub_url(subscriber),
     })
+    html_body = render_to_string('newsletter/digest.html', ctx)
 
-    subject = f'Your Daily Digest — {getattr(settings, "APP_NAME", "Northern Times")}'
+    subject = f"Your Digest — {ctx['site_name']}"
     return queue_email(subscriber.email, subject, html_body)

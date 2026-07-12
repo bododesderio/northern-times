@@ -289,28 +289,134 @@ def newsletter_queue_retry(request, pk):
 
 
 def subscribe(request):
-    """Public API endpoint for newsletter subscription."""
+    """Public newsletter subscription — double opt-in.
+
+    Creates/updates a subscriber in `pending` state and emails a confirmation
+    link. The subscriber only becomes `active` after clicking that link
+    (see :func:`confirm_subscription`).
+    """
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
 
-    email = request.POST.get('email', '').strip()
+    from django.core.exceptions import ValidationError
+    from django.core.validators import validate_email
+    from .services.mailer import send_confirmation
+
+    email = request.POST.get('email', '').strip().lower()
+    name = request.POST.get('name', '').strip()
     if not email:
         return JsonResponse({'error': 'Email is required'}, status=400)
+    try:
+        validate_email(email)
+    except ValidationError:
+        return JsonResponse({'error': 'Please enter a valid email address'}, status=400)
 
     subscriber, created = Subscriber.objects.get_or_create(
         email=email,
         defaults={
+            'name': name,
             'unsub_token': secrets.token_urlsafe(32),
+            'confirm_token': secrets.token_urlsafe(32),
             'source': request.POST.get('source', 'website'),
-            'status': 'active',
+            'status': 'pending',
         },
     )
 
     if not created:
-        if subscriber.status == 'unsubscribed':
-            subscriber.status = 'active'
-            subscriber.save()
-            return JsonResponse({'status': 'resubscribed'})
-        return JsonResponse({'status': 'already_subscribed'})
+        if subscriber.status == 'active':
+            return JsonResponse({
+                'status': 'already_subscribed',
+                'message': "You're already subscribed — thanks!",
+            })
+        # pending or previously unsubscribed → (re)issue a confirmation
+        updates = ['status', 'confirm_token']
+        subscriber.status = 'pending'
+        subscriber.confirm_token = secrets.token_urlsafe(32)
+        if name and not subscriber.name:
+            subscriber.name = name
+            updates.append('name')
+        subscriber.save(update_fields=updates)
 
-    return JsonResponse({'status': 'subscribed'})
+    send_confirmation(subscriber)
+    return JsonResponse({
+        'status': 'pending_confirmation',
+        'message': 'Almost there! Check your inbox to confirm your subscription.',
+    })
+
+
+def confirm_subscription(request, token):
+    """Double opt-in confirmation link target — activates + sends welcome email."""
+    from django.utils import timezone
+    from .services.mailer import send_welcome
+
+    subscriber = Subscriber.objects.filter(confirm_token=token).first() if token else None
+    if not subscriber:
+        return render(request, 'frontend/newsletter_confirmed.html', {'status': 'invalid'})
+
+    if subscriber.status == 'active':
+        return render(request, 'frontend/newsletter_confirmed.html',
+                      {'status': 'already', 'email': subscriber.email})
+
+    subscriber.status = 'active'
+    subscriber.confirmed_at = timezone.now()
+    subscriber.confirm_token = ''  # single-use
+    subscriber.save(update_fields=['status', 'confirmed_at', 'confirm_token'])
+
+    from apps.articles.models import Article
+    recent = list(Article.objects.published().order_by('-published_at')[:3])
+    send_welcome(subscriber, recent)
+
+    return render(request, 'frontend/newsletter_confirmed.html',
+                  {'status': 'success', 'email': subscriber.email})
+
+
+def unsubscribe(request, token=None):
+    """Unsubscribe screen. GET shows a confirm page; POST performs the opt-out.
+
+    Token may arrive in the path (email link) or the querystring/body (form).
+    """
+    from django.utils import timezone
+
+    token = token or request.GET.get('token') or request.POST.get('token')
+    subscriber = Subscriber.objects.filter(unsub_token=token).first() if token else None
+    if not subscriber:
+        return render(request, 'frontend/unsubscribe.html',
+                      {'status': 'error', 'message': 'This unsubscribe link is invalid or has expired.'})
+
+    if subscriber.status == 'unsubscribed':
+        return render(request, 'frontend/unsubscribe.html',
+                      {'status': 'already', 'email': subscriber.email, 'token': token,
+                       'message': "You're already unsubscribed."})
+
+    if request.method == 'POST':
+        subscriber.status = 'unsubscribed'
+        subscriber.unsubscribed_at = timezone.now()
+        subscriber.save(update_fields=['status', 'unsubscribed_at'])
+        return render(request, 'frontend/unsubscribe.html',
+                      {'status': 'success', 'email': subscriber.email, 'token': token,
+                       'message': "You've been unsubscribed. We're sorry to see you go."})
+
+    return render(request, 'frontend/unsubscribe.html',
+                  {'status': 'confirm', 'email': subscriber.email, 'token': token})
+
+
+def resubscribe(request, token):
+    """One-click resubscribe from the unsubscribe-success page (ownership proven
+    by the unsub token, so no re-confirmation needed)."""
+    from django.utils import timezone
+
+    subscriber = Subscriber.objects.filter(unsub_token=token).first() if token else None
+    if not subscriber:
+        return render(request, 'frontend/resubscribe.html',
+                      {'status': 'error', 'message': 'This link is invalid or has expired.'})
+
+    if subscriber.status == 'active':
+        return render(request, 'frontend/resubscribe.html',
+                      {'status': 'already', 'email': subscriber.email})
+
+    subscriber.status = 'active'
+    if not subscriber.confirmed_at:
+        subscriber.confirmed_at = timezone.now()
+    subscriber.save(update_fields=['status', 'confirmed_at'])
+    return render(request, 'frontend/resubscribe.html',
+                  {'status': 'success', 'email': subscriber.email})

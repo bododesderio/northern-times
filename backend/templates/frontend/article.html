@@ -58,18 +58,6 @@
               <span itemprop="name">{{ author_name }}</span>
             {% endif %}
           </span>
-          {% if article.is_crawled and article.source_url %}
-            <button
-              class="src-info-btn"
-              type="button"
-              aria-label="View original source"
-              data-src-url="{{ article.source_url }}"
-              data-src-name="{{ article.source_name|default:'Original article' }}"
-              data-tip="View original source"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            </button>
-          {% endif %}
           <span class="np-hero-role">{{ author_role }}</span>
         </div>
         <div class="np-hero-date">
@@ -106,8 +94,8 @@
     <!-- Article Body -->
     <div class="np-article-center">
 
-      <!-- AI Summary — the gist -->
-      {% if ai_summary %}
+      <!-- AI Summary — the gist (only when it adds something beyond the excerpt) -->
+      {% if ai_summary and ai_summary != article.excerpt %}
       <aside class="np-summary" aria-label="Article summary">
         <div class="np-summary-label">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8L12 14.6 7 18.2l1.9-5.8L4 8.8h6.1L12 3z"/></svg>
@@ -334,135 +322,9 @@
 
 </article>
 
-{% if article.is_crawled and article.source_url %}
-<style>
-.src-info-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--np-text-low);
-  vertical-align: middle;
-  margin-left: 4px;
-  transition: color .15s, transform .15s;
-  flex-shrink: 0;
-}
-.src-info-btn:hover { color: var(--np-accent); transform: scale(1.15); }
-.src-popup-overlay {
-  position: fixed; inset: 0; z-index: 8000;
-  display: none;
-}
-.src-popup-overlay.open { display: block; }
-.src-popup {
-  position: fixed;
-  background: var(--np-surface-1);
-  border: 1px solid var(--np-border);
-  box-shadow: 0 8px 32px rgba(0,0,0,.4);
-  padding: 14px 16px;
-  max-width: 300px;
-  width: max-content;
-  z-index: 8001;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--np-text-high);
-  animation: srcPopIn .15s ease both;
-}
-@keyframes srcPopIn {
-  from { opacity:0; transform: translateY(-4px) scale(.97); }
-  to   { opacity:1; transform: translateY(0) scale(1); }
-}
-.src-popup-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--np-text-low);
-  margin-bottom: 6px;
-}
-.src-popup-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--np-accent);
-  font-weight: 600;
-  text-decoration: none;
-  word-break: break-all;
-}
-.src-popup-link:hover { text-decoration: underline; }
-.src-popup-link svg { width: 12px; height: 12px; flex-shrink: 0; }
-</style>
-
-<div class="src-popup-overlay" id="srcPopupOverlay"></div>
-<div class="src-popup" id="srcPopup" style="display:none" role="tooltip">
-  <div class="src-popup-label">Original Source</div>
-  <a class="src-popup-link" id="srcPopupLink" href="{{ article.source_url }}" target="_blank" rel="nofollow noopener">
-    {{ article.source_name|default:article.source_url }}
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-    </svg>
-  </a>
-</div>
-{% endif %}
 {% endblock %}
 
 {% block scripts %}
-{% if article.is_crawled and article.source_url %}
-<script>
-(function () {
-  'use strict';
-  var btn      = document.querySelector('.src-info-btn');
-  var overlay  = document.getElementById('srcPopupOverlay');
-  var popup    = document.getElementById('srcPopup');
-  if (!btn || !popup) return;
-
-  var open = false;
-
-  function openPopup() {
-    var rect = btn.getBoundingClientRect();
-    var top  = rect.bottom + window.scrollY + 6;
-    var left = rect.left + window.scrollX;
-
-    popup.style.display = 'block';
-    popup.style.top  = top + 'px';
-    popup.style.left = left + 'px';
-
-    var popW = popup.offsetWidth;
-    if (left + popW > window.innerWidth - 16) {
-      popup.style.left = Math.max(8, window.innerWidth - popW - 16) + 'px';
-    }
-
-    overlay.classList.add('open');
-    open = true;
-  }
-
-  function closePopup() {
-    popup.style.display = 'none';
-    overlay.classList.remove('open');
-    open = false;
-  }
-
-  btn.addEventListener('click', function (e) {
-    e.stopPropagation();
-    open ? closePopup() : openPopup();
-  });
-
-  overlay.addEventListener('click', closePopup);
-
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && open) closePopup();
-  });
-
-  window.addEventListener('scroll', function () { if (open) closePopup(); }, { passive: true });
-  window.addEventListener('resize', function () { if (open) closePopup(); }, { passive: true });
-})();
-</script>
-{% endif %}
-
 <!-- Comment submission JS -->
 <script>
 (function() {
