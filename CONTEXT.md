@@ -1,7 +1,18 @@
 # Project Context
 Last updated: 2026-07-12
 
-## ✅ 11-item review pass — DONE (2026-07-12, commits a3c1d56 → c1ee7df)
+## ⏭️ NEXT: Crawler refinement (recorded, not started)
+See `docs/CRAWLER_REFINEMENT_PLAN.md`. Dedup keep-best + HARD-delete losers (same story
+across sites → one canonical, heuristic+AI tie-break); first-run wipe-ALL + 48h freshness
+gate (fresh-only thereafter). Run on "continue from where we stopped". Also still deferred:
+wiring the new email templates to send paths (Brevo step).
+
+## ✅ Done 2026-07-12: admin creds rule + theme toggle (commit 9cc1dbe)
+Admin superuser fixed identical dev+prod: admin@northerntimesug.com / Admin1234 (login by
+email; seed_all upserts). Theme = LIGHT default, header toggles light↔dark only (removed
+the "system/OS" mode + its monitor icon).
+
+## ✅ 11-item review pass — DONE (2026-07-12, commits a3c1d56 → 26c535c)
 All of NEXT_SESSION.md executed: (1) infra — bake test deps via Dockerfile
 INSTALL_DEV arg (set by mailpit overlay), SQL/RawSQL haversine for Local News,
 wider gazetteer + hourly geocode_pending beat task, playwright MCP repointed to
