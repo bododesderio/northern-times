@@ -1,21 +1,20 @@
 # Project Context
 Last updated: 2026-07-12
 
-## ⏭️ NEXT SESSION — "continue from where we stopped"
-**See `NEXT_SESSION.md` (repo root) for the full to-do.** User reviewed in-browser and
-wants (not yet done): (1) fix the 3 flagged items comprehensively — playwright MCP,
-bake test deps into image, geo scale (SQL haversine + more geocoding); (2) REMOVE all
-article inline images, keep only the featured image (reverts the inline-image work);
-(3) make all images full COLOR (remove grayscale-until-hover everywhere); (4) make
-"Local News" copy generic, not Northern-Uganda-specific; (5) fix mobile footer
-(duplicate "About Us"); (6) fix mobile masthead stray artifact under the logo;
-(7) make the Editorial sidebar genuinely useful (fix GLOBAL vs EAST AFRICA edition);
-(8) admin login page left column → white background; (9) surface system-wide SILENT
-failures (frontend fetches + bare `except: pass` → log/show); (10) build the 11 branded
-CMS-driven email templates per `docs/EMAIL_TEMPLATES_BUILD.md` (Brevo NOT wired — templates
-only, reconcile with existing newsletter templates); (11) rebuild fresh + FULL test suite +
-verify localhost. Admin login: user `admin` / `admin@northerntimes.local` / pw `changeme123`
-(default; set ADMIN_PASSWORD env to override). Execute all of this next.
+## ✅ 11-item review pass — DONE (2026-07-12, commits a3c1d56 → c1ee7df)
+All of NEXT_SESSION.md executed: (1) infra — bake test deps via Dockerfile
+INSTALL_DEV arg (set by mailpit overlay), SQL/RawSQL haversine for Local News,
+wider gazetteer + hourly geocode_pending beat task, playwright MCP repointed to
+bundled chromium; (2) inline images stripped at render (featured only);
+(3) images full colour (grayscale(1)→(0) site-wide + email tpls); (4) Local News
+copy generic (mig 0007); (5) footer dedupe About Us; (6) mobile masthead wordmark
+shrunk to clear the search icon; (7) editorial sidebar = edition label + date +
+Most-Read + newsletter CTA; (8) admin login white left column; (9) newsletter
+subscribe returns `ok` (success no longer shows as error) + context-processor
+logging; (10) 11 branded CMS-driven email templates (base + T-01..T-09, A-01/A-02
+in templates/newsletter/, site_context() CMS `settings` dict) — templates only,
+Brevo not wired. (11) fresh rebuild + full suite = final verification step.
+Admin login: `admin` / `admin@northerntimes.local` / `changeme123` (ADMIN_PASSWORD overrides).
 
 ## Current task
 Big multi-phase pass: audit-driven fixes + geo feature. Phases:
