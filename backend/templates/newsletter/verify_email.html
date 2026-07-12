@@ -1,0 +1,21 @@
+{% extends "newsletter/email_base.html" %}
+{% comment %}T-09 Email Verification. Vars: first_name, new_email, old_email, verification_url (24h).{% endcomment %}
+{% block subject %}Verify your email address{% endblock %}
+{% block edition_label %}<div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,.75);margin-bottom:14px;">Verify Your Email</div>{% endblock %}
+{% block header_content %}
+  <table role="presentation" align="center"><tr><td width="72" height="72" align="center" valign="middle" style="width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.5);color:#fff;font-size:32px;">&#9993;</td></tr></table>
+  <div style="font-size:20px;font-weight:700;color:#fff;margin-top:14px;">Verify your email address.</div>
+{% endblock %}
+{% block body %}
+  <p style="margin:0 0 16px;">Hi {{ first_name }},</p>
+  <p style="margin:0 0 20px;">To complete your email update, confirm your new address below.</p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:0 0 16px;">
+    <span style="display:inline-block;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:6px;padding:10px 20px;font-size:15px;font-weight:600;color:#111827;">{{ new_email }}</span>
+  </td></tr></table>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:0 0 12px;">
+    <a href="{{ verification_url }}" style="display:inline-block;background:{{ settings.brand_primary_color|default:'#D32F2F' }};color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:15px 36px;border-radius:9999px;">Verify Email Address &rarr;</a>
+  </td></tr></table>
+  <p style="font-size:12px;color:#9CA3AF;text-align:center;margin:0 0 24px;">This link expires in 24 hours.</p>
+  <p style="font-size:12px;color:#9CA3AF;margin:0;">If you did not request this change, contact us at {{ settings.editorial_email }}. Your old address ({{ old_email }}) stays active until this is confirmed.</p>
+{% endblock %}
+{% block footer_links %}<a href="{{ site_url }}" style="color:rgba(255,255,255,.5);">{{ settings.publication_name|default:site_name }}</a>{% endblock %}

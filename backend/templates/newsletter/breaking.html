@@ -1,0 +1,29 @@
+{% extends "newsletter/email_base.html" %}
+{% comment %}T-05 Breaking News Alert. Vars: alert_headline, alert_summary, alert_category,
+alert_time, alert_date, alert_image_url?, alert_is_critical, story_url, byline?, related_items[].{% endcomment %}
+{% block subject %}Breaking: {{ alert_headline }}{% endblock %}
+{% block edition_label %}<div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,.75);margin-bottom:14px;">Breaking News</div>{% endblock %}
+{% block header_content %}
+  <div style="font-family:Georgia,'Times New Roman',Times,serif;font-size:22px;font-weight:800;color:#fff;line-height:1.2;">{{ alert_headline }}</div>
+  <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:8px;">{{ alert_time }} &middot; {{ alert_date }}</div>
+{% endblock %}
+{% block body %}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;"><tr>
+    <td style="background:{% if alert_is_critical %}#DC2626{% else %}{{ settings.brand_primary_color|default:'#D32F2F' }}{% endif %};border-radius:4px;padding:10px 16px;color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">&#9889; Breaking &mdash; {{ alert_category }}</td>
+  </tr></table>
+  {% if alert_image_url %}<img src="{{ alert_image_url }}" alt="{{ alert_image_alt|default:'' }}" width="504" style="width:100%;max-height:240px;border:0;display:block;margin-bottom:20px;">{% endif %}
+  <p style="font-size:16px;color:#111827;line-height:1.7;margin:0 0 4px;">{{ alert_summary }}</p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:28px 0;">
+    <a href="{{ story_url }}" style="display:inline-block;background:{{ settings.brand_primary_color|default:'#D32F2F' }};color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:15px 36px;border-radius:9999px;">Read the Full Story &rarr;</a>
+  </td></tr></table>
+  {% if related_items %}
+    <div style="border-top:1px solid #E5E7EB;padding-top:20px;">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9CA3AF;margin-bottom:12px;">Related Coverage</div>
+      {% for r in related_items %}
+        <div style="margin-bottom:10px;"><a href="{{ r.url }}" style="color:{{ settings.brand_primary_color|default:'#D32F2F' }};font-size:14px;text-decoration:none;font-weight:600;">{{ r.headline }}</a>{% if r.context %}<div style="font-size:13px;color:#6B7280;">{{ r.context }}</div>{% endif %}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  <p style="font-size:12px;color:#9CA3AF;font-style:italic;margin-top:24px;">{% if byline %}Reporting: {{ byline }}. {% endif %}Developing story &mdash; {{ settings.publication_name|default:site_name }} will update as facts emerge.</p>
+{% endblock %}
+{% block footer_links %}{% if unsub_url %}<a href="{{ unsub_url }}" style="color:rgba(255,255,255,.5);">Unsubscribe</a>{% endif %}{% if view_in_browser_url %} &middot; <a href="{{ view_in_browser_url }}" style="color:rgba(255,255,255,.5);">View in Browser</a>{% endif %}{% endblock %}

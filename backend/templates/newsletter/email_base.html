@@ -4,36 +4,56 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>{% block subject %}{{ site_name }}{% endblock %}</title>
+  <title>{% block subject %}{{ settings.publication_name|default:site_name }}{% endblock %}</title>
 </head>
-<body style="margin:0;padding:0;background:#f4f4f2;font-family:Georgia,'Times New Roman',serif;color:#1c1917;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f2;padding:24px 0;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border:1px solid #e5e3df;">
-          <!-- Masthead -->
-          <tr>
-            <td style="padding:24px 32px;border-bottom:3px solid #D32F2F;text-align:center;">
-              <a href="{{ site_url }}" style="text-decoration:none;color:#1c1917;font-size:24px;font-weight:900;letter-spacing:-.02em;text-transform:uppercase;">{{ site_name }}</a>
-            </td>
-          </tr>
-          <!-- Body -->
-          <tr>
-            <td style="padding:32px;font-size:16px;line-height:1.6;color:#292524;">
-              {% block body %}{% endblock %}
-            </td>
-          </tr>
-          <!-- Footer -->
-          <tr>
-            <td style="padding:20px 32px;border-top:1px solid #e5e3df;background:#faf9f7;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#78716c;text-align:center;">
-              <p style="margin:0 0 6px;">You're receiving this because you subscribed to {{ site_name }}.</p>
-              {% if unsub_url %}<p style="margin:0;"><a href="{{ unsub_url }}" style="color:#78716c;text-decoration:underline;">Unsubscribe</a>{% if manage_url %} &middot; <a href="{{ manage_url }}" style="color:#78716c;text-decoration:underline;">Manage preferences</a>{% endif %}</p>{% endif %}
-              <p style="margin:8px 0 0;color:#a8a29e;">&copy; {{ site_name }}{% if site_location %} &middot; {{ site_location }}{% endif %}</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
+<body style="margin:0;padding:0;background:#F3F4F6;font-family:'Segoe UI',Tahoma,Geneva,Verdana,Arial,sans-serif;color:#111827;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3F4F6;">
+    <tr><td align="center" style="padding:24px 12px;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;">
+
+        <!-- HEADER BAND -->
+        <tr><td style="background:{{ settings.brand_primary_color|default:'#D32F2F' }};padding:28px 48px 24px;text-align:center;">
+          {% block edition_label %}{% endblock %}
+          {% if settings.logo_url %}
+            <img src="{{ settings.logo_url }}" alt="{{ settings.publication_name|default:site_name }}" height="36" style="height:36px;width:auto;border:0;margin-bottom:14px;">
+          {% else %}
+            <div style="font-family:Georgia,'Times New Roman',Times,serif;font-size:26px;font-weight:700;color:#ffffff;letter-spacing:-.5px;margin-bottom:14px;">{{ settings.publication_name|default:site_name }}</div>
+          {% endif %}
+          {% block header_content %}{% endblock %}
+        </td></tr>
+
+        <!-- BODY CARD -->
+        <tr><td style="background:#ffffff;padding:40px 48px;font-size:15px;line-height:1.7;color:#374151;">
+          {% block body %}{% endblock %}
+        </td></tr>
+
+        <!-- FOOTER BAND -->
+        <tr><td style="background:#111827;padding:28px 40px;text-align:center;">
+          <div style="font-size:14px;font-weight:600;color:#ffffff;">{{ settings.publication_name|default:site_name }}</div>
+          {% if settings.footer_tagline %}<div style="font-size:12px;color:rgba(255,255,255,.5);font-style:italic;margin-top:4px;">{{ settings.footer_tagline }}</div>{% endif %}
+
+          {% if settings.social_facebook or settings.social_x or settings.social_instagram or settings.social_whatsapp or settings.social_youtube or settings.social_tiktok %}
+          <div style="margin:16px 0;font-size:12px;">
+            {% if settings.social_facebook %}<a href="{{ settings.social_facebook }}" style="color:rgba(255,255,255,.75);text-decoration:none;margin:0 6px;">Facebook</a>{% endif %}
+            {% if settings.social_x %}<a href="{{ settings.social_x }}" style="color:rgba(255,255,255,.75);text-decoration:none;margin:0 6px;">X</a>{% endif %}
+            {% if settings.social_instagram %}<a href="{{ settings.social_instagram }}" style="color:rgba(255,255,255,.75);text-decoration:none;margin:0 6px;">Instagram</a>{% endif %}
+            {% if settings.social_whatsapp %}<a href="{{ settings.social_whatsapp }}" style="color:rgba(255,255,255,.75);text-decoration:none;margin:0 6px;">WhatsApp</a>{% endif %}
+            {% if settings.social_youtube %}<a href="{{ settings.social_youtube }}" style="color:rgba(255,255,255,.75);text-decoration:none;margin:0 6px;">YouTube</a>{% endif %}
+            {% if settings.social_tiktok %}<a href="{{ settings.social_tiktok }}" style="color:rgba(255,255,255,.75);text-decoration:none;margin:0 6px;">TikTok</a>{% endif %}
+          </div>
+          {% endif %}
+
+          {% if settings.address %}<div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:8px;">{{ settings.address }}</div>{% endif %}
+          {% if settings.editorial_email %}<div style="font-size:11px;color:rgba(255,255,255,.4);"><a href="mailto:{{ settings.editorial_email }}" style="color:rgba(255,255,255,.4);text-decoration:none;">{{ settings.editorial_email }}</a></div>{% endif %}
+
+          <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:12px;">
+            {% block footer_links %}{% if unsub_url %}<a href="{{ unsub_url }}" style="color:rgba(255,255,255,.5);text-decoration:underline;">Unsubscribe</a>{% endif %}{% endblock %}
+          </div>
+          <div style="font-size:11px;color:rgba(255,255,255,.3);margin-top:10px;">&copy; {{ current_year }} {{ settings.publication_name|default:site_name }}</div>
+        </td></tr>
+
+      </table>
+    </td></tr>
   </table>
 </body>
 </html>

@@ -1,0 +1,22 @@
+{% extends "newsletter/email_base.html" %}
+{% comment %}T-07 Account Created. Vars: first_name, account_email, account_type, creation_date, account_url.{% endcomment %}
+{% block subject %}Your {{ settings.publication_name|default:site_name }} account is ready{% endblock %}
+{% block edition_label %}<div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,.75);margin-bottom:14px;">Your Account</div>{% endblock %}
+{% block header_content %}
+  <table role="presentation" align="center"><tr><td width="72" height="72" align="center" valign="middle" style="width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.5);color:#fff;font-size:34px;">&#10003;</td></tr></table>
+  <div style="font-size:20px;font-weight:700;color:#fff;margin-top:14px;">Your account is ready.</div>
+{% endblock %}
+{% block body %}
+  <p style="font-size:18px;font-weight:600;color:#111827;margin:0 0 12px;">Welcome, {{ first_name }}.</p>
+  <p style="margin:0 0 20px;">Your {{ settings.publication_name|default:site_name }} reader account is set up. Save stories, manage your newsletter preferences, and personalise your reading.</p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:20px 24px;margin-bottom:24px;">
+    <tr><td style="font-size:13px;color:#374151;font-weight:bold;padding:6px 0;">Email</td><td style="font-size:13px;color:#6B7280;padding:6px 0;" align="right">{{ account_email }}</td></tr>
+    <tr><td style="font-size:13px;color:#374151;font-weight:bold;padding:6px 0;">Account Type</td><td style="font-size:13px;color:#6B7280;padding:6px 0;" align="right">{{ account_type }}</td></tr>
+    <tr><td style="font-size:13px;color:#374151;font-weight:bold;padding:6px 0;">Created</td><td style="font-size:13px;color:#6B7280;padding:6px 0;" align="right">{{ creation_date }}</td></tr>
+  </table>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:0 0 28px;">
+    <a href="{{ account_url }}" style="display:inline-block;background:{{ settings.brand_primary_color|default:'#D32F2F' }};color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:15px 36px;border-radius:9999px;">Go to My Account &rarr;</a>
+  </td></tr></table>
+  <p style="font-size:12px;color:#9CA3AF;margin:0;">If you didn't create this account, contact us at {{ settings.editorial_email }}.</p>
+{% endblock %}
+{% block footer_links %}<a href="{{ site_url }}" style="color:rgba(255,255,255,.5);">{{ settings.publication_name|default:site_name }}</a>{% endblock %}

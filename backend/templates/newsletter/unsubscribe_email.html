@@ -1,0 +1,15 @@
+{% extends "newsletter/email_base.html" %}
+{% comment %}T-03 Unsubscribe Confirmation (email). Vars: subscriber_email, resubscribe_url.
+Muted header signals a quiet transactional email.{% endcomment %}
+{% block subject %}You've been unsubscribed{% endblock %}
+{% block edition_label %}{% endblock %}
+{% block header_content %}<div style="font-size:20px;font-weight:700;color:#fff;">You've been unsubscribed.</div>{% endblock %}
+{% block body %}
+  <p style="margin:0 0 20px;">We've removed <strong>{{ subscriber_email }}</strong> from the {{ settings.publication_name|default:site_name }} mailing list. You won't receive any further emails from us.</p>
+  <div style="border-top:1px solid #E5E7EB;padding-top:20px;">
+    <p style="margin:0 0 4px;font-size:14px;color:#374151;">Changed your mind?</p>
+    <a href="{{ resubscribe_url }}" style="color:{{ settings.brand_primary_color|default:'#D32F2F' }};font-size:14px;font-weight:600;text-decoration:none;">Re-subscribe to {{ settings.publication_name|default:site_name }} &rarr;</a>
+  </div>
+  <p style="font-size:13px;color:#6B7280;margin:20px 0 0;">You can still keep up with us online at <a href="{{ site_url }}" style="color:{{ settings.brand_primary_color|default:'#D32F2F' }};">{{ site_url }}</a>.</p>
+{% endblock %}
+{% block footer_links %}<a href="{{ site_url }}" style="color:rgba(255,255,255,.5);">{{ settings.publication_name|default:site_name }}</a>{% endblock %}

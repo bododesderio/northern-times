@@ -12,15 +12,41 @@ MAX_ATTEMPTS = 3
 
 
 def site_context() -> dict:
-    """Common context (site name, absolute base URL, location) for all emails."""
+    """CMS-driven context injected into every email template.
+
+    All editor-editable branding/contact/social values come from the `Setting`
+    key/value store (this project has no separate SiteSettings model) so the
+    editorial team can change them without a developer. `current_year` is auto.
+    """
+    from datetime import date
+
     from apps.core.models import Setting
 
     domain = getattr(settings, 'APP_DOMAIN', 'localhost')
     base = (getattr(settings, 'APP_URL', '') or f'https://{domain}').rstrip('/')
-    return {
-        'site_name': Setting.get('site_name', getattr(settings, 'APP_NAME', 'Northern Times')),
+    name = Setting.get('site_name', getattr(settings, 'APP_NAME', 'Northern Times'))
+    settings_ctx = {
+        'publication_name': name,
+        'logo_url': Setting.get('email_logo_url', '') or Setting.get('site_logo', ''),
+        'brand_primary_color': Setting.get('email_brand_primary', '') or Setting.get('theme_accent', '#D32F2F'),
+        'brand_accent_color': Setting.get('email_brand_accent', '') or Setting.get('theme_accent', '#D32F2F'),
         'site_url': base,
-        'site_location': Setting.get('contact_location', ''),
+        'address': Setting.get('contact_location', '') or Setting.get('contact_address', ''),
+        'editorial_email': Setting.get('contact_email', '') or Setting.get('editorial_email', ''),
+        'footer_tagline': Setting.get('footer_tagline', '') or Setting.get('site_tagline', ''),
+        'social_facebook': Setting.get('social_facebook', ''),
+        'social_whatsapp': Setting.get('social_whatsapp', ''),
+        'social_x': Setting.get('social_twitter', '') or Setting.get('social_x', ''),
+        'social_instagram': Setting.get('social_instagram', ''),
+        'social_youtube': Setting.get('social_youtube', ''),
+        'social_tiktok': Setting.get('social_tiktok', ''),
+    }
+    return {
+        'site_name': name,
+        'site_url': base,
+        'site_location': settings_ctx['address'],
+        'settings': settings_ctx,
+        'current_year': date.today().year,
     }
 
 
