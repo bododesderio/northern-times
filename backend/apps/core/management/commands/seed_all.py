@@ -61,25 +61,41 @@ class Command(BaseCommand):
     # ------------------------------------------------------------------
     # 1. Admin superuser
     # ------------------------------------------------------------------
+    # Fixed superuser credentials — identical in dev and prod by rule.
+    ADMIN_EMAIL = 'admin@northerntimesug.com'
+    ADMIN_USERNAME = 'admin'
+    ADMIN_PASSWORD = 'Admin1234'
+
     def _seed_admin_user(self):
         from apps.accounts.models import Role, User
 
         self.stdout.write('\n  Seeding admin user...')
-        if User.objects.filter(username='admin').exists():
-            self.stdout.write('    Admin user already exists.')
-            return
-
         role = Role.objects.filter(name='super_admin').first()
-        user = User.objects.create_superuser(
-            username='admin',
-            email='admin@northerntimes.local',
-            password=os.environ.get('ADMIN_PASSWORD', 'changeme123'),
-        )
-        if role:
-            user.role = role
-            user.save(update_fields=['role'])
-        pwd_source = 'ADMIN_PASSWORD env' if os.environ.get('ADMIN_PASSWORD') else 'default'
-        self.stdout.write(self.style.SUCCESS(f'    Created admin user (admin / {pwd_source})'))
+
+        # Upsert so re-seeding always enforces the canonical credentials, even if
+        # a legacy admin (e.g. admin@northerntimes.local) already exists.
+        user = (User.objects.filter(email=self.ADMIN_EMAIL).first()
+                or User.objects.filter(username=self.ADMIN_USERNAME).first())
+        if user:
+            user.username = self.ADMIN_USERNAME
+            user.email = self.ADMIN_EMAIL
+            user.is_superuser = True
+            user.is_staff = True
+            if role:
+                user.role = role
+            user.set_password(self.ADMIN_PASSWORD)
+            user.save()
+            self.stdout.write(self.style.SUCCESS(f'    Admin ensured ({self.ADMIN_EMAIL}).'))
+        else:
+            user = User.objects.create_superuser(
+                username=self.ADMIN_USERNAME,
+                email=self.ADMIN_EMAIL,
+                password=self.ADMIN_PASSWORD,
+            )
+            if role:
+                user.role = role
+                user.save(update_fields=['role'])
+            self.stdout.write(self.style.SUCCESS(f'    Created admin ({self.ADMIN_EMAIL}).'))
 
     # ------------------------------------------------------------------
     # 2. Site settings
