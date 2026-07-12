@@ -1,6 +1,17 @@
 # Project Context
 Last updated: 2026-07-12
 
+## ⏭️ NEXT SESSION — "continue from where we stopped"
+**See `NEXT_SESSION.md` (repo root) for the full to-do.** User reviewed in-browser and
+wants (not yet done): (1) fix the 3 flagged items comprehensively — playwright MCP,
+bake test deps into image, geo scale (SQL haversine + more geocoding); (2) REMOVE all
+article inline images, keep only the featured image (reverts the inline-image work);
+(3) make all images full COLOR (remove grayscale-until-hover everywhere); (4) make
+"Local News" copy generic, not Northern-Uganda-specific; (5) fix mobile footer
+(duplicate "About Us"); (6) fix mobile masthead stray artifact under the logo;
+(7) make the Editorial sidebar genuinely useful (fix GLOBAL vs EAST AFRICA edition);
+(8) rebuild fresh + run the FULL test suite + verify localhost. Execute these next.
+
 ## Current task
 Big multi-phase pass: audit-driven fixes + geo feature. Phases:
 - P1 Mailpit dev inbox — DONE. docker-compose.mailpit.yml overlay adds axllent/mailpit
