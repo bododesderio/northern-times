@@ -37,7 +37,7 @@ class _StubClassifier:
 def _seed_categories(db):
     from apps.articles.models import Category
     names = [
-        ('northern-uganda', 'Northern Uganda'), ('world', 'World'),
+        ('local-news', 'Local News'), ('world', 'World'),
         ('politics', 'Politics'), ('sports', 'Sports'), ('business', 'Business'),
         ('health', 'Health'), ('technology', 'Technology'),
         ('entertainment', 'Entertainment'), ('education', 'Education'),
@@ -86,7 +86,7 @@ class TestGeoClassifierRouting:
             'Officials from Gulu district and Lira met to discuss the north.',
             _seed_categories(db),
         )
-        assert cat.slug == 'northern-uganda'
+        assert cat.slug == 'local-news'
 
     def test_international_sports_goes_to_sports(self, db):
         names = _seed_categories(db)

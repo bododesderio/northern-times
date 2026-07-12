@@ -149,10 +149,10 @@ class Command(BaseCommand):
         now = timezone.now()
 
         headlines = [
-            ('Gulu University Launches New Science Faculty Building', 'northern-uganda'),
+            ('Gulu University Launches New Science Faculty Building', 'local-news'),
             ('Uganda Parliament Passes Landmark Climate Bill', 'politics'),
-            ('Northern Uganda Farmers Report Record Harvest Season', 'northern-uganda'),
-            ('Kampala-Gulu Highway Expansion Reaches 80% Completion', 'northern-uganda'),
+            ('Northern Uganda Farmers Report Record Harvest Season', 'local-news'),
+            ('Kampala-Gulu Highway Expansion Reaches 80% Completion', 'local-news'),
             ('East African Community Summit Opens in Nairobi', 'world'),
             ('Uganda Cranes Qualify for Africa Cup of Nations', 'sports'),
             ('New Hospital Opens in Lira District', 'health'),

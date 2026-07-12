@@ -1,10 +1,21 @@
 # Project Context
-Last updated: 2026-07-11
+Last updated: 2026-07-12
 
 ## Current task
+Public-pages UX redesign. COMPLETE and validated at runtime + full test suite
+(543 passed, 0 failed). Delivered: (1) category "Northern Uganda" → "Local News"
+label+slug rename (migration 0004, 301 redirect on old slug, classifier/seeds
+updated); (2) article page — render the previously-unshown ai_summary as a
+"The Gist" card, compact rectangular author card, tightened comments + reduced
+vertical spacing, removed "via {source}" hero attribution, small italic
+figcaptions; (3) footer brand column enriched with contact/location block
+(Lira City default via site_setting); (4) responsive pass keeping the new
+author card compact + horizontal and single-column comment form on mobile.
+
+## Prior task
 Comprehensive fix pass across the "5 challenges" (feature, refactor, separation
 of concerns, scalability, live debug) on the Django news platform. COMPLETE and
-validated at runtime + full test suite (499 passed, 0 failed).
+validated at runtime + full test suite.
 
 ## Stack
 - Backend: Django 5.1 (:8000, gunicorn) + Celery (worker/beat) + Redis

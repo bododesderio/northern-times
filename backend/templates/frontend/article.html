@@ -23,9 +23,6 @@
               <span itemprop="author" itemscope itemtype="https://schema.org/Person">
                 <span itemprop="name">{{ author_name }}</span>
               </span>
-              {% if article.is_crawled and article.source_name %}
-                <span class="np-hero-role">via {{ article.source_name }}</span>
-              {% endif %}
             </div>
             <div class="np-hero-date">
               <time datetime="{{ article.published_at|date:'c' }}" itemprop="datePublished" title="{{ pub_date }}{% if pub_time %} at {{ pub_time }}{% endif %}">
@@ -108,6 +105,17 @@
 
     <!-- Article Body -->
     <div class="np-article-center">
+
+      <!-- AI Summary — the gist -->
+      {% if ai_summary %}
+      <aside class="np-summary" aria-label="Article summary">
+        <div class="np-summary-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8L12 14.6 7 18.2l1.9-5.8L4 8.8h6.1L12 3z"/></svg>
+          The Gist
+        </div>
+        <div class="np-summary-body">{{ ai_summary|linebreaks }}</div>
+      </aside>
+      {% endif %}
 
       <div class="article-body np-article-body np-drop-cap" itemprop="articleBody">
         {{ article_content|safe }}

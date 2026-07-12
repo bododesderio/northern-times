@@ -122,7 +122,7 @@ class Command(BaseCommand):
         cats = [
             # (name, slug, description, sort_order, show_in_nav, show_in_sidebar)
             ('Top Stories', 'top-stories', 'Lead stories and editor picks from across all sections.', 1, True, True),
-            ('Northern Uganda', 'northern-uganda', 'Regional reporting and features from Northern Uganda and Lango sub-region.', 2, True, True),
+            ('Local News', 'local-news', 'Local reporting and community news from Northern Uganda and the Lango sub-region.', 2, True, True),
             ('Politics', 'politics', 'Politics, government, elections, and policy analysis.', 3, True, True),
             ('Business', 'business', 'Business, economy, finance, and market analysis.', 4, True, True),
             ('Sports', 'sports', 'Football, basketball, athletics, and East African sports.', 5, True, True),
@@ -253,7 +253,7 @@ class Command(BaseCommand):
                 'name': 'Dokolo Post',
                 'url': 'https://dokolopost.com/feed/',
                 'region': 'ugandan',
-                'category': 'northern-uganda',
+                'category': 'local-news',
                 'content_selector': '.entry-content,.post-content',
                 'strip_selectors': '.ads,.sidebar,.social-share,.wp-block-newspack-blocks-homepage-articles',
                 'attribution_text': 'Source: Dokolo Post',

@@ -259,7 +259,7 @@ class GeoClassifier:
 
         # 1. Northern Uganda — a strong local signal wins outright.
         if count_northern_matches(text_lower) >= 3:
-            cat = Category.objects.filter(slug='northern-uganda').first()
+            cat = Category.objects.filter(slug='local-news').first()
             if cat:
                 return cat
 

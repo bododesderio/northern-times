@@ -33,7 +33,7 @@ ACTIVE_SOURCES = [
     {'name': 'The Independent', 'url': 'https://www.independent.co.ug/feed/', 'region': 'ugandan', 'browser': False, 'cat': 'politics'},
     {'name': 'The Observer', 'url': 'https://observer.ug/feed/', 'region': 'ugandan', 'browser': False, 'cat': 'politics'},
     {'name': 'Sqoop Entertainment', 'url': 'https://www.sqoop.co.ug/feed/', 'region': 'ugandan', 'browser': False, 'cat': 'entertainment'},
-    {'name': 'Dokolo Post', 'url': 'https://dokolopost.com/feed/', 'region': 'ugandan', 'browser': False, 'cat': 'northern-uganda'},
+    {'name': 'Dokolo Post', 'url': 'https://dokolopost.com/feed/', 'region': 'ugandan', 'browser': False, 'cat': 'local-news'},
     {'name': 'Pulse Uganda', 'url': 'https://www.pulse.ug/rss-articles.xml', 'region': 'ugandan', 'browser': False, 'cat': 'entertainment'},
     # --- allAfrica aggregators (direct article links, bot-friendly) ---
     {'name': 'allAfrica Uganda', 'url': 'https://allafrica.com/tools/headlines/rdf/uganda/headlines.rdf', 'region': 'ugandan', 'browser': False, 'cat': 'politics', 'interval': 90},
