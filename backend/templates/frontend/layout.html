@@ -215,14 +215,15 @@
 <!-- Editorial sidebar (desktop only) -->
 <aside class="editorial-sidebar" id="editorialSidebar">
   <div class="sidebar-brand">
-    <h3 class="sidebar-edition-label">EDITORIAL</h3>
-    <p class="sidebar-edition-sub">Global Edition</p>
+    <h3 class="sidebar-edition-label">Editorial</h3>
+    <p class="sidebar-edition-sub">{% site_setting 'edition_label' 'East Africa Edition' %}</p>
+    <p class="sidebar-date" id="sidebarDate"></p>
   </div>
   <nav class="sidebar-nav">
     <a href="/" class="sidebar-nav-item{% if request.path == '/' %} active{% endif %}">
       <span class="sidebar-nav-label">Home</span>
     </a>
-    <div class="sidebar-section-title">Categories</div>
+    <div class="sidebar-section-title">Sections</div>
     {% for cat in sidebar_categories %}
       {% url 'articles_frontend:category' slug=cat.slug as cat_url %}
       <a href="{{ cat_url }}" class="sidebar-nav-item{% if cat_url and request.path == cat_url %} active{% endif %}">
@@ -233,6 +234,28 @@
       </a>
     {% endfor %}
   </nav>
+
+  {% if most_read %}
+  <div class="sidebar-mostread">
+    <div class="sidebar-section-title">Most Read</div>
+    <ol class="sidebar-mostread-list">
+      {% for a in most_read %}
+        <li>
+          <a href="{% url 'articles_frontend:article' slug=a.slug %}">
+            <span class="sidebar-mostread-rank">{{ forloop.counter }}</span>
+            <span class="sidebar-mostread-title">{{ a.title }}</span>
+          </a>
+        </li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% endif %}
+
+  <a href="#newsletter" class="sidebar-cta">
+    <span class="sidebar-cta-label">Newsletter</span>
+    <span class="sidebar-cta-text">The day's essential stories, in your inbox.</span>
+    <span class="sidebar-cta-action">Subscribe &rarr;</span>
+  </a>
 </aside>
 
 <div id="drawerBackdrop" class="drawer-backdrop"></div>
@@ -400,8 +423,11 @@
   };
   // Header date + footer year
   (function(){
+    var fullDate=new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
     var hd=document.getElementById('headerDate');
-    if(hd) hd.textContent=new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    if(hd) hd.textContent=fullDate;
+    var sd=document.getElementById('sidebarDate');
+    if(sd) sd.textContent=fullDate;
     var fy=document.getElementById('footerYear');
     if(fy) fy.textContent=new Date().getFullYear();
   })();

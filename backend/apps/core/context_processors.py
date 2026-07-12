@@ -1,6 +1,10 @@
+import logging
+
 from django.conf import settings as django_settings
 
 from .models import Setting
+
+logger = logging.getLogger(__name__)
 
 
 def site_settings(request):
@@ -46,6 +50,7 @@ def location(request):
         from apps.articles.services.geo import reader_location
         loc = reader_location(request, allow_ip=False)
     except Exception:
+        logger.exception('location context: reader_location failed')
         loc = None
     return {
         'location_mode': Setting.get('location_mode', 'auto'),
@@ -95,16 +100,36 @@ def navigation(request):
                 with_counts.filter(show_in_sidebar=True).order_by('sort_order', 'name'))
             cache.set('nav_categories_v1', (nav_categories, sidebar_categories), 120)
         except Exception:
+            logger.exception('navigation context: category query failed')
             nav_categories = []
             sidebar_categories = []
 
     try:
-        footer_policies = list(PolicyPage.objects.filter(is_published=True, show_in_footer=True).order_by('sort_order'))
+        # Exclude 'about' — the footer already has a dedicated About Us link, so
+        # an About Us policy page would render twice in the Company column.
+        footer_policies = list(
+            PolicyPage.objects.filter(is_published=True, show_in_footer=True)
+            .exclude(slug='about').order_by('sort_order'))
     except Exception:
+        logger.exception('navigation context: footer_policies query failed')
         footer_policies = []
+
+    # Most-read list for the editorial sidebar (cached; cheap query).
+    most_read = cache.get('most_read_v1')
+    if most_read is None:
+        try:
+            from apps.articles.models import Article
+            most_read = list(
+                Article.objects.published().order_by('-views', '-published_at')
+                .only('slug', 'title')[:5])
+        except Exception:
+            logger.exception('navigation context: most_read query failed')
+            most_read = []
+        cache.set('most_read_v1', most_read, 300)
 
     return {
         'nav_categories': nav_categories,
         'sidebar_categories': sidebar_categories,
         'footer_policies': footer_policies,
+        'most_read': most_read,
     }

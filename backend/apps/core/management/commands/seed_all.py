@@ -122,7 +122,7 @@ class Command(BaseCommand):
         cats = [
             # (name, slug, description, sort_order, show_in_nav, show_in_sidebar)
             ('Top Stories', 'top-stories', 'Lead stories and editor picks from across all sections.', 1, True, True),
-            ('Local News', 'local-news', 'Local reporting and community news from Northern Uganda and the Lango sub-region.', 2, True, True),
+            ('Local News', 'local-news', 'Community news, events, and reporting from your part of the country.', 2, True, True),
             ('Politics', 'politics', 'Politics, government, elections, and policy analysis.', 3, True, True),
             ('Business', 'business', 'Business, economy, finance, and market analysis.', 4, True, True),
             ('Sports', 'sports', 'Football, basketball, athletics, and East African sports.', 5, True, True),

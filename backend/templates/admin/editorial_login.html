@@ -12,7 +12,7 @@
 
   .lp-wrap { display: flex; min-height: 100vh; width: 100%; }
   .lp-left {
-    flex: 0 0 48%; background: #1a1b1e;
+    flex: 0 0 48%; background: #ffffff; border-right: 1px solid #e7e5e4;
     position: relative; display: flex; flex-direction: column; overflow: hidden;
   }
   .lp-noise {
@@ -20,25 +20,25 @@
     mix-blend-mode: overlay; opacity: 0.6;
   }
   .lp-rules { position: absolute; inset: 0; z-index: 1; display: flex; justify-content: space-around; pointer-events: none; }
-  .lp-rules span { display: block; width: 1px; background: linear-gradient(to bottom, transparent 0%, rgba(255,255,255,.05) 20%, rgba(255,255,255,.05) 80%, transparent 100%); }
+  .lp-rules span { display: block; width: 1px; background: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.05) 20%, rgba(0,0,0,.05) 80%, transparent 100%); }
   .lp-left-body {
     position: relative; z-index: 2; flex: 1;
     display: flex; flex-direction: column; justify-content: center;
     padding: 56px 52px; gap: 44px;
   }
   .lp-masthead { text-align: center; }
-  .lp-rule-top, .lp-rule-bot { height: 1px; background: linear-gradient(to right, transparent, rgba(255,255,255,.25), transparent); margin: 12px 0; }
-  .lp-nameplate { font-family: 'UnifrakturMaguntia', Georgia, serif; font-size: clamp(32px, 4vw, 52px); color: #f5f0e8; line-height: 1.1; }
-  .lp-edition { font-size: 10px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: rgba(255,255,255,.35); margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
-  .lp-quote-block { border-left: 2px solid rgba(255,255,255,.15); padding-left: 20px; }
-  .lp-quote { font-family: Georgia, serif; font-size: 15px; font-style: italic; color: rgba(255,255,255,.55); line-height: 1.7; margin: 0 0 8px; transition: opacity .5s ease; }
-  .lp-cite { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: rgba(255,255,255,.3); display: block; transition: opacity .5s ease; }
-  .lp-grid-preview { display: grid; grid-template-columns: 1fr 90px 1fr; gap: 14px; opacity: 0.22; }
+  .lp-rule-top, .lp-rule-bot { height: 1px; background: linear-gradient(to right, transparent, rgba(0,0,0,.2), transparent); margin: 12px 0; }
+  .lp-nameplate { font-family: 'UnifrakturMaguntia', Georgia, serif; font-size: clamp(32px, 4vw, 52px); color: #1c1917; line-height: 1.1; }
+  .lp-edition { font-size: 10px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: rgba(0,0,0,.4); margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .lp-quote-block { border-left: 2px solid #D32F2F; padding-left: 20px; }
+  .lp-quote { font-family: Georgia, serif; font-size: 15px; font-style: italic; color: rgba(0,0,0,.6); line-height: 1.7; margin: 0 0 8px; transition: opacity .5s ease; }
+  .lp-cite { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: rgba(0,0,0,.4); display: block; transition: opacity .5s ease; }
+  .lp-grid-preview { display: grid; grid-template-columns: 1fr 90px 1fr; gap: 14px; opacity: 0.5; }
   .lp-preview-col { display: flex; flex-direction: column; gap: 7px; }
-  .lp-preview-img { background: rgba(255,255,255,.12); border-radius: 2px; min-height: 80px; }
-  .lp-pline { height: 6px; background: rgba(255,255,255,.35); border-radius: 3px; }
+  .lp-preview-img { background: rgba(0,0,0,.08); border-radius: 2px; min-height: 80px; }
+  .lp-pline { height: 6px; background: rgba(0,0,0,.15); border-radius: 3px; }
   .w40{width:40%}.w50{width:50%}.w60{width:60%}.w70{width:70%}.w80{width:80%}.w90{width:90%}
-  .lp-left-foot { position: relative; z-index: 2; padding: 16px 52px; border-top: 1px solid rgba(255,255,255,.07); font-size: 11px; color: rgba(255,255,255,.2); }
+  .lp-left-foot { position: relative; z-index: 2; padding: 16px 52px; border-top: 1px solid rgba(0,0,0,.08); font-size: 11px; color: rgba(0,0,0,.35); }
   .lp-right { flex: 1; display: flex; align-items: center; justify-content: center; background: #1c1917; padding: 40px 24px; }
   .lp-form-wrap { width: 100%; max-width: 400px; animation: lpFadeUp .4s cubic-bezier(.2,.8,.2,1) both; }
   @keyframes lpFadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }

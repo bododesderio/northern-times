@@ -11,7 +11,7 @@ OLD_SLUG = 'northern-uganda'
 NEW_SLUG = 'local-news'
 NEW_NAME = 'Local News'
 OLD_NAME = 'Northern Uganda'
-NEW_DESC = 'Local reporting and community news from Northern Uganda and the Lango sub-region.'
+NEW_DESC = 'Community news, events, and reporting from your part of the country.'
 
 
 def _rename(apps, slug_from, slug_to, name_to, desc_to):

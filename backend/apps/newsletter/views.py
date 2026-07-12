@@ -316,11 +316,13 @@ def subscribe(request):
     email = request.POST.get('email', '').strip().lower()
     name = request.POST.get('name', '').strip()
     if not email:
-        return JsonResponse({'error': 'Email is required'}, status=400)
+        return JsonResponse({'ok': False, 'error': 'Email is required',
+                             'message': 'Email is required'}, status=400)
     try:
         validate_email(email)
     except ValidationError:
-        return JsonResponse({'error': 'Please enter a valid email address'}, status=400)
+        return JsonResponse({'ok': False, 'error': 'Please enter a valid email address',
+                             'message': 'Please enter a valid email address'}, status=400)
 
     subscriber, created = Subscriber.objects.get_or_create(
         email=email,
@@ -336,6 +338,7 @@ def subscribe(request):
     if not created:
         if subscriber.status == 'active':
             return JsonResponse({
+                'ok': True,
                 'status': 'already_subscribed',
                 'message': "You're already subscribed — thanks!",
             })
@@ -350,6 +353,7 @@ def subscribe(request):
 
     send_confirmation(subscriber)
     return JsonResponse({
+        'ok': True,
         'status': 'pending_confirmation',
         'message': 'Almost there! Check your inbox to confirm your subscription.',
     })
