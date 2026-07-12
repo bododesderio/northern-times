@@ -492,13 +492,18 @@ def contact(request):
         description=f'Get in touch with {site_name}. Send us news tips, feedback, or inquiries.',
     )
     if request.method == 'POST':
-        ContactMessage.objects.create(
+        msg = ContactMessage.objects.create(
             name=request.POST.get('name', ''),
             email=request.POST.get('email', ''),
             subject=request.POST.get('subject', ''),
             message=request.POST.get('message', ''),
             ip_address=get_client_ip(request),
         )
+        try:
+            from apps.newsletter.services.mailer import send_contact_alert
+            send_contact_alert(msg)
+        except Exception:
+            pass  # An alert failure must never break the user's submission.
         return render(request, 'frontend/contact.html', {'success': True, 'meta': meta})
 
     return render(request, 'frontend/contact.html', {'meta': meta})
@@ -747,6 +752,25 @@ def unfollow_topic(request):
         follow_id=follow_id,
     ).delete()
     return JsonResponse({'success': True})
+
+
+def topic_unfollow(request, token):
+    """One-click unfollow from a topic-notification email (tokenized)."""
+    follow = TopicFollow.objects.filter(unfollow_token=token).first() if token else None
+    if not follow:
+        return render(request, 'frontend/topic_unfollow.html',
+                      {'status': 'error', 'message': 'This link is invalid or has expired.'})
+    label = ''
+    if follow.follow_type == 'category':
+        cat = Category.objects.filter(id=follow.follow_id).first()
+        label = cat.name if cat else ''
+    else:
+        t = Tag.objects.filter(id=follow.follow_id).first()
+        label = t.name if t else ''
+    email = follow.email
+    follow.delete()
+    return render(request, 'frontend/topic_unfollow.html',
+                  {'status': 'success', 'email': email, 'topic': label})
 
 
 @require_POST

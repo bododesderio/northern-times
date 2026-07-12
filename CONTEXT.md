@@ -14,8 +14,14 @@ Big multi-phase pass: audit-driven fixes + geo feature. Phases:
   re-subscribe of unsubscribed re-opt-ins. Routes under articles_frontend. Email
   templates in templates/newsletter/ (email_base + confirm/welcome/digest/topic_notify);
   digest.html was MISSING (weekly_digest was crashing) — now created.
-- P2B email: campaign wrapper+unsub footer, TopicFollow notifications, contact-form
-  admin alert, per-issue test email — TODO.
+- P2B email — DONE + tested (5 more tests). Campaign issues now wrapped in email_base
+  (branded + unsub footer, per-subscriber) via send_campaign; TopicFollow gains
+  unfollow_token (mig 0005 + backfill) + notify_topic_followers task (dedup by email,
+  category>tag, tokenized one-click unfollow at /topics/unfollow/<token>/) hooked into
+  publish_scheduled + crawler emit_published; contact form queues an admin alert
+  (Setting contact_alert_email → highest-role staff → DEFAULT_FROM_EMAIL); per-issue
+  test email now actually sends (was a stub). Templates: campaign.html, contact_alert.html,
+  topic_unfollow.html.
 - P3 UI hardening: theme toggle (dead #darkToggle JS, no button), drawer double-handler,
   search dead #headerSearchInput ref, popup a11y (trap/scroll-lock/role), cookie banner,
   image lightbox — TODO.

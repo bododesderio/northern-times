@@ -24,6 +24,7 @@ urlpatterns = [
     path('newsletter/unsubscribe/', newsletter_unsubscribe_view, name='unsubscribe'),
     path('newsletter/unsubscribe/<str:token>/', newsletter_unsubscribe_view, name='unsubscribe_token'),
     path('newsletter/resubscribe/<str:token>/', newsletter_resubscribe_view, name='resubscribe'),
+    path('topics/unfollow/<str:token>/', views.topic_unfollow, name='topic_unfollow'),
     path('feed.xml', views.rss_feed, name='rss_feed'),
     path('rss.xml', views.rss_feed, name='rss_feed_alt'),
     path('sitemap.xml', views.sitemap, name='sitemap'),

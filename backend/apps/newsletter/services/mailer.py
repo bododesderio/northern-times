@@ -57,6 +57,66 @@ def send_welcome(subscriber, articles=None) -> 'EmailQueue':
     return queue_email(subscriber.email, f"Welcome to {ctx['site_name']}", html)
 
 
+def send_campaign(subscriber, issue) -> 'EmailQueue':
+    """Queue a newsletter issue wrapped in the branded shell + unsubscribe footer."""
+    ctx = site_context()
+    ctx.update({
+        'subscriber': subscriber,
+        'issue': issue,
+        'content': issue.content,
+        'unsub_url': _unsub_url(subscriber),
+    })
+    html = render_to_string('newsletter/campaign.html', ctx)
+    return queue_email(subscriber.email, issue.subject, html)
+
+
+def send_topic_notification(email, topic_name, article, unfollow_url) -> 'EmailQueue':
+    """Queue a 'new in <topic>' notification to a topic follower."""
+    ctx = site_context()
+    ctx.update({
+        'article': article,
+        'topic_name': topic_name,
+        'unsub_url': unfollow_url,
+    })
+    html = render_to_string('newsletter/topic_notify.html', ctx)
+    return queue_email(email, f"New in {topic_name} — {ctx['site_name']}", html)
+
+
+def send_contact_alert(message):
+    """Queue an internal alert to staff when a contact/tips message arrives.
+
+    Recipient: the `contact_alert_email` Setting, else the first superuser's email.
+    Returns the EmailQueue item, or None if no recipient is configured.
+    """
+    from email.utils import parseaddr
+
+    from django.db.models import Q
+
+    from apps.accounts.models import User
+    from apps.core.models import Setting
+
+    to = (Setting.get('contact_alert_email', '') or '').strip()
+    if not to:
+        # This project authorises via a role FK (level), not Django's is_superuser
+        # flag — try both, preferring the highest-level staffer.
+        admin = (User.objects.exclude(email='')
+                 .filter(Q(is_superuser=True) | Q(is_staff=True) | Q(role__level__gte=2))
+                 .order_by('-role__level', 'id').first())
+        to = admin.email if admin else ''
+    if not to:
+        # Last resort: the site's own from-address inbox.
+        to = parseaddr(settings.DEFAULT_FROM_EMAIL)[1]
+    if not to:
+        logger.warning('Contact alert not sent: no recipient configured')
+        return None
+
+    ctx = site_context()
+    ctx.update({'msg': message})
+    html = render_to_string('newsletter/contact_alert.html', ctx)
+    subject = message.subject or 'New message'
+    return queue_email(to, f"[{ctx['site_name']}] Contact: {subject}", html)
+
+
 def send_email(
     to: str,
     subject: str,

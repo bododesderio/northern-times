@@ -38,3 +38,8 @@ def emit_published(article) -> None:
         notify_new_article.delay(str(article.id))
     except Exception:
         pass  # Non-critical — don't break crawl pipeline
+    try:
+        from apps.newsletter.tasks import notify_topic_followers
+        notify_topic_followers.delay(str(article.id))
+    except Exception:
+        pass  # Non-critical — don't break crawl pipeline

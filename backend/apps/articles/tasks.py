@@ -39,6 +39,11 @@ def publish_scheduled():
         if article_ids:
             notify_new_article.delay(str(article_ids[0]))
 
+        # Email topic followers for each newly published article (opt-in only).
+        from apps.newsletter.tasks import notify_topic_followers
+        for aid in article_ids:
+            notify_topic_followers.delay(str(aid))
+
     return f"Published {count} articles"
 
 

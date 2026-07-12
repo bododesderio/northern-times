@@ -127,3 +127,74 @@ class TestUnsubscribeResubscribe:
         resp = client.get(reverse('articles_frontend:unsubscribe_token', args=['nope']))
         assert resp.status_code == 200
         assert b'invalid' in resp.content.lower() or b'expired' in resp.content.lower()
+
+
+@pytest.mark.django_db
+class TestTopicNotifications:
+    def _article(self, category):
+        from django.utils import timezone
+        from apps.articles.models import Article
+        return Article.objects.create(
+            title='Parliament debates budget', slug='parliament-budget',
+            excerpt='A budget story.', content='<p>body</p>' * 5,
+            status='published', published_at=timezone.now(), category=category,
+        )
+
+    def test_category_followers_notified(self, category):
+        from apps.articles.models import TopicFollow
+        from apps.newsletter.tasks import notify_topic_followers
+        art = self._article(category)
+        TopicFollow.objects.create(email='fan@example.com', follow_type='category',
+                                   follow_id=category.id)
+        notify_topic_followers(str(art.id))
+        q = EmailQueue.objects.filter(to_email='fan@example.com')
+        assert q.count() == 1
+        assert 'New in Politics' in q.first().subject
+        # unfollow link present in the email
+        assert '/topics/unfollow/' in q.first().body_html
+
+    def test_follower_deduplicated_across_category_and_tag(self, category):
+        from apps.articles.models import Tag, TopicFollow
+        from apps.newsletter.tasks import notify_topic_followers
+        art = self._article(category)
+        tag = Tag.objects.create(name='Budget', slug='budget', type='topic')
+        art.tags.add(tag)
+        TopicFollow.objects.create(email='dup@example.com', follow_type='category', follow_id=category.id)
+        TopicFollow.objects.create(email='dup@example.com', follow_type='tag', follow_id=tag.id)
+        notify_topic_followers(str(art.id))
+        assert EmailQueue.objects.filter(to_email='dup@example.com').count() == 1
+
+    def test_unfollow_token_deletes_follow(self, client, category):
+        from django.urls import reverse
+        from apps.articles.models import TopicFollow
+        f = TopicFollow.objects.create(email='bye@example.com', follow_type='category',
+                                       follow_id=category.id)
+        assert f.unfollow_token  # auto-generated on save
+        resp = client.get(reverse('articles_frontend:topic_unfollow', args=[f.unfollow_token]))
+        assert resp.status_code == 200
+        assert not TopicFollow.objects.filter(pk=f.pk).exists()
+
+
+@pytest.mark.django_db
+class TestCampaignAndContact:
+    def test_campaign_wraps_with_unsubscribe_footer(self):
+        from apps.newsletter.models import NewsletterIssue, Subscriber
+        from apps.newsletter.services.mailer import send_campaign
+        sub = Subscriber.objects.create(email='r@example.com', unsub_token='tok123', status='active')
+        issue = NewsletterIssue.objects.create(subject='Weekly Roundup', content='<p>Hello</p>')
+        item = send_campaign(sub, issue)
+        assert item.subject == 'Weekly Roundup'
+        assert 'Unsubscribe' in item.body_html
+        assert 'tok123' in item.body_html
+
+    def test_contact_form_queues_admin_alert(self, client, user_admin):
+        from django.urls import reverse
+        resp = client.post(reverse('articles_frontend:contact'), {
+            'name': 'Tipster', 'email': 'tip@example.com',
+            'subject': 'Scoop', 'message': 'Big news downtown.',
+        })
+        assert resp.status_code == 200
+        alert = EmailQueue.objects.filter(subject__icontains='Contact')
+        assert alert.exists()
+        assert alert.first().to_email == user_admin.email
+        assert 'Big news downtown.' in alert.first().body_html

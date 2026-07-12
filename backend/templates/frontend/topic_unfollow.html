@@ -1,0 +1,28 @@
+{% extends "frontend/layout.html" %}
+{% load core_tags %}
+
+{% block title %}Unfollow topic - {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="np-page-wrap">
+  <div class="np-unsub-container">
+    <div class="np-unsub-card">
+      {% if status == 'success' %}
+        <div class="np-unsub-icon np-unsub-icon--success">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <h2 class="np-unsub-title">Unfollowed{% if topic %} {{ topic }}{% endif %}</h2>
+        <p class="np-unsub-desc">{{ email }} will no longer get alerts{% if topic %} for {{ topic }}{% endif %}. You can follow topics again anytime from the site.</p>
+        <a href="/" class="np-unsub-btn">Go to Homepage</a>
+      {% else %}
+        <div class="np-unsub-icon np-unsub-icon--error">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </div>
+        <h2 class="np-unsub-title">Oops</h2>
+        <p class="np-unsub-desc">{{ message }}</p>
+        <a href="/" class="np-unsub-btn">Go to Homepage</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

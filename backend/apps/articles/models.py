@@ -326,11 +326,18 @@ class TopicFollow(models.Model):
     email = models.EmailField()
     follow_type = models.CharField(max_length=20, choices=FOLLOW_TYPE_CHOICES)
     follow_id = models.UUIDField()
+    unfollow_token = models.CharField(max_length=64, blank=True, default='', db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ('email', 'follow_type', 'follow_id')
         ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        if not self.unfollow_token:
+            import secrets
+            self.unfollow_token = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f'{self.email} follows {self.follow_type}:{self.follow_id}'

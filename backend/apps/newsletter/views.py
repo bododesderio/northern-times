@@ -174,9 +174,20 @@ def newsletter_send_test(request):
 @role_required(2)
 @require_POST
 def newsletter_test(request, pk):
-    """Send a test email for a newsletter issue."""
+    """Send a real test copy of an issue to the requesting admin."""
     issue = get_object_or_404(NewsletterIssue, pk=pk)
-    messages.info(request, f'Test email for "{issue.subject}" sent (stub).')
+    to = (request.POST.get('test_email', '').strip() or request.user.email or '').strip()
+    if not to:
+        messages.error(request, 'No test recipient — add an email to your profile or the form.')
+        return redirect('admin_newsletter')
+
+    # Render the issue through the campaign shell against a throwaway subscriber
+    # so the unsubscribe footer resolves without creating a real subscriber.
+    from .models import Subscriber
+    preview_sub = Subscriber(email=to, unsub_token='preview', status='active')
+    from .services.mailer import send_campaign
+    send_campaign(preview_sub, issue)
+    messages.success(request, f'Test copy of "{issue.subject}" queued to {to}.')
     return redirect('admin_newsletter')
 
 
