@@ -63,6 +63,9 @@ class PipelineContext:
     rewrite_status: object = None
     article_status: str = ''
     article: object = None
+    # Keep-best: the existing article this item duplicates (stashed at the embed
+    # stage, resolved just before persist once the newcomer is fully enriched).
+    duplicate_of: object = None
 
 
 class CrawlPipeline:
@@ -71,15 +74,16 @@ class CrawlPipeline:
     def __init__(self, engine):
         self.engine = engine
         self.stages = (
-            self.stage_title_dedup,      # Layer 3: fuzzy title dedup
-            self.stage_fetch_page,       # fetch full article HTML (+browser fallback)
-            self.stage_extract,          # metadata + content extraction
-            self.stage_clean,            # clean/sanitize + min-length gate
-            self.stage_embed_and_dedup,  # embedding + Layer 4 semantic dedup
-            self.stage_enrich,           # classify/summarize/NER/sentiment/quality/quotes/keywords
-            self.stage_build_fields,     # slug/image/author/dates/status
-            self.stage_persist,          # atomic create + entities/tags + clustering
-            self.stage_dispatch,         # webhook + push (published only)
+            self.stage_title_dedup,        # Layer 3: fuzzy title pre-check (non-fatal)
+            self.stage_fetch_page,         # fetch full article HTML (+browser fallback)
+            self.stage_extract,            # metadata + content extraction
+            self.stage_clean,              # clean/sanitize + min-length gate
+            self.stage_embed_and_dedup,    # embedding + Layer 4 semantic match (stash)
+            self.stage_enrich,             # classify/summarize/NER/sentiment/quality/quotes/keywords
+            self.stage_build_fields,       # slug/image/author/dates/status
+            self.stage_resolve_duplicate,  # keep-best: purge loser or discard newcomer
+            self.stage_persist,            # atomic create + entities/tags + clustering
+            self.stage_dispatch,           # webhook + push (published only)
         )
 
     def run(self, ctx: PipelineContext):
@@ -94,10 +98,13 @@ class CrawlPipeline:
     # ------------------------------------------------------------------
 
     def stage_title_dedup(self, ctx):
-        # ---- Layer 3: Fuzzy title dedup (Jaccard) ----
+        # ---- Layer 3: Fuzzy title pre-check (Jaccard) — NON-FATAL ----
+        # Under keep-best a same-story-different-site item must survive to the
+        # resolution stage rather than being discarded first-seen-wins. So a
+        # title match is only logged here; the authoritative catch is the
+        # semantic ``find_duplicate`` at the embed stage, resolved before persist.
         if self.engine.dedup_checker.is_duplicate(ctx.item.title, ctx.recent_titles):
-            logger.debug(f"Title duplicate: {ctx.item.title[:80]}")
-            return False
+            logger.debug(f"Title pre-match (deferred to keep-best): {ctx.item.title[:80]}")
         return True
 
     def stage_fetch_page(self, ctx):
@@ -231,11 +238,18 @@ class CrawlPipeline:
         embed_input = f"{ctx.title}. {ctx.plain_text[:1000]}"
         embedding = self.engine.embedder.embed(embed_input)
 
-        # 2. Layer 4: Semantic dedup via pgvector
-        if self.engine.dedup_checker.semantic_check(embedding, self.engine.dedup_threshold):
-            logger.debug(f"Semantic duplicate: {ctx.item.title[:80]}")
-            return False
+        # 2. Layer 4: Semantic match via pgvector — STASH, don't discard.
+        # Keep-best resolution (stage_resolve_duplicate) runs after enrichment,
+        # once the newcomer's quality signals (word_count/entities/quotes/image)
+        # are known, so the better version of a cross-source story is kept.
         ctx.embedding = embedding
+        ctx.duplicate_of = self.engine.dedup_checker.find_duplicate(
+            embedding, title=ctx.title, threshold=self.engine.dedup_threshold,
+        )
+        if ctx.duplicate_of is not None:
+            logger.debug(
+                f"Semantic match vs {ctx.duplicate_of.id}: {ctx.item.title[:80]}"
+            )
         return True
 
     def stage_enrich(self, ctx):
@@ -324,6 +338,31 @@ class CrawlPipeline:
         )
         return True
 
+    def stage_resolve_duplicate(self, ctx):
+        # ---- Keep-best: the newcomer is fully enriched; decide the winner ----
+        if ctx.duplicate_of is None:
+            return True
+
+        from apps.crawler.services import resolve
+
+        # Re-confirm the match still exists (a concurrent crawl may have purged it).
+        from apps.articles.models import Article
+        existing = Article.objects.with_deleted().filter(
+            pk=ctx.duplicate_of.pk, deleted_at__isnull=True,
+        ).first()
+        if existing is None:
+            return True
+
+        winner = resolve.resolve_duplicate(ctx, existing)
+        if winner == 'existing':
+            logger.debug(f"Keep-best: existing wins, discarding {ctx.item.title[:80]}")
+            return False
+
+        # Newcomer wins → inherit the loser's assets, then hard-delete the loser.
+        resolve.merge_into_new(ctx, existing)
+        resolve.purge_duplicate(existing)
+        return True
+
     def stage_persist(self, ctx):
         item = ctx.item
         source = ctx.source
@@ -359,6 +398,13 @@ class CrawlPipeline:
 
             # Story clustering
             self.engine._assign_story_cluster(article)
+
+            # Keep-best: preserve the purged loser's canonical story thread so the
+            # replacement stays part of the same cluster.
+            inherited = (ctx.metadata or {}).get('inherit_story_cluster_id')
+            if inherited and not article.story_cluster_id:
+                article.story_cluster_id = inherited
+                article.save(update_fields=['story_cluster_id'])
         ctx.article = article
         return True
 

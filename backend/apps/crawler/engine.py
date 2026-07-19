@@ -159,10 +159,41 @@ class CrawlerEngine:
         logger.info(f"Crawl complete: {summary}")
         return summary
 
+    def _maybe_first_run_wipe(self) -> None:
+        """One-time clean slate: on the very first crawl, hard-delete ALL articles
+        and crawl history so the site starts fresh, then set a flag so it never
+        re-wipes. From then on the always-on freshness gate keeps content current.
+
+        Idempotent: guarded by the ``crawler_initialized`` Setting flag, so it is
+        safe to call at the top of every crawl.
+        """
+        from apps.core.models import Setting
+        if Setting.get('crawler_initialized', False):
+            return
+
+        from django.db import transaction
+        with transaction.atomic():
+            art_count = Article.objects.with_deleted().count()
+            log_count = CrawlLog.objects.count()
+            # Hard delete (cascades entities/tags); StoryCluster canonical FK is
+            # SET_NULL so clusters clear cleanly.
+            Article.objects.with_deleted().all().delete()
+            CrawlLog.objects.all().delete()
+            StoryCluster.objects.all().delete()
+            Setting.set('crawler_initialized', '1', type='bool')
+        logger.warning(
+            "Crawler first-run wipe: purged %d articles + %d crawl logs; "
+            "freshness gate now governs all new content.",
+            art_count, log_count,
+        )
+
     def crawl_source(self, source: CrawlSource) -> dict:
         """Crawl a single source through the full pipeline. Returns result dict."""
         start_time = time.monotonic()
         logger.info(f"Crawling source: {source.name} ({source.url})")
+
+        # First-run clean slate (idempotent; no-op after the flag is set).
+        self._maybe_first_run_wipe()
 
         # Phase 1: Fetch feed items (with adaptive browser fallback)
         try:
