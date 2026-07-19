@@ -1,11 +1,34 @@
 # Project Context
-Last updated: 2026-07-12
+Last updated: 2026-07-19
 
-## ⏭️ NEXT: Crawler refinement (recorded, not started)
-See `docs/CRAWLER_REFINEMENT_PLAN.md`. Dedup keep-best + HARD-delete losers (same story
-across sites → one canonical, heuristic+AI tie-break); first-run wipe-ALL + 48h freshness
-gate (fresh-only thereafter). Run on "continue from where we stopped". Also still deferred:
-wiring the new email templates to send paths (Brevo step).
+## ✅ Done 2026-07-19: crawler refinement + full live CMS audit
+**Crawler refinement** (`docs/CRAWLER_REFINEMENT_PLAN.md`): keep-best cross-source dedup with
+HARD-delete of losers — `dedup.find_duplicate` (semantic cosine + title Jaccard),
+`crawler/services/resolve.py` (quality heuristic + AI tie-break gated on OpenAI key,
+`purge_duplicate`), wired into `pipeline.stage_resolve_duplicate` (after enrich, before
+persist). First-run wipe: `engine._maybe_first_run_wipe` guarded by Setting
+`crawler_initialized` (⚠ next crawl wipes ALL articles+logs once — by design). Mgmt cmds
+`dedupe_articles [--apply]` + `crawler_reset --first-run|--clear-flag`. 48h freshness gate
+already existed (engine.py). +10 tests (`tests/services/test_dedup_keepbest.py`). 585 green.
+
+**Live CMS audit (Playwright)** — restored site (zero-byte `staticfiles.json` → 500s) then
+fixed a systemic view↔template contract bug class ([[cms-view-template-contract-bugs]]):
+settings save+prefill (QuerySet→dict, action→update view, key alignment), popup create/edit
+(read all fields + trigger-enum values), newsletter compose/preview/send (assemble from
+articles, fix NoReverseMatch, faithful branded preview → Mailpit delivery verified), ad API
+double-`api/` prefix, CSP (Leaflet+Chart.js dashboard), Permissions-Policy geolocation=(self),
+inline images now kept for AUTHORED articles (crawled-only strip). Verified live: blog write +
+CKEditor + featured/inline images, SEO title/desc meta, image upload, popup display, ad render.
+
+Round 2 (all 26 remaining flows live-tested): fixed crawler-source create (empty url),
+user create (role_id not mapped), public comment post (URL/fields/CSRF/response all wrong),
+newsletter hero+inline subscribe forms (missing action), media list 500 (original_name),
+favicon + /assets/icon.svg 404s (templates + nginx aliases). Every admin CRUD + all frontend
+flows (search, comments, double-opt-in→Mailpit, geo, related, cookie, lightbox, dark mode)
+verified working. 585 tests green. Gotcha: nginx single-file bind mounts pin by inode —
+restart northern_times_web after editing docker/nginx/django.conf. NOT committed (user commits).
+
+Still deferred: wiring email templates to Brevo send path (intentional).
 
 ## ✅ Done 2026-07-12: admin creds rule + theme toggle (commit 9cc1dbe)
 Admin superuser fixed identical dev+prod: admin@northerntimesug.com / Admin1234 (login by

@@ -57,3 +57,7 @@ storage/geoip/
 # Crawled data
 backend/apps/crawler/data/
 backend/storage/
+
+# Playwright MCP session artifacts + ad-hoc screenshots
+.playwright-mcp/
+/analytics-dashboard.png

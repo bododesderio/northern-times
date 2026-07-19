@@ -272,7 +272,15 @@ cp .env.example .env
 # Edit .env with your settings (DJANGO_SECRET_KEY, OPENAI_API_KEY, etc.)
 
 # Build and start (use WSL on Windows)
-docker compose -f docker-compose.django.yml up -d --build
+# Prefer ./deploy.sh — it runs the compose up AND restarts nginx afterwards so
+# edits to docker/nginx/*.conf take effect (single-file bind mounts pin the
+# inode, so a plain `up -d` keeps serving the old nginx config).
+./deploy.sh                # dev stack
+# ./deploy.sh --prod       # production stack (docker-compose.django.prod.yml)
+
+# Equivalent manual steps:
+#   docker compose -f docker-compose.django.yml up -d --build
+#   docker compose -f docker-compose.django.yml restart web
 
 # The entrypoint automatically:
 # - Runs migrations
