@@ -498,19 +498,31 @@
     editorInstance = editor;
     window._ntEditorInstance = editor;
 
+    // Live-sync CKEditor → the required hidden textarea on EVERY change. The
+    // textarea is `required`, and native constraint validation runs *before* the
+    // submit event fires — so a submit-only sync leaves it empty and the browser
+    // blocks publish with "invalid form control ... not focusable". Keeping the
+    // textarea current on each keystroke makes validation see the real content.
+    const contentHidden = document.getElementById('contentHidden');
+    function syncContent() {
+      contentHidden.value = editor.getData();
+    }
+
     // Word count
     function updateWordCount() {
       const text = editor.getData().replace(/<[^>]*>/g, '').trim();
       const words = text ? text.split(/\s+/).length : 0;
       document.getElementById('wordCount').textContent = words;
     }
-    editor.model.document.on('change:data', updateWordCount);
-    updateWordCount();
-
-    // Sync to hidden textarea on form submit
-    document.getElementById('articleForm').addEventListener('submit', function() {
-      document.getElementById('contentHidden').value = editor.getData();
+    editor.model.document.on('change:data', function () {
+      updateWordCount();
+      syncContent();
     });
+    updateWordCount();
+    syncContent();
+
+    // Belt-and-suspenders: sync once more on submit.
+    document.getElementById('articleForm').addEventListener('submit', syncContent);
   }).catch(err => {
     console.error('CKEditor init error:', err);
     // Fallback: make the div editable as plain HTML

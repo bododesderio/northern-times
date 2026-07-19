@@ -67,7 +67,7 @@
           <div style="aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;background:var(--adm-bg);font-size:32px">&#128196;</div>
         {% endif %}
         <div style="padding:12px">
-          <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.title|default:m.original_name }}</div>
+          <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.title|default:m.original_filename }}</div>
           <div class="muted" style="font-size:11px;margin-top:4px">{{ m.file_size_display|default:"" }} &middot; {{ m.created_at|date:"M j" }}</div>
           <div style="margin-top:8px;display:flex;gap:4px">
             <button type="button" class="btn light xs" onclick="navigator.clipboard.writeText('{{ m.public_url }}')">Copy URL</button>

@@ -313,13 +313,15 @@ def article(request, slug):
     article_content = _re.sub(r'list\s+\d+\s+of\s+\d+', '', article_content, flags=_re.I)
     article_content = _re.sub(r'end\s+of\s+list\s*', '', article_content, flags=_re.I)
 
-    # Drop ALL inline images/figures from the body — the article carries only its
-    # featured (hero) image. Crawled bodies otherwise stack loose thumbnails that
-    # read as a mess. Render-time + idempotent, so no re-crawl needed.
-    article_content = _re.sub(r'<figure\b[^>]*>.*?</figure>', '', article_content, flags=_re.I | _re.S)
-    article_content = _re.sub(r'<picture\b[^>]*>.*?</picture>', '', article_content, flags=_re.I | _re.S)
-    article_content = _re.sub(r'<img\b[^>]*>', '', article_content, flags=_re.I)
-    article_content = _re.sub(r'<figcaption\b[^>]*>.*?</figcaption>', '', article_content, flags=_re.I | _re.S)
+    # Drop inline images/figures ONLY from CRAWLED bodies — scraped articles stack
+    # loose thumbnails that read as a mess, so those carry only their featured (hero)
+    # image. Editor-authored articles keep their inline images/figures intact so the
+    # newsroom can lay out photos within a story. Render-time + idempotent.
+    if art.is_crawled:
+        article_content = _re.sub(r'<figure\b[^>]*>.*?</figure>', '', article_content, flags=_re.I | _re.S)
+        article_content = _re.sub(r'<picture\b[^>]*>.*?</picture>', '', article_content, flags=_re.I | _re.S)
+        article_content = _re.sub(r'<img\b[^>]*>', '', article_content, flags=_re.I)
+        article_content = _re.sub(r'<figcaption\b[^>]*>.*?</figcaption>', '', article_content, flags=_re.I | _re.S)
 
     # Format published date
     pub_date = ''

@@ -7,6 +7,7 @@ from django.db import models
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
 
 from apps.accounts.decorators import role_required
 from .models import AdSlot, Popup
@@ -103,22 +104,40 @@ def popups_index(request):
     })
 
 
+def _apply_popup_post(request, popup):
+    """Copy every editable popup field from POST onto ``popup``.
+
+    Form input names (popup_form.html) map to model attrs — e.g. the form posts
+    ``popup_type``/``html_content``/``primary_button_*`` which the model stores as
+    ``type``/``content``/``button_*``. Without this the create/edit views silently
+    dropped the title, body, image and buttons.
+    """
+    p = request.POST
+    popup.name = p.get('name', popup.name or '')
+    popup.type = p.get('popup_type') or p.get('type') or popup.type or 'modal'
+    popup.title = p.get('title', '')
+    popup.body = p.get('body', '')
+    popup.content = p.get('html_content') or p.get('content') or ''
+    popup.image_url = p.get('image_url', '')
+    popup.button_text = p.get('primary_button_text', '')
+    popup.button_url = p.get('primary_button_url', '')
+    popup.secondary_btn_text = p.get('secondary_button_text', '')
+    popup.trigger_type = p.get('trigger_type', '') or 'page_load'
+    popup.trigger_value = p.get('trigger_value', '')
+    popup.device_targeting = p.get('device_targeting', 'all')
+    popup.variant = p.get('ab_variant') or p.get('variant') or None
+    popup.is_active = bool(p.get('is_active'))
+    return popup
+
+
 @login_required
 @role_required(2)
 def popups_create(request):
     """Create a new popup."""
     if request.method == 'POST':
-        Popup.objects.create(
-            name=request.POST.get('name', ''),
-            type=request.POST.get('type', 'modal'),
-            content=request.POST.get('content', ''),
-            is_active=bool(request.POST.get('is_active')),
-            device_targeting=request.POST.get('device_targeting', 'all'),
-            trigger_type=request.POST.get('trigger_type', ''),
-            trigger_value=request.POST.get('trigger_value', ''),
-            variant=request.POST.get('variant', '') or None,
-        )
-        messages.success(request, 'Popup created.')
+        popup = _apply_popup_post(request, Popup())
+        popup.save()
+        messages.success(request, f'Popup "{popup.name}" created.')
         return redirect('admin_popups')
     return render(request, 'admin/ads/popup_form.html', {
         'type_choices': Popup.TYPE_CHOICES,
@@ -134,14 +153,7 @@ def popups_edit(request, pk):
     """Edit a popup."""
     popup = get_object_or_404(Popup, pk=pk)
     if request.method == 'POST':
-        popup.name = request.POST.get('name', popup.name)
-        popup.type = request.POST.get('type', popup.type)
-        popup.content = request.POST.get('content', '')
-        popup.is_active = bool(request.POST.get('is_active'))
-        popup.device_targeting = request.POST.get('device_targeting', 'all')
-        popup.trigger_type = request.POST.get('trigger_type', '')
-        popup.trigger_value = request.POST.get('trigger_value', '')
-        popup.variant = request.POST.get('variant', '') or None
+        _apply_popup_post(request, popup)
         popup.save()
         messages.success(request, f'Popup "{popup.name}" updated.')
         return redirect('admin_popups')
@@ -271,13 +283,18 @@ def ads_toggle(request, pk):
     return redirect('admin_ads')
 
 
+# Public tracking beacons: hit via navigator.sendBeacon (which can't set a
+# CSRF header) from any page, so they must be CSRF-exempt or every call 403s
+# and no popup/ad analytics are ever recorded.
+@csrf_exempt
 @require_POST
 def popup_track(request):
     """Track popup impression or click (public API)."""
     try:
         data = json.loads(request.body)
         popup_id = data.get('popup_id')
-        action = data.get('action', 'impression')
+        # The frontend beacon sends `event`; accept `action` too for back-compat.
+        action = data.get('event') or data.get('action') or 'impression'
         popup = Popup.objects.get(pk=popup_id)
         if action == 'click':
             Popup.objects.filter(pk=popup_id).update(clicks=models.F('clicks') + 1)
@@ -288,21 +305,20 @@ def popup_track(request):
         return JsonResponse({'ok': False}, status=400)
 
 
+@csrf_exempt
 @require_POST
 def ad_track(request):
     """Track ad slot impression or click (public API)."""
     try:
         data = json.loads(request.body)
         slot_name = data.get('slot')
+        ad_id = data.get('ad_id')
         action = data.get('action', 'impression')
-        if action == 'click':
-            AdSlot.objects.filter(slot_name=slot_name, is_active=True).update(
-                clicks=models.F('clicks') + 1,
-            )
-        else:
-            AdSlot.objects.filter(slot_name=slot_name, is_active=True).update(
-                impressions=models.F('impressions') + 1,
-            )
+        # Accept either slot_name (server-rendered tag) or ad_id (viewport beacon).
+        qs = AdSlot.objects.filter(is_active=True)
+        qs = qs.filter(pk=ad_id) if ad_id else qs.filter(slot_name=slot_name)
+        field = 'clicks' if action == 'click' else 'impressions'
+        qs.update(**{field: models.F(field) + 1})
         return JsonResponse({'ok': True})
     except Exception:
         return JsonResponse({'ok': False}, status=400)

@@ -100,7 +100,7 @@
           <strong>{% site_setting 'newsletter_title' 'Stay informed' %}</strong>
           <span>{% site_setting 'newsletter_intro' 'Get the best stories in your inbox. No spam.' %}</span>
         </div>
-        <form class="np-newsletter-banner-form" data-newsletter-form>
+        <form class="np-newsletter-banner-form" data-newsletter-form method="POST" action="{% url 'articles_frontend:newsletter_subscribe' %}">
           {% csrf_token %}
           <input type="email" name="email" placeholder="Email address" required>
           <button type="submit">{% site_setting 'newsletter_button' 'Subscribe' %}</button>

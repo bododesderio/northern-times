@@ -40,7 +40,7 @@
           <td class="muted">{{ audit.duration_seconds|default:"0" }}s</td>
           <td class="muted" style="font-size:13px;white-space:nowrap">{{ audit.created_at|date:"M j, Y g:iA" }}</td>
           <td>
-            <a href="{% url 'admin_seo_audit_detail' pk=audit.id %}" class="btn light xs">View</a>
+            <a href="{% url 'admin_seo_detail' pk=audit.id %}" class="btn light xs">View</a>
           </td>
         </tr>
         {% empty %}

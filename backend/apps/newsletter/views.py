@@ -16,6 +16,50 @@ from .models import EmailQueue, NewsletterIssue, Subscriber
 # ── Admin views ──────────────────────────────────────────────
 
 
+def _build_issue_content(intro, article_ids):
+    """Assemble a newsletter body (HTML) from an intro + selected articles.
+
+    Produces the inner content that ``send_campaign`` wraps in the branded
+    ``email_base`` shell. Kept email-safe (inline styles, absolute links).
+    """
+    from django.utils.html import escape, format_html
+    from apps.articles.models import Article
+    from apps.core.models import Setting
+
+    base_url = (Setting.get('site_url', '') or 'https://northerntimesug.com').rstrip('/')
+    parts = []
+    intro = (intro or '').strip()
+    if intro:
+        parts.append(
+            f'<p style="font-size:16px;line-height:1.6;color:#333;margin:0 0 24px">'
+            f'{escape(intro)}</p>'
+        )
+
+    if article_ids:
+        articles = Article.objects.filter(
+            id__in=article_ids, status='published', deleted_at__isnull=True,
+        )
+        # Preserve the editor's selection order.
+        order = {str(a): i for i, a in enumerate(article_ids)}
+        for art in sorted(articles, key=lambda a: order.get(str(a.id), 0)):
+            url = f'{base_url}/article/{art.slug}/'
+            excerpt = escape((art.excerpt or art.ai_summary or '')[:180])
+            parts.append(format_html(
+                '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+                'style="margin:0 0 20px;border-bottom:1px solid #eee;padding-bottom:16px">'
+                '<tr><td>'
+                '<h2 style="font-size:19px;line-height:1.3;margin:0 0 8px">'
+                '<a href="{}" style="color:#cc0000;text-decoration:none">{}</a></h2>'
+                '<p style="font-size:14px;line-height:1.6;color:#555;margin:0 0 8px">{}</p>'
+                '<a href="{}" style="font-size:13px;color:#cc0000;font-weight:600;'
+                'text-decoration:none">Read more &rarr;</a>'
+                '</td></tr></table>',
+                url, art.title, excerpt, url,
+            ))
+
+    return ''.join(parts) or '<p>No content selected.</p>'
+
+
 @login_required
 def newsletter_index(request):
     """Newsletter admin dashboard: list all issues."""
@@ -49,8 +93,15 @@ def newsletter_compose(request, pk=None):
     issue = get_object_or_404(NewsletterIssue, pk=pk) if pk else None
     if request.method == 'POST':
         subject = request.POST.get('subject', '').strip()
-        content = request.POST.get('content', '')
         status = request.POST.get('status', 'draft')
+        # The compose UI assembles an issue from an intro + selected articles.
+        # Fall back to a raw `content` field if one was posted directly.
+        content = request.POST.get('content', '').strip()
+        if not content:
+            content = _build_issue_content(
+                request.POST.get('intro', ''),
+                request.POST.getlist('article_ids'),
+            )
 
         if issue:
             issue.subject = subject
@@ -69,7 +120,8 @@ def newsletter_compose(request, pk=None):
                 scheduled_at=request.POST.get('scheduled_at') or None,
             )
             messages.success(request, f'Newsletter "{subject}" created.')
-        return redirect('admin_newsletter')
+        # Land on the preview so the editor can review before sending.
+        return redirect('admin_newsletter_preview', pk=issue.pk)
 
     from apps.articles.models import Article
     recent_articles = Article.objects.filter(
@@ -87,10 +139,26 @@ def newsletter_compose(request, pk=None):
 
 @login_required
 def newsletter_preview(request, pk):
-    """Preview a newsletter issue."""
+    """Preview a newsletter issue exactly as subscribers will receive it."""
+    from django.template.loader import render_to_string
+    from django.urls import reverse
+    from .services.mailer import site_context
+    from .models import Subscriber
+
     issue = get_object_or_404(NewsletterIssue, pk=pk)
+    # Render through the same branded campaign shell used by send_campaign, against
+    # a throwaway subscriber so the unsubscribe footer resolves.
+    preview_sub = Subscriber(email='preview@northerntimesug.com', unsub_token='preview')
+    ctx = site_context()
+    ctx.update({'subscriber': preview_sub, 'issue': issue,
+                'content': issue.content, 'unsub_url': '#'})
+    preview_html = render_to_string('newsletter/campaign.html', ctx)
+
     return render(request, 'admin/newsletter/preview.html', {
         'issue': issue,
+        'newsletter': issue,
+        'preview_html': preview_html,
+        'send_test_action': reverse('admin_newsletter_test_issue', args=[issue.pk]),
         'active_nav': 'newsletter',
         'page_title': 'Preview',
     })

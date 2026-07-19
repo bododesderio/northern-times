@@ -88,10 +88,10 @@
           <div class="form-group">
             <label class="form-label">Type</label>
             <select name="popup_type" id="popupType" class="form-control">
-              <option value="modal" {% if popup.popup_type == 'modal' %}selected{% endif %}>Modal</option>
-              <option value="banner" {% if popup.popup_type == 'banner' %}selected{% endif %}>Banner</option>
-              <option value="slide_in" {% if popup.popup_type == 'slide_in' %}selected{% endif %}>Slide-in</option>
-              <option value="fullscreen" {% if popup.popup_type == 'fullscreen' %}selected{% endif %}>Fullscreen</option>
+              <option value="modal" {% if popup.type == 'modal' %}selected{% endif %}>Modal</option>
+              <option value="banner" {% if popup.type == 'banner' %}selected{% endif %}>Banner</option>
+              <option value="slide_in" {% if popup.type == 'slide_in' %}selected{% endif %}>Slide-in</option>
+              <option value="fullscreen" {% if popup.type == 'fullscreen' %}selected{% endif %}>Fullscreen</option>
             </select>
           </div>
 
@@ -162,10 +162,10 @@
           <div class="form-group">
             <label class="form-label">Trigger</label>
             <select name="trigger_type" class="form-control">
-              <option value="immediate" {% if popup.trigger_type == 'immediate' %}selected{% endif %}>Immediate</option>
+              <option value="page_load" {% if popup.trigger_type == 'page_load' %}selected{% endif %}>Page Load</option>
               <option value="exit_intent" {% if popup.trigger_type == 'exit_intent' %}selected{% endif %}>Exit Intent</option>
-              <option value="scroll" {% if popup.trigger_type == 'scroll' %}selected{% endif %}>Scroll %</option>
-              <option value="delay" {% if popup.trigger_type == 'delay' %}selected{% endif %}>Time Delay</option>
+              <option value="scroll_percent" {% if popup.trigger_type == 'scroll_percent' %}selected{% endif %}>Scroll %</option>
+              <option value="time_delay" {% if popup.trigger_type == 'time_delay' %}selected{% endif %}>Time Delay</option>
             </select>
           </div>
           <div class="form-group">

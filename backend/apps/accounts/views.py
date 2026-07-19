@@ -199,7 +199,8 @@ def user_create(request):
         username = request.POST.get('username', '').strip()
         password = request.POST.get('password', '')
         display_name = request.POST.get('display_name', '').strip()
-        role_id = request.POST.get('role')
+        # Form field is ``role_id``; keep ``role`` as a legacy fallback.
+        role_id = request.POST.get('role_id') or request.POST.get('role')
 
         if User.objects.filter(email=email).exists():
             messages.error(request, 'A user with this email already exists.')
@@ -234,9 +235,13 @@ def user_edit(request, pk):
     if request.method == 'POST':
         user.email = request.POST.get('email', user.email).strip()
         user.username = request.POST.get('username', user.username).strip()
-        user.display_name = request.POST.get('display_name', '').strip()
-        user.bio = request.POST.get('bio', '')
-        role_id = request.POST.get('role')
+        # Only override when the form actually submitted the field (the slim form
+        # omits display_name/bio — don't wipe them on every save).
+        if 'display_name' in request.POST:
+            user.display_name = request.POST.get('display_name', '').strip()
+        if 'bio' in request.POST:
+            user.bio = request.POST.get('bio', '')
+        role_id = request.POST.get('role_id') or request.POST.get('role')
         user.role_id = role_id if role_id else None
 
         password = request.POST.get('password', '')

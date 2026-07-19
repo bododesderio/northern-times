@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded',function(){
       var id=e.target.dataset.adId;
       if(!id||tracked[id])return;
       tracked[id]=true;
-      navigator.sendBeacon('/api/ad-impression',JSON.stringify({ad_id:id,page:location.pathname}));
+      navigator.sendBeacon('/api/ad-track/',JSON.stringify({ad_id:id,action:'impression',page:location.pathname}));
     });
   },{threshold:0.5});
   document.querySelectorAll('.ad-slot[data-ad-id]').forEach(function(el){

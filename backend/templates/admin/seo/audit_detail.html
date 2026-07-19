@@ -9,7 +9,7 @@
     <h1>SEO Audit #{{ audit.id|default:"" }}</h1>
     <div class="muted" style="font-size:14px;margin-top:4px">Ran on {{ audit.created_at|date:"M j, Y g:iA"|default:"--" }}</div>
   </div>
-  <a class="btn light" href="{% url 'admin_seo_audits' %}">Back to Audits</a>
+  <a class="btn light" href="{% url 'admin_seo' %}">Back to Audits</a>
 </div>
 
 {# Score summary #}

@@ -8,8 +8,8 @@
   'use strict';
 
   var STORAGE_PREFIX = 'nt_popup_';
-  var API_URL = '/api/popups';
-  var TRACK_URL = '/api/popup-track';
+  var API_URL = '/api/popups/';
+  var TRACK_URL = '/api/popup-track/';
   var activePopup = null;
 
   // ── Helpers ──────────────────────────────────────────────────
@@ -341,8 +341,12 @@
 
       var trigger = popup.trigger_type;
 
-      if (trigger === 'page_load' || trigger === 'time_delay') {
+      if (trigger === 'page_load') {
         popupQueue.push(popup);
+      } else if (trigger === 'time_delay') {
+        // Honour the configured delay (seconds) before queueing.
+        var secs = parseInt(popup.trigger_value, 10) || 0;
+        setTimeout(function () { popupQueue.push(popup); processQueue(); }, secs * 1000);
       } else if (trigger === 'scroll_percent') {
         var pct = parseInt(popup.trigger_value, 10) || 50;
         var fired = false;

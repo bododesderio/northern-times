@@ -5,6 +5,11 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Login — {{ site_title|default:"Northern Times" }} Admin</title>
+  {% if favicon_url %}
+    <link rel="icon" type="{{ favicon_mime|default:'image/x-icon' }}" href="{{ favicon_url }}"/>
+  {% else %}
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/icon.svg' %}"/>
+  {% endif %}
   <link rel="stylesheet" href="{% static 'fonts/fonts.css' %}"/>
   <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

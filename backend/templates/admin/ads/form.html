@@ -17,8 +17,17 @@
 
     <div class="form-group">
       <label class="form-label">Slot Name <span class="req">*</span></label>
-      <input name="slot_name" id="slot_name" required value="{{ ad.slot_name|default:'' }}" class="form-control" placeholder="e.g. sidebar_top, header_leaderboard">
-      <div class="form-hint">Identifier used in templates to place this ad.</div>
+      <input name="slot_name" id="slot_name" required value="{{ ad.slot_name|default:'' }}" class="form-control" list="slot_name_options" placeholder="e.g. sidebar">
+      <datalist id="slot_name_options">
+        <option value="top-banner">Top leaderboard banner</option>
+        <option value="sidebar">Sidebar (article + category)</option>
+        <option value="article-sidebar">Article sidebar (upper)</option>
+        <option value="in-feed">In-feed (between list items)</option>
+        <option value="below-article">Below article body</option>
+        <option value="footer">Footer</option>
+      </datalist>
+      <div class="form-hint">Placement slot rendered by the site templates. Pick one of the
+        listed slots so the ad actually appears; each slot holds one active ad.</div>
     </div>
 
     <div class="form-group">

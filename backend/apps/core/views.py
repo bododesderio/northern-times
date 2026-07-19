@@ -17,9 +17,12 @@ from .models import Setting
 @role_required(2)
 def admin_settings(request):
     """Render the site-settings admin page with all settings grouped."""
-    settings_qs = Setting.objects.order_by('key')
+    # The template prefills fields via ``settings.<key>`` — pass a plain dict of
+    # typed values, not a QuerySet (attribute access on a QuerySet silently fails,
+    # leaving every field blank).
+    settings_map = {s.key: s._cast_value() for s in Setting.objects.all()}
     return render(request, 'admin/settings.html', {
-        'settings': settings_qs,
+        'settings': settings_map,
         'active_nav': 'settings',
         'page_title': 'Settings',
     })
@@ -30,12 +33,16 @@ def admin_settings(request):
 def admin_settings_update(request):
     """Handle site-settings update form submission."""
     if request.method == 'POST':
-        for key in request.POST:
-            if key.startswith('setting_'):
-                setting_key = key[len('setting_'):]
-                Setting.set(setting_key, request.POST[key])
+        # Save every posted field directly as a Setting key (the form names ARE the
+        # setting keys). Legacy ``setting_``-prefixed names are still supported.
+        for key, value in request.POST.items():
+            if key == 'csrfmiddlewaretoken':
+                continue
+            setting_key = key[len('setting_'):] if key.startswith('setting_') else key
+            Setting.set(setting_key, value)
         messages.success(request, 'Settings saved.')
         return redirect('admin_settings')
+    return redirect('admin_settings')
     return JsonResponse({'error': 'POST required'}, status=405)
 
 

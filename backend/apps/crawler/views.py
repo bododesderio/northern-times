@@ -49,24 +49,45 @@ def source_list(request):
     })
 
 
+def _apply_source_post(request, source):
+    """Map the source form's POST onto a CrawlSource.
+
+    The form uses ``feed_url``/``source_type``/``default_category_id`` while the
+    model stores ``url``/``feed_type``/``category`` — without this mapping a saved
+    source has an EMPTY url and never crawls. Legacy field names still work.
+    """
+    p = request.POST
+    source.name = p.get('name', source.name or '')
+    source.url = p.get('feed_url') or p.get('url') or source.url or ''
+    ft = p.get('source_type') or p.get('feed_type') or source.feed_type or 'rss'
+    source.feed_type = 'web' if ft == 'html' else ft  # form calls 'web' → 'html'
+    source.category_id = p.get('default_category_id') or p.get('category') or None
+    source.content_selector = p.get('content_selector', source.content_selector or '')
+    source.strip_selectors = p.get('strip_selectors', source.strip_selectors or '')
+    source.crawl_interval = int(p.get('crawl_interval') or source.crawl_interval or 60)
+    source.max_articles = int(p.get('max_articles') or source.max_articles or 50)
+    source.is_active = bool(p.get('is_active'))
+    # Advanced fields — only override when the form actually submitted them, so a
+    # slimmed-down form never silently wipes them on save.
+    if 'region' in p:
+        source.region = p.get('region') or source.region
+    if 'attribution_text' in p:
+        source.attribution_text = p.get('attribution_text', '')
+    if 'auto_rewrite' in p or 'editorial_review' in p:
+        source.auto_rewrite = bool(p.get('auto_rewrite'))
+        source.editorial_review = bool(p.get('editorial_review'))
+    if 'download_images' in p:
+        source.download_images = bool(p.get('download_images'))
+    return source
+
+
 @login_required
 @role_required(2)
 def source_create(request):
     """Create a new crawl source."""
     if request.method == 'POST':
-        CrawlSource.objects.create(
-            name=request.POST.get('name', ''),
-            url=request.POST.get('url', ''),
-            feed_type=request.POST.get('feed_type', 'rss'),
-            category_id=request.POST.get('category') or None,
-            content_selector=request.POST.get('content_selector', ''),
-            strip_selectors=request.POST.get('strip_selectors', ''),
-            crawl_interval=int(request.POST.get('crawl_interval', 60)),
-            region=request.POST.get('region', 'international'),
-            auto_rewrite=bool(request.POST.get('auto_rewrite')),
-            editorial_review=bool(request.POST.get('editorial_review')),
-            download_images=bool(request.POST.get('download_images', True)),
-        )
+        source = _apply_source_post(request, CrawlSource())
+        source.save()
         return redirect('admin_crawler')
     from apps.articles.models import Category
     return render(request, 'admin/crawler/source_form.html', {
@@ -82,15 +103,7 @@ def source_edit(request, pk):
     """Edit an existing crawl source."""
     source = get_object_or_404(CrawlSource, pk=pk)
     if request.method == 'POST':
-        for field in ['name', 'url', 'feed_type', 'content_selector', 'strip_selectors', 'region', 'attribution_text']:
-            setattr(source, field, request.POST.get(field, getattr(source, field)))
-        source.category_id = request.POST.get('category') or None
-        source.crawl_interval = int(request.POST.get('crawl_interval', source.crawl_interval))
-        source.auto_rewrite = bool(request.POST.get('auto_rewrite'))
-        source.editorial_review = bool(request.POST.get('editorial_review'))
-        source.download_images = bool(request.POST.get('download_images'))
-        source.is_active = bool(request.POST.get('is_active'))
-        source.max_articles = int(request.POST.get('max_articles', source.max_articles))
+        _apply_source_post(request, source)
         source.save()
         return redirect('admin_crawler')
     from apps.articles.models import Category

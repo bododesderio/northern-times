@@ -95,7 +95,7 @@ def webhook_test(request, pk):
             webhook=hook,
             event='webhook.test',
             payload=test_payload,
-            status_code=resp.status_code,
+            response_code=resp.status_code,
             response_body=resp.text[:2000],
         )
         messages.success(request, f'Test sent to {hook.url} — Status: {resp.status_code}')

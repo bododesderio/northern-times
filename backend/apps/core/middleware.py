@@ -42,14 +42,20 @@ class SecurityHeadersMiddleware:
         response['X-Frame-Options'] = 'SAMEORIGIN'
         response['X-Content-Type-Options'] = 'nosniff'
         response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-        response['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=()'
+        # Allow first-party geolocation — the Local News reader-proximity feature
+        # calls navigator.geolocation; an empty allowlist blocks it for self too.
+        response['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=(self)'
+        # CDN allow-list: CKEditor (blog editor), Leaflet (reader map) + Chart.js
+        # (analytics) power the admin dashboard; their tiles/fonts load over https.
         response['Content-Security-Policy'] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.ckeditor.com; "
-            "style-src 'self' 'unsafe-inline' https://cdn.ckeditor.com; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' "
+            "https://cdn.ckeditor.com https://cdn.jsdelivr.net https://unpkg.com; "
+            "style-src 'self' 'unsafe-inline' "
+            "https://cdn.ckeditor.com https://cdn.jsdelivr.net https://unpkg.com; "
             "img-src 'self' data: https: blob:; "
-            "font-src 'self' https://cdn.ckeditor.com; "
-            "connect-src 'self'; "
+            "font-src 'self' data: https://cdn.ckeditor.com https://cdn.jsdelivr.net; "
+            "connect-src 'self' https://cdn.ckeditor.com; "
             "frame-src 'self'; "
             "media-src 'self' https:; "
             "object-src 'none'"

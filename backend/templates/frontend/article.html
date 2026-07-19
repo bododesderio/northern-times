@@ -307,7 +307,7 @@
         <div class="np-newsletter-cta">
           <div class="np-newsletter-title">Stay Informed</div>
           <p class="np-newsletter-desc">Get the latest analysis and breaking stories delivered to your inbox.</p>
-          <form class="np-newsletter-form" data-newsletter-form>
+          <form class="np-newsletter-form" data-newsletter-form method="POST" action="{% url 'articles_frontend:newsletter_subscribe' %}">
             {% csrf_token %}
             <input type="email" name="email" class="np-newsletter-input" placeholder="your@email.com" required />
             <button type="submit" class="np-newsletter-btn">Subscribe</button>
@@ -356,51 +356,34 @@
 
     var csrfMeta = document.querySelector('meta[name="x-csrf-token"]');
     var csrfToken = csrfMeta ? csrfMeta.content : '';
-    fetch('/api/comment', {
+    fetch('/api/comment/', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': csrfToken
+      },
       body: 'article_id=' + encodeURIComponent(articleId)
-          + '&author_name=' + encodeURIComponent(name)
-          + '&author_email=' + encodeURIComponent(email)
+          + '&name=' + encodeURIComponent(name)
+          + '&email=' + encodeURIComponent(email)
           + '&content=' + encodeURIComponent(body)
           + '&subscribe_newsletter=' + (document.getElementById('commentSubscribe').checked ? '1' : '0')
-          + '&_csrf=' + encodeURIComponent(csrfToken)
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       submitBtn.disabled = false;
       submitBtn.style.opacity = '1';
 
-      if (data.ok) {
+      if (data.success) {
+        // Comments are held for moderation, so don't insert it into the list —
+        // tell the reader it will appear once approved.
         statusEl.style.color = '#4caf50';
-        statusEl.textContent = 'Comment posted!';
-
-        if (noMsg) noMsg.style.display = 'none';
-        var c = data.comment;
-        var initial = (c.author_name || 'A').charAt(0).toUpperCase();
-        function escComment(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-        var safeName = escComment(c.author_name || 'Anonymous');
-        var safeContent = escComment(c.content || '').replace(/\n/g, '<br>');
-        var safeTime = escComment(c.time_label || '');
-        var html = '<div class="comment-item np-comment-item">'
-          + '<div class="np-comment-avatar">' + initial + '</div>'
-          + '<div class="np-comment-body">'
-          + '<div class="np-comment-meta"><strong>' + safeName + '</strong><span class="np-comment-time">' + safeTime + '</span></div>'
-          + '<div class="np-comment-text">' + safeContent + '</div>'
-          + '</div></div>';
-        listEl.insertAdjacentHTML('beforeend', html);
-
+        statusEl.textContent = 'Thanks! Your comment was submitted and will appear after moderation.';
         document.getElementById('commentBody').value = '';
-        setTimeout(function() { statusEl.style.display = 'none'; }, 3000);
-
-        var heading = document.querySelector('.np-comments-heading');
-        var items = listEl.querySelectorAll('.comment-item');
-        if (heading && items.length) {
-          heading.textContent = items.length + ' Comment' + (items.length !== 1 ? 's' : '');
-        }
+        setTimeout(function() { statusEl.style.display = 'none'; }, 5000);
       } else {
+        var firstErr = data.errors ? (data.errors.name || data.errors.email || data.errors.content) : null;
         statusEl.style.color = '#c00';
-        statusEl.textContent = data.message || 'Failed to post comment.';
+        statusEl.textContent = firstErr || data.message || 'Failed to post comment.';
       }
     })
     .catch(function() {
